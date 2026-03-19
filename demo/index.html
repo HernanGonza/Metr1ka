@@ -9,9 +9,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script id="D" type="application/json">
-{"sections":[{"id":"inicio","label":"Inicio"},{"id":"sistema","label":"El sistema"},{"id":"flujo","label":"Flujo"},{"id":"panel","label":"Panel central"},{"id":"app","label":"App móvil"},{"id":"precios","label":"Precios"},{"id":"tecnologia","label":"Tecnología"}],"flowSteps":[{"title":"Admin crea la encuesta","detail":"El administrador diseña la encuesta desde el panel web: agrega preguntas de distintos tipos (opción múltiple, sí/no, escala, texto libre), define el orden y la activa cuando está lista.","chips":["Opción múltiple","Sí / No","Escala 1-10","Texto libre","Checkbox"]},{"title":"Asigna al equipo","detail":"El admin asigna la encuesta a uno o varios equipos. Una misma encuesta puede correr en múltiples equipos simultáneamente, por ejemplo en distintos barrios del municipio, sin necesidad de crearla de nuevo.","chips":["Equipo Norte","Equipo Centro","Equipo Sur"]},{"title":"Coordinador distribuye","detail":"El coordinador de cada equipo ve las encuestas disponibles y las asigna a los encuestadores de su equipo. Puede asignar distintas encuestas según la zona o el perfil.","chips":["Asignar encuestadores","Gestionar equipo","Ver disponibilidad"]},{"title":"Encuestadores en el campo","detail":"Los encuestadores reciben la encuesta en su app móvil. Al completar cada entrevista, las respuestas se envían en tiempo real al panel central junto con la ubicación GPS.","chips":["App móvil","GPS en tiempo real","Modo offline"]},{"title":"Resultados en tiempo real","detail":"El admin y el coordinador ven los resultados a medida que llegan. Gráficos automáticos, mapa de ubicaciones, conteo de encuestas completadas por encuestador y control de actividad.","chips":["Gráficos automáticos","Mapa en tiempo real","Exportar datos"]}],"roles":[{"key":"admin","badge":"badge-admin","label":"Admin","title":"El cliente","desc":"Ve únicamente su organización. Diseña encuestas, arma equipos y monitorea todo desde su panel central.","perms":["Crea y edita encuestas","Crea equipos y asigna coordinadores","Invita coordinadores y encuestadores","Panel completo en tiempo real"]},{"key":"coordinador","badge":"badge-coordinador","label":"Coordinador","title":"Jefe de campo","desc":"Gestiona su equipo en el campo. Ve el mapa en tiempo real, asigna encuestas y controla el avance.","perms":["Agrega/quita encuestadores de su equipo","Asigna encuestas a encuestadores","Ve ubicación en tiempo real de su equipo","Panel web + app móvil"]},{"key":"encuestador","badge":"badge-encuestador","label":"Encuestador","title":"Personal de campo","desc":"Usa la app móvil para completar encuestas puerta a puerta. No accede al panel web.","perms":["Recibe encuestas asignadas en la app","Completa entrevistas con vecinos","Envía respuestas en tiempo real","Ubicación GPS automática"]}],"plans":[{"name":"Arranque","desc":"Para equipos pequeños y primeras campañas","price":"89.000","features":["3 encuestas activas simultáneas","1 equipo de encuestadores","Hasta 15 encuestadores","Panel web en tiempo real","App móvil incluida","Gráficos básicos",{"text":"Exportación de datos","muted":true},{"text":"Soporte prioritario","muted":true}]},{"name":"Campaña","desc":"El más elegido para campañas municipales","price":"199.000","featured":true,"features":["10 encuestas activas simultáneas","Equipos ilimitados","Hasta 60 encuestadores","Panel web en tiempo real","App móvil incluida","Gráficos avanzados y mapas","Exportación en Excel / PDF","Soporte prioritario"]},{"name":"Territorio","desc":"Para campañas grandes y estructuras complejas","price":"399.000","features":["Encuestas activas ilimitadas","Equipos ilimitados","Encuestadores ilimitados","Panel web en tiempo real","App móvil incluida","Gráficos avanzados y mapas","Exportación en Excel / PDF","Soporte prioritario 24/7"]}],"surveyQs":[{"type":"multi","text":"¿Cómo calificarías la gestión en los últimos dos años?","opts":["Muy buena","Buena","Regular","Mala","Muy mala"]},{"type":"sino","text":"¿Creés que la seguridad en tu barrio mejoró en el último año?","opts":["Sí","No"]},{"type":"escala","text":"Del 1 al 10, ¿qué tan probable es que votes por el candidato actual?"},{"type":"multi","text":"¿Cuál es el tema que más te preocupa en tu municipio?","opts":["Seguridad","Salud","Educación","Empleo","Obras públicas"]},{"type":"texto","text":"¿Tenés algún comentario o sugerencia para el municipio?"}],"mobileFeatures":[{"icon":"clipboard","title":"Encuestas asignadas","desc":"El encuestador ve solo las encuestas que el coordinador le asignó. Nada más, nada menos."},{"icon":"bolt","title":"Envío en tiempo real","desc":"Las respuestas llegan al panel central al instante, a medida que se completan."},{"icon":"pin","title":"GPS automático","desc":"Cada respuesta se envía con la ubicación exacta del encuestador. Sin configuración manual."},{"icon":"offline","title":"Funciona sin internet","desc":"Si pierde señal, guarda las respuestas y las sube automáticamente cuando vuelve la conexión."},{"icon":"lock","title":"Perfil obligatorio","desc":"El encuestador no puede operar hasta completar su perfil. Garantiza datos actualizados."},{"icon":"phone","title":"Android e iOS","desc":"Funciona en cualquier celular. Sin requerimientos especiales de hardware."}],"techCards":[{"title":"Datos aislados por cliente","text":"Cada organización ve únicamente sus propios datos. La separación está garantizada a nivel de base de datos, no solo a nivel de aplicación.","tag":"Seguridad"},{"title":"Sin servidor que mantener","text":"La infraestructura corre sobre servicios administrados en la nube. No hay servidor propio que configurar ni actualizar.","tag":"Infraestructura"},{"title":"Tiempo real nativo","text":"Las respuestas llegan al panel en tiempo real gracias a suscripciones de base de datos en vivo. Sin polling, sin recargar.","tag":"Tecnología"},{"title":"App en Android e iOS","text":"La app funciona en ambas plataformas. Un solo código base, sin desarrollo doble.","tag":"Mobile"},{"title":"Personalizable por cliente","text":"Logo, colores y nombre pueden adaptarse para cada cliente sin cambiar el sistema. El core es siempre el mismo.","tag":"Whitelabel"},{"title":"Funciona offline","text":"Los encuestadores pueden trabajar sin conexión. Las respuestas se sincronizan automáticamente cuando vuelve el internet.","tag":"Resiliencia"}],"dashSidebar":[{"g":"Principal","items":[{"k":"dashboard","i":"dashboard","l":"Dashboard"},{"k":"mapa","i":"mapa","l":"Mapa en vivo"}]},{"g":"Gestión","items":[{"k":"encuestas","i":"encuestas","l":"Encuestas"},{"k":"equipos","i":"equipos","l":"Equipos"},{"k":"coordinadores","i":"coord","l":"Coordinadores"},{"k":"encuestadores","i":"enc","l":"Encuestadores"}]},{"g":"Herramientas","items":[{"k":"reportes","i":"reportes","l":"Reportes"},{"k":"configuracion","i":"config","l":"Configuración"}]}],"kpis":[{"l":"Encuestas hoy","v":"412","s":"+38 última hora"},{"l":"Encuestadores activos","v":"23","s":"de 28 total"},{"l":"Encuesta más usada","v":"Gestión","s":"Municipal"},{"l":"Barrio líder","v":"Centro","s":"118 respuestas"}],"encuestadores":[{"initials":"MR","name":"María R.","status":"active","zone":"Norte","count":14,"bg":"#d8f3dc","tc":"#1a472a"},{"initials":"JL","name":"Juan L.","status":"active","zone":"Centro","count":9,"bg":"#e0f2fe","tc":"#0369a1"},{"initials":"AS","name":"Ana S.","status":"idle","zone":"Sur","count":7,"bg":"#fef3c7","tc":"#b45309"},{"initials":"CP","name":"Carlos P.","status":"active","zone":"Este","count":11,"bg":"#f3e8ff","tc":"#7c3aed"}],"encuestasCards":[{"name":"Satisfacción municipal","p":8,"r":412,"estado":"activa","eq":3},{"name":"Seguridad barrial","p":6,"r":187,"estado":"activa","eq":2},{"name":"Obras públicas 2025","p":10,"r":0,"estado":"borrador","eq":0},{"name":"Transporte urbano","p":7,"r":98,"estado":"activa","eq":1}],"equiposCards":[{"name":"Equipo Norte","coord":"Roberto V.","coordI":"RV","coordBg":"#e0f2fe","coordTc":"#0369a1","enc":8,"encuestas":2},{"name":"Equipo Centro","coord":"Sandra M.","coordI":"SM","coordBg":"#d8f3dc","coordTc":"#1a472a","enc":12,"encuestas":3},{"name":"Equipo Sur","coord":"Diego P.","coordI":"DP","coordBg":"#fef3c7","coordTc":"#b45309","enc":6,"encuestas":1},{"name":"Equipo Este","coord":"Claudia R.","coordI":"CR","coordBg":"#f3e8ff","coordTc":"#7c3aed","enc":7,"encuestas":2}],"encuestadoresCards":[{"i":"MR","name":"María Rodríguez","eq":"Norte","estado":"Activa","enc":14,"bg":"#d8f3dc","tc":"#1a472a"},{"i":"JL","name":"Juan López","eq":"Centro","estado":"Activo","enc":9,"bg":"#e0f2fe","tc":"#0369a1"},{"i":"AS","name":"Ana Suárez","eq":"Sur","estado":"Inactiva","enc":7,"bg":"#fef3c7","tc":"#b45309"},{"i":"CP","name":"Carlos Pérez","eq":"Este","estado":"Activo","enc":11,"bg":"#f3e8ff","tc":"#7c3aed"},{"i":"LM","name":"Laura Méndez","eq":"Centro","estado":"Activa","enc":6,"bg":"#fce7f3","tc":"#be185d"},{"i":"RM","name":"Roberto Medina","eq":"Norte","estado":"Activo","enc":13,"bg":"#ecfdf5","tc":"#047857"}],"reportesCards":[{"icon":"chart","title":"Resumen ejecutivo","meta":"Satisfacción municipal · Hoy · 412 respuestas"},{"icon":"pin","title":"Mapa de calor por barrio","meta":"Todas las encuestas · Esta semana"},{"icon":"people","title":"Desempeño de encuestadores","meta":"Todos los equipos · Este mes"},{"icon":"list","title":"Respuestas completas","meta":"Seguridad barrial · 187 registros"},{"icon":"trend","title":"Evolución temporal","meta":"Últimos 30 días"}],"configCards":[{"l":"Notificaciones por email","s":"Recibir alertas de actividad","on":true},{"l":"Alertas en tiempo real","s":"Aviso al completar cada entrevista","on":true},{"l":"Modo offline en app","s":"Permitir encuestas sin conexión","on":false},{"l":"Perfil obligatorio","s":"Bloquear acceso hasta completar perfil","on":true},{"l":"Reporte diario automático","s":"Generar PDF cada mañana","on":false}],"coordinadoresCards":[{"i":"RV","name":"Roberto V.","eq":"Equipo Norte","encuestadores":8,"estado":"Activo","bg":"#e0f2fe","tc":"#0369a1"},{"i":"SM","name":"Sandra M.","eq":"Equipo Centro","encuestadores":12,"estado":"Activa","bg":"#d8f3dc","tc":"#1a472a"},{"i":"DP","name":"Diego P.","eq":"Equipo Sur","encuestadores":6,"estado":"Activo","bg":"#fef3c7","tc":"#b45309"},{"i":"CR","name":"Claudia R.","eq":"Equipo Este","encuestadores":7,"estado":"Activa","bg":"#f3e8ff","tc":"#7c3aed"},{"i":"LG","name":"Lucas G.","eq":"Sin equipo","encuestadores":0,"estado":"Pendiente","bg":"#f1f5f9","tc":"#64748b"}]}
+{"sections":[{"id":"inicio","label":"Inicio"},{"id":"sistema","label":"El sistema"},{"id":"flujo","label":"Flujo"},{"id":"panel","label":"Panel central"},{"id":"app","label":"App móvil"},{"id":"precios","label":"Precios"},{"id":"tecnologia","label":"Tecnología"}],"flowSteps":[{"title":"Nosotros armamos la encuesta","detail":"Nuestro equipo diseña la encuesta a medida: las preguntas correctas, en el orden correcto, pensadas para el contexto electoral. La encuesta queda lista en el sistema y disponible para asignar.","chips":["Preguntas validadas","Entrega en 48h","Revisiones incluidas","Lista para usar"]},{"title":"Asigna al equipo","detail":"El admin asigna la encuesta a uno o varios equipos. Una misma encuesta puede correr en múltiples equipos simultáneamente, por ejemplo en distintos barrios del municipio, sin necesidad de crearla de nuevo.","chips":["Equipo Norte","Equipo Centro","Equipo Sur"]},{"title":"Coordinador distribuye","detail":"El coordinador de cada equipo ve las encuestas disponibles y las asigna a los encuestadores de su equipo. Puede asignar distintas encuestas según la zona o el perfil.","chips":["Asignar encuestadores","Gestionar equipo","Ver disponibilidad"]},{"title":"Encuestadores en el campo","detail":"Los encuestadores reciben la encuesta en su app móvil. Al completar cada entrevista, las respuestas se envían en tiempo real al panel central junto con la ubicación GPS.","chips":["App móvil","GPS en tiempo real","Modo offline"]},{"title":"Resultados en tiempo real","detail":"El admin y el coordinador ven los resultados a medida que llegan. Gráficos automáticos, mapa de ubicaciones, conteo de encuestas completadas por encuestador y control de actividad.","chips":["Gráficos automáticos","Mapa en tiempo real","Exportar datos"]}],"roles":[{"key":"admin","badge":"badge-admin","label":"Admin","title":"El cliente","desc":"Ve únicamente su organización. Gestiona equipos, monitorea resultados y opera desde su panel central.","perms":["Accede a sus encuestas activas","Crea equipos y asigna coordinadores","Invita coordinadores y encuestadores","Panel completo en tiempo real"]},{"key":"coordinador","badge":"badge-coordinador","label":"Coordinador","title":"Jefe de campo","desc":"Gestiona su equipo en el campo. Ve el mapa en tiempo real, asigna encuestas y controla el avance.","perms":["Agrega/quita encuestadores de su equipo","Asigna encuestas a encuestadores","Ve ubicación en tiempo real de su equipo","Panel web + app móvil"]},{"key":"encuestador","badge":"badge-encuestador","label":"Encuestador","title":"Personal de campo","desc":"Usa la app móvil para completar encuestas puerta a puerta. No accede al panel web.","perms":["Recibe encuestas asignadas en la app","Completa entrevistas con vecinos","Envía respuestas en tiempo real","Ubicación GPS automática"]}],"plans":[{"name":"Arranque","desc":"3 encuestas incluidas. Encuestas adicionales con costo extra.","features":["Acceso al panel mientras la suscripción esté activa","3 encuestas incluidas y armadas por nosotros","1 equipo de encuestadores","Hasta 15 encuestadores","Panel web en tiempo real","App móvil incluida","Gráficos básicos",{"text":"Exportación de datos","muted":true},{"text":"Soporte prioritario","muted":true}]},{"name":"Campaña","desc":"10 encuestas incluidas. Encuestas adicionales con costo extra.","featured":true,"features":["Acceso al panel mientras la suscripción esté activa","10 encuestas incluidas y armadas por nosotros","Equipos ilimitados","Hasta 60 encuestadores","Panel web en tiempo real","App móvil incluida","Gráficos avanzados y mapas","Exportación en Excel / PDF","Soporte prioritario"]},{"name":"Territorio","desc":"Encuestas ilimitadas incluidas en el plan.","features":["Acceso al panel mientras la suscripción esté activa","Encuestas ilimitadas incluidas","Equipos ilimitados","Encuestadores ilimitados","Panel web en tiempo real","App móvil incluida","Gráficos avanzados y mapas","Exportación en Excel / PDF","Soporte prioritario 24/7"]}],"surveyQs":[{"type":"multi","text":"¿Cómo calificarías la gestión en los últimos dos años?","opts":["Muy buena","Buena","Regular","Mala","Muy mala"]},{"type":"sino","text":"¿Creés que la seguridad en tu barrio mejoró en el último año?","opts":["Sí","No"]},{"type":"escala","text":"Del 1 al 10, ¿qué tan probable es que votes por el candidato actual?"},{"type":"multi","text":"¿Cuál es el tema que más te preocupa en tu municipio?","opts":["Seguridad","Salud","Educación","Empleo","Obras públicas"]},{"type":"texto","text":"¿Tenés algún comentario o sugerencia para el municipio?"}],"mobileFeatures":[{"icon":"clipboard","title":"Encuestas asignadas","desc":"El encuestador ve solo las encuestas que el coordinador le asignó. Nada más, nada menos."},{"icon":"bolt","title":"Envío en tiempo real","desc":"Las respuestas llegan al panel central al instante, a medida que se completan."},{"icon":"pin","title":"GPS automático","desc":"Cada respuesta se envía con la ubicación exacta del encuestador. Sin configuración manual."},{"icon":"offline","title":"Funciona sin internet","desc":"Si pierde señal, guarda las respuestas y las sube automáticamente cuando vuelve la conexión."},{"icon":"lock","title":"Perfil obligatorio","desc":"El encuestador no puede operar hasta completar su perfil. Garantiza datos actualizados."},{"icon":"phone","title":"Android e iOS","desc":"Funciona en cualquier celular. Sin requerimientos especiales de hardware."}],"techCards":[{"title":"Datos aislados por cliente","text":"Cada organización ve únicamente sus propios datos. La separación está garantizada a nivel de base de datos, no solo a nivel de aplicación.","tag":"Seguridad"},{"title":"Sin servidor que mantener","text":"La infraestructura corre sobre servicios administrados en la nube. No hay servidor propio que configurar ni actualizar.","tag":"Infraestructura"},{"title":"Tiempo real nativo","text":"Las respuestas llegan al panel en tiempo real gracias a suscripciones de base de datos en vivo. Sin polling, sin recargar.","tag":"Tecnología"},{"title":"App en Android e iOS","text":"La app funciona en ambas plataformas. Un solo código base, sin desarrollo doble.","tag":"Mobile"},{"title":"Personalizable por cliente","text":"Logo, colores y nombre pueden adaptarse para cada cliente sin cambiar el sistema. El core es siempre el mismo.","tag":"Whitelabel"},{"title":"Funciona offline","text":"Los encuestadores pueden trabajar sin conexión. Las respuestas se sincronizan automáticamente cuando vuelve el internet.","tag":"Resiliencia"}],"dashSidebar":[{"g":"Principal","items":[{"k":"dashboard","i":"dashboard","l":"Dashboard"},{"k":"mapa","i":"mapa","l":"Mapa en vivo"}]},{"g":"Gestión","items":[{"k":"encuestas","i":"encuestas","l":"Encuestas"},{"k":"equipos","i":"equipos","l":"Equipos"},{"k":"coordinadores","i":"coord","l":"Coordinadores"},{"k":"encuestadores","i":"enc","l":"Encuestadores"}]},{"g":"Herramientas","items":[{"k":"reportes","i":"reportes","l":"Reportes"},{"k":"configuracion","i":"config","l":"Configuración"}]}],"kpis":[{"l":"Encuestas hoy","v":"412","s":"+38 última hora"},{"l":"Encuestadores activos","v":"23","s":"de 28 total"},{"l":"Encuesta más usada","v":"Gestión","s":"Municipal"},{"l":"Barrio líder","v":"Centro","s":"118 respuestas"}],"encuestadores":[{"initials":"MR","name":"María R.","status":"active","zone":"Norte","count":14,"bg":"#d8f3dc","tc":"#1a472a"},{"initials":"JL","name":"Juan L.","status":"active","zone":"Centro","count":9,"bg":"#e0f2fe","tc":"#0369a1"},{"initials":"AS","name":"Ana S.","status":"idle","zone":"Sur","count":7,"bg":"#fef3c7","tc":"#b45309"},{"initials":"CP","name":"Carlos P.","status":"active","zone":"Este","count":11,"bg":"#f3e8ff","tc":"#7c3aed"}],"encuestasCards":[{"name":"Satisfacción municipal","p":8,"r":412,"estado":"activa","eq":3},{"name":"Seguridad barrial","p":6,"r":187,"estado":"activa","eq":2},{"name":"Obras públicas 2025","p":10,"r":0,"estado":"borrador","eq":0},{"name":"Transporte urbano","p":7,"r":98,"estado":"activa","eq":1}],"equiposCards":[{"name":"Equipo Norte","coord":"Roberto V.","coordI":"RV","coordBg":"#e0f2fe","coordTc":"#0369a1","enc":8,"encuestas":2},{"name":"Equipo Centro","coord":"Sandra M.","coordI":"SM","coordBg":"#d8f3dc","coordTc":"#1a472a","enc":12,"encuestas":3},{"name":"Equipo Sur","coord":"Diego P.","coordI":"DP","coordBg":"#fef3c7","coordTc":"#b45309","enc":6,"encuestas":1},{"name":"Equipo Este","coord":"Claudia R.","coordI":"CR","coordBg":"#f3e8ff","coordTc":"#7c3aed","enc":7,"encuestas":2}],"encuestadoresCards":[{"i":"MR","name":"María Rodríguez","eq":"Norte","estado":"Activa","enc":14,"bg":"#d8f3dc","tc":"#1a472a"},{"i":"JL","name":"Juan López","eq":"Centro","estado":"Activo","enc":9,"bg":"#e0f2fe","tc":"#0369a1"},{"i":"AS","name":"Ana Suárez","eq":"Sur","estado":"Inactiva","enc":7,"bg":"#fef3c7","tc":"#b45309"},{"i":"CP","name":"Carlos Pérez","eq":"Este","estado":"Activo","enc":11,"bg":"#f3e8ff","tc":"#7c3aed"},{"i":"LM","name":"Laura Méndez","eq":"Centro","estado":"Activa","enc":6,"bg":"#fce7f3","tc":"#be185d"},{"i":"RM","name":"Roberto Medina","eq":"Norte","estado":"Activo","enc":13,"bg":"#ecfdf5","tc":"#047857"}],"reportesCards":[{"icon":"chart","title":"Resumen ejecutivo","meta":"Satisfacción municipal · Hoy · 412 respuestas"},{"icon":"pin","title":"Mapa de calor por barrio","meta":"Todas las encuestas · Esta semana"},{"icon":"people","title":"Desempeño de encuestadores","meta":"Todos los equipos · Este mes"},{"icon":"list","title":"Respuestas completas","meta":"Seguridad barrial · 187 registros"},{"icon":"trend","title":"Evolución temporal","meta":"Últimos 30 días"}],"configCards":[{"l":"Notificaciones por email","s":"Recibir alertas de actividad","on":true},{"l":"Alertas en tiempo real","s":"Aviso al completar cada entrevista","on":true},{"l":"Modo offline en app","s":"Permitir encuestas sin conexión","on":false},{"l":"Perfil obligatorio","s":"Bloquear acceso hasta completar perfil","on":true},{"l":"Reporte diario automático","s":"Generar PDF cada mañana","on":false}],"coordinadoresCards":[{"i":"RV","name":"Roberto V.","eq":"Equipo Norte","encuestadores":8,"estado":"Activo","bg":"#e0f2fe","tc":"#0369a1"},{"i":"SM","name":"Sandra M.","eq":"Equipo Centro","encuestadores":12,"estado":"Activa","bg":"#d8f3dc","tc":"#1a472a"},{"i":"DP","name":"Diego P.","eq":"Equipo Sur","encuestadores":6,"estado":"Activo","bg":"#fef3c7","tc":"#b45309"},{"i":"CR","name":"Claudia R.","eq":"Equipo Este","encuestadores":7,"estado":"Activa","bg":"#f3e8ff","tc":"#7c3aed"},{"i":"LG","name":"Lucas G.","eq":"Sin equipo","encuestadores":0,"estado":"Pendiente","bg":"#f1f5f9","tc":"#64748b"}]}
 </script>
 <style>
+
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --ink:#0f0f0f;--ink2:#3a3a3a;--ink3:#888;
@@ -274,18 +275,20 @@ footer p{font-size:13px;color:rgba(255,255,255,.4);margin-top:4px}
   .flow-steps{flex-direction:column}
   .ent-card{flex-direction:column}
 }
+
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script>
+
 const {useState, useEffect, useRef} = React;
 const D = JSON.parse(document.getElementById('D').textContent);
 const ICONS = {
-  dashboard:'📊', mapa:'🗺️', encuestas:'📋', equipos:'👥', enc:'👤',
-  coord:'👔', reportes:'📁', config:'⚙️', chart:'📊', pin:'📍', people:'👥',
-  list:'📋', trend:'📈', clipboard:'📋', bolt:'⚡', offline:'📵',
-  lock:'🔒', phone:'📱'
+  dashboard:'\uD83D\uDCCA', mapa:'\uD83D\uDDFA\uFE0F', encuestas:'\uD83D\uDCCB', equipos:'\uD83D\uDC65', enc:'\uD83D\uDC64',
+  coord:'\uD83D\uDC54', reportes:'\uD83D\uDCC1', config:'\u2699\uFE0F', chart:'\uD83D\uDCCA', pin:'\uD83D\uDCCD', people:'\uD83D\uDC65',
+  list:'\uD83D\uDCCB', trend:'\uD83D\uDCC8', clipboard:'\uD83D\uDCCB', bolt:'\u26A1', offline:'\uD83D\uDCF5',
+  lock:'\uD83D\uDD12', phone:'\uD83D\uDCF1'
 };
 
 function ce(type, props) {
@@ -294,7 +297,6 @@ function ce(type, props) {
   return React.createElement.apply(React, args);
 }
 
-/* ── CHARTS ── */
 function BarChart({labels, data, color}) {
   const ref = useRef(null);
   useEffect(() => {
@@ -328,11 +330,10 @@ function DonutChart() {
   return ce('canvas', {ref});
 }
 
-/* ── MAP ── */
 function MapSVG({full}) {
   const h = full ? 360 : 190;
   const pins = [
-    {x: 110, y: 105, name: 'Mar\u00eda R.', color: '#1a472a', count: '14'},
+    {x: 110, y: 105, name: 'Mar\u00EDa R.', color: '#1a472a', count: '14'},
     {x: 230, y: 190, name: 'Juan L.', color: '#0369a1', count: '9'},
     {x: 320, y: 115, name: 'Ana S.', color: '#b45309', count: '7'},
     {x: 400, y: 245, name: 'Carlos P.', color: '#7c3aed', count: '11'},
@@ -353,15 +354,16 @@ function MapSVG({full}) {
         ce('circle', {cx: p.x, cy: p.y, r: 7, fill: p.color, stroke: '#fff', strokeWidth: 2}),
         ce('rect', {x: p.x-28, y: p.y+10, width: 56, height: 28, fill: '#fff', rx: 5, opacity: .95}),
         ce('text', {x: p.x, y: p.y+22, textAnchor: 'middle', fontSize: 9, fill: '#222', fontWeight: 700}, p.name),
-        ce('text', {x: p.x, y: p.y+33, textAnchor: 'middle', fontSize: 8, fill: p.color, fontWeight: 600}, p.count + ' enc.')
+        ce('text', {x: p.x, y: p.y+33, textAnchor: 'middle', fontSize: 8, fill: p.color, fontWeight: 600}, p.count + " enc.")
       ))
     )
   );
 }
 
-/* ── DASHBOARD PANEL ── */
 function DashPanel() {
   const [tab, setTab] = useState('dashboard');
+  const sidebar = D.dashSidebar;
+  const encuestadores = D.encuestadores;
 
   function renderMain() {
     if (tab === 'dashboard') return ce('div', {className: 'fade-in'},
@@ -371,41 +373,23 @@ function DashPanel() {
         ce('div', {className: 'kpi-s'}, k.s)
       ))),
       ce('div', {className: 'grid2'},
-        ce('div', {className: 'dash-card'},
-          ce('div', {className: 'dash-card-t'}, 'Respuestas por hora'),
-          ce('div', {className: 'chart-wrap'},
-            ce(BarChart, {labels: ['8h','9h','10h','11h','12h','13h','14h','15h'], data: [12,34,55,62,48,71,58,63], color: '#1a472a'})
-          )
-        ),
-        ce('div', {className: 'dash-card'},
-          ce('div', {className: 'dash-card-t'}, '\u00bfC\u00f3mo calific\u00e1s la gesti\u00f3n?'),
-          ce('div', {className: 'chart-wrap'}, ce(DonutChart))
-        )
+        ce('div', {className: 'dash-card'}, ce('div', {className: 'dash-card-t'}, 'Respuestas por hora'), ce('div', {className: 'chart-wrap'}, ce(BarChart, {labels: ['8h','9h','10h','11h','12h','13h','14h','15h'], data: [12,34,55,62,48,71,58,63], color: '#1a472a'}))),
+        ce('div', {className: 'dash-card'}, ce('div', {className: 'dash-card-t'}, '\u00BFC\u00F3mo calific\u00E1s la gesti\u00F3n?'), ce('div', {className: 'chart-wrap'}, ce(DonutChart)))
       ),
       ce('div', {className: 'grid2'},
-        ce('div', {className: 'dash-card'},
-          ce('div', {className: 'dash-card-t'}, 'Mapa de encuestadores'),
-          ce(MapSVG, {full: false})
-        ),
-        ce('div', {className: 'dash-card'},
-          ce('div', {className: 'dash-card-t'}, 'Encuestadores activos'),
-          ce('div', {className: 'enc-list'}, D.encuestadores.map((e, i) => ce('div', {key: i, className: 'enc-row'},
+        ce('div', {className: 'dash-card'}, ce('div', {className: 'dash-card-t'}, 'Mapa de encuestadores'), ce(MapSVG, {full: false})),
+        ce('div', {className: 'dash-card'}, ce('div', {className: 'dash-card-t'}, 'Encuestadores activos'),
+          ce('div', {className: 'enc-list'}, encuestadores.map((e, i) => ce('div', {key: i, className: 'enc-row'},
             ce('div', {className: 'enc-av', style: {background: e.bg, color: e.tc}}, e.initials),
-            ce('div', {style: {flex: 1}},
-              ce('div', {className: 'enc-name'}, e.name),
-              ce('div', {className: 'enc-zone'}, ce('span', {className: 'sdot ' + (e.status === 'active' ? 's-on' : 's-off')}), e.zone)
-            ),
-            ce('div', {className: 'enc-cnt'}, e.count + ' enc.')
+            ce('div', {style: {flex: 1}}, ce('div', {className: 'enc-name'}, e.name), ce('div', {className: 'enc-zone'}, ce('span', {className: 'sdot ' + (e.status === 'active' ? 's-on' : 's-off')}), e.zone)),
+            ce('div', {className: 'enc-cnt'}, e.count + " enc.")
           )))
         )
       )
     );
 
     if (tab === 'mapa') return ce('div', {className: 'fade-in'},
-      ce('div', {className: 'dash-card'},
-        ce('div', {className: 'dash-card-t'}, 'Mapa en tiempo real \u2014 Posadas, Misiones'),
-        ce(MapSVG, {full: true})
-      )
+      ce('div', {className: 'dash-card'}, ce('div', {className: 'dash-card-t'}, 'Mapa en tiempo real \u2014 Posadas, Misiones'), ce(MapSVG, {full: true}))
     );
 
     if (tab === 'encuestas') return ce('div', {className: 'fade-in'},
@@ -415,11 +399,8 @@ function DashPanel() {
       ),
       ce('div', {className: 'cards-grid'}, D.encuestasCards.map((e, i) => ce('div', {key: i, className: 'item-card'},
         ce('div', {className: 'item-card-t'}, e.name),
-        ce('div', {className: 'item-card-s'}, e.p + ' preguntas \u00b7 ' + e.r + ' respuestas'),
-        ce('div', {className: 'item-card-m'},
-          ce('span', {className: 'tag ' + (e.estado === 'activa' ? 'tg' : 'tgr')}, e.estado),
-          ce('span', {className: 'tag tb'}, e.eq + ' equipos')
-        )
+        ce('div', {className: 'item-card-s'}, e.p + ' preguntas \u00B7 ' + e.r + ' respuestas'),
+        ce('div', {className: 'item-card-m'}, ce('span', {className: 'tag ' + (e.estado === 'activa' ? 'tg' : 'tgr')}, e.estado), ce('span', {className: 'tag tb'}, e.eq + ' equipos'))
       )))
     );
 
@@ -438,10 +419,7 @@ function DashPanel() {
           ),
           ce('button', {style: {fontSize: 11, color: 'var(--accent2)', background: 'var(--accent-light)', border: 'none', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontWeight: 600}}, 'Cambiar')
         ),
-        ce('div', {className: 'item-card-m'},
-          ce('span', {className: 'tag tb'}, e.enc + ' encuestadores'),
-          ce('span', {className: 'tag tg'}, e.encuestas + ' encuestas')
-        )
+        ce('div', {className: 'item-card-m'}, ce('span', {className: 'tag tb'}, e.enc + ' encuestadores'), ce('span', {className: 'tag tg'}, e.encuestas + ' encuestas'))
       )))
     );
 
@@ -455,20 +433,18 @@ function DashPanel() {
       ),
       ce('div', {className: 'cards-grid'},
         [
-          {i: 'RV', name: 'Roberto V.', email: 'roberto@ejemplo.com', equipos: ['Norte'], estado: 'Activo', bg: '#e0f2fe', tc: '#0369a1'},
-          {i: 'SM', name: 'Sandra M.', email: 'sandra@ejemplo.com', equipos: ['Centro'], estado: 'Activo', bg: '#d8f3dc', tc: '#1a472a'},
-          {i: 'DP', name: 'Diego P.', email: 'diego@ejemplo.com', equipos: ['Sur'], estado: 'Activo', bg: '#fef3c7', tc: '#b45309'},
-          {i: 'CR', name: 'Claudia R.', email: 'claudia@ejemplo.com', equipos: ['Este'], estado: 'Activo', bg: '#f3e8ff', tc: '#7c3aed'},
-          {i: 'MF', name: 'Mar\u00eda F.', email: 'maria.f@ejemplo.com', equipos: [], estado: 'Sin equipo', bg: '#fce7f3', tc: '#be185d'},
+          {i:'RV', name:'Roberto V.', email:'roberto@ejemplo.com', equipos:['Norte'], estado:'Activo', bg:'#e0f2fe', tc:'#0369a1'},
+          {i:'SM', name:'Sandra M.', email:'sandra@ejemplo.com', equipos:['Centro'], estado:'Activo', bg:'#d8f3dc', tc:'#1a472a'},
+          {i:'DP', name:'Diego P.', email:'diego@ejemplo.com', equipos:['Sur'], estado:'Activo', bg:'#fef3c7', tc:'#b45309'},
+          {i:'CR', name:'Claudia R.', email:'claudia@ejemplo.com', equipos:['Este'], estado:'Activo', bg:'#f3e8ff', tc:'#7c3aed'},
+          {i:'MF', name:'Mar\u00EDa F.', email:'maria.f@ejemplo.com', equipos:[], estado:'Sin equipo', bg:'#fce7f3', tc:'#be185d'},
         ].map((c, i) => ce('div', {key: i, className: 'item-card', style: {display: 'flex', gap: 10, alignItems: 'flex-start'}},
           ce('div', {className: 'enc-av', style: {background: c.bg, color: c.tc, width: 36, height: 36, fontSize: 13, flexShrink: 0}}, c.i),
           ce('div', {style: {flex: 1, minWidth: 0}},
             ce('div', {className: 'item-card-t'}, c.name),
             ce('div', {className: 'item-card-s'}, c.email),
             ce('div', {className: 'item-card-m'},
-              c.equipos.length > 0
-                ? c.equipos.map((eq, j) => ce('span', {key: j, className: 'tag tb'}, 'Equipo ' + eq))
-                : ce('span', {className: 'tag tgr'}, 'Sin equipo asignado'),
+              c.equipos.length > 0 ? c.equipos.map((eq, j) => ce('span', {key: j, className: 'tag tb'}, 'Equipo ' + eq)) : ce('span', {className: 'tag tgr'}, 'Sin equipo asignado'),
               ce('span', {className: 'tag ' + (c.estado === 'Activo' ? 'tg' : 'tgr')}, c.estado)
             )
           )
@@ -485,10 +461,8 @@ function DashPanel() {
         ce('div', {className: 'enc-av', style: {background: e.bg, color: e.tc, width: 34, height: 34, fontSize: 12, flexShrink: 0}}, e.i),
         ce('div', null,
           ce('div', {className: 'item-card-t'}, e.name),
-          ce('div', {className: 'item-card-s'}, 'Equipo ' + e.eq + ' \u00b7 ' + e.enc + ' enc.'),
-          ce('div', {className: 'item-card-m'},
-            ce('span', {className: 'tag ' + (e.estado.toLowerCase().includes('activ') ? 'tg' : 'tgr')}, e.estado)
-          )
+          ce('div', {className: 'item-card-s'}, 'Equipo ' + e.eq + ' \u00B7 ' + e.enc + " enc."),
+          ce('div', {className: 'item-card-m'}, ce('span', {className: 'tag ' + (e.estado.toLowerCase().includes('activ') ? 'tg' : 'tgr')}, e.estado))
         )
       )))
     );
@@ -497,21 +471,15 @@ function DashPanel() {
       ce('span', {style: {fontFamily: 'Syne', fontWeight: 700, fontSize: 15, display: 'block', marginBottom: 14}}, 'Reportes disponibles'),
       D.reportesCards.map((r, i) => ce('div', {key: i, className: 'rep-row'},
         ce('span', {className: 'rep-icon'}, ICONS[r.icon] || r.icon),
-        ce('div', {style: {flex: 1}},
-          ce('div', {className: 'rep-t'}, r.title),
-          ce('div', {className: 'rep-s'}, r.meta)
-        ),
+        ce('div', {style: {flex: 1}}, ce('div', {className: 'rep-t'}, r.title), ce('div', {className: 'rep-s'}, r.meta)),
         ce('button', {className: 'rep-btn'}, 'Descargar')
       ))
     );
 
     if (tab === 'configuracion') return ce('div', {className: 'fade-in'},
-      ce('span', {style: {fontFamily: 'Syne', fontWeight: 700, fontSize: 15, display: 'block', marginBottom: 14}}, 'Configuraci\u00f3n'),
+      ce('span', {style: {fontFamily: 'Syne', fontWeight: 700, fontSize: 15, display: 'block', marginBottom: 14}}, 'Configuraci\u00F3n'),
       D.configCards.map((c, i) => ce('div', {key: i, className: 'cfg-row'},
-        ce('div', null,
-          ce('div', {className: 'cfg-l'}, c.l),
-          ce('div', {className: 'cfg-s'}, c.s)
-        ),
+        ce('div', null, ce('div', {className: 'cfg-l'}, c.l), ce('div', {className: 'cfg-s'}, c.s)),
         ce('div', {className: 'toggle' + (c.on ? '' : ' off')})
       ))
     );
@@ -522,11 +490,11 @@ function DashPanel() {
     ce('div', {className: 'dash-topbar'},
       ce('div', {className: 'dot d-r'}), ce('div', {className: 'dot d-y'}), ce('div', {className: 'dot d-g'}),
       ce('div', {className: 'dash-title'}, 'Panel Central \u2014 Municipio de Posadas'),
-      ce('div', {style: {marginLeft: 'auto', fontSize: '12px', opacity: .5}}, '\u25cf En vivo')
+      ce('div', {style: {marginLeft: 'auto', fontSize: '12px', opacity: .5}}, '\u25CF En vivo')
     ),
     ce('div', {className: 'dash-body'},
       ce('div', {className: 'dash-sidebar'},
-        D.dashSidebar.map(({g, items}) => ce('div', {key: g, className: 'sb-section'},
+        sidebar.map(({g, items}) => ce('div', {key: g, className: 'sb-section'},
           ce('div', {className: 'sb-label'}, g),
           items.map(s => ce('div', {key: s.k, className: 'sb-item' + (tab === s.k ? ' active' : ''), onClick: () => setTab(s.k)},
             ce('span', {className: 'sb-icon'}, ICONS[s.i] || s.i), s.l
@@ -538,7 +506,6 @@ function DashPanel() {
   );
 }
 
-/* ── PHONE SURVEY SCREEN (inside phone) ── */
 function PhoneSurveyScreen({surveyName, onBack}) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -555,43 +522,20 @@ function PhoneSurveyScreen({surveyName, onBack}) {
   function renderQ() {
     if (done) return ce('div', {className: 'phone-sv-done'},
       ce('div', {className: 'phone-sv-done-icon'}, '\u2705'),
-      ce('h4', null, '\u00a1Completada!'),
+      ce('h4', null, '\u00A1Completada!'),
       ce('p', null, 'Respuestas enviadas al panel central.'),
       ce('button', {className: 'phone-action-btn', style: {background: '#1a472a', marginTop: 16}, onClick: onBack}, '\u2190 Volver a encuestas')
     );
-
     if (q.type === 'multi' || q.type === 'sino') return ce('div', {className: 'phone-sv-opts'},
-      q.opts.map((opt, i) => ce('button', {
-        key: i,
-        className: 'phone-sv-opt' + (answers[step] === i ? ' sel' : ''),
-        onClick: () => setAnswers(a => ({...a, [step]: i}))
-      },
-        ce('span', {className: 'phone-sv-opt-k'}, String.fromCharCode(65 + i)),
-        opt
+      q.opts.map((opt, i) => ce('button', {key: i, className: 'phone-sv-opt' + (answers[step] === i ? ' sel' : ''), onClick: () => setAnswers(a => ({...a, [step]: i}))},
+        ce('span', {className: 'phone-sv-opt-k'}, String.fromCharCode(65 + i)), opt
       ))
     );
-
     if (q.type === 'escala') return ce('div', {className: 'phone-sv-scale'},
-      ce('div', {className: 'phone-sv-scale-row'},
-        Array.from({length: 10}, (_, i) => ce('button', {
-          key: i,
-          className: 'phone-scale-btn' + (answers[step] === (i + 1) ? ' sel' : ''),
-          onClick: () => setAnswers(a => ({...a, [step]: i + 1}))
-        }, i + 1))
-      ),
-      ce('div', {className: 'phone-sv-scale-labels'},
-        ce('span', null, 'Nada probable'),
-        ce('span', null, 'Muy probable')
-      )
+      ce('div', {className: 'phone-sv-scale-row'}, Array.from({length: 10}, (_, i) => ce('button', {key: i, className: 'phone-scale-btn' + (answers[step] === (i + 1) ? ' sel' : ''), onClick: () => setAnswers(a => ({...a, [step]: i + 1}))}, i + 1))),
+      ce('div', {className: 'phone-sv-scale-labels'}, ce('span', null, 'Nada probable'), ce('span', null, 'Muy probable'))
     );
-
-    if (q.type === 'texto') return ce('textarea', {
-      className: 'phone-sv-textarea',
-      rows: 4,
-      placeholder: 'Escrib\u00ed la respuesta...',
-      value: answers[step] || '',
-      onChange: e => setAnswers(a => ({...a, [step]: e.target.value}))
-    });
+    if (q.type === 'texto') return ce('textarea', {className: 'phone-sv-textarea', rows: 4, placeholder: 'Escrib\u00ED la respuesta...', value: answers[step] || '', onChange: e => setAnswers(a => ({...a, [step]: e.target.value}))});
   }
 
   return ce('div', {className: 'phone-survey'},
@@ -599,63 +543,48 @@ function PhoneSurveyScreen({surveyName, onBack}) {
       ce('button', {className: 'phone-sv-back', onClick: onBack}, '\u2190'),
       ce('div', {className: 'phone-sv-title'}, surveyName)
     ),
-    ce('div', {className: 'phone-sv-prog'},
-      ce('div', {className: 'phone-sv-prog-b', style: {width: pct + '%'}})
-    ),
+    ce('div', {className: 'phone-sv-prog'}, ce('div', {className: 'phone-sv-prog-b', style: {width: pct + '%'}})),
     ce('div', {className: 'phone-sv-body'},
       !done && ce('div', {className: 'phone-sv-qnum'}, 'Pregunta ' + (step + 1) + ' de ' + total),
       !done && ce('div', {className: 'phone-sv-qtext'}, q.text),
       renderQ()
     ),
     !done && ce('div', {className: 'phone-sv-footer'},
-      ce('button', {className: 'phone-sv-nav-btn phone-sv-prev', onClick: back, style: {visibility: step === 0 ? 'hidden' : 'visible'}}, '\u2190 Atr\u00e1s'),
-      ce('button', {className: 'phone-sv-nav-btn phone-sv-nxt', disabled: !hasAnswer, onClick: next},
-        step === total - 1 ? 'Finalizar' : 'Siguiente \u2192'
-      )
+      ce('button', {className: 'phone-sv-nav-btn phone-sv-prev', onClick: back, style: {visibility: step === 0 ? 'hidden' : 'visible'}}, '\u2190 Atr\u00E1s'),
+      ce('button', {className: 'phone-sv-nav-btn phone-sv-nxt', disabled: !hasAnswer, onClick: next}, step === total - 1 ? 'Finalizar' : 'Siguiente \u2192')
     )
   );
 }
 
-/* ── PHONE HOME SCREEN ── */
 function PhoneHomeScreen({onStart}) {
   return ce('div', null,
     ce('div', {className: 'phone-home-header'},
       ce('h4', null, 'Mis encuestas'),
-      ce('p', null, 'Hola, Mar\u00eda. Ten\u00e9s 2 activas.')
+      ce('p', null, 'Hola, Mar\u00EDa. Ten\u00E9s 2 activas.')
     ),
     ce('div', {className: 'phone-home-body'},
       ce('div', {className: 'phone-enc-card'},
-        ce('div', {className: 'phone-enc-card-t'}, 'Satisfacci\u00f3n municipal'),
-        ce('div', {className: 'phone-enc-card-m'}, '14 completadas \u00b7 Barrio Norte'),
+        ce('div', {className: 'phone-enc-card-t'}, 'Satisfacci\u00F3n municipal'),
+        ce('div', {className: 'phone-enc-card-m'}, '14 completadas \u00B7 Barrio Norte'),
         ce('div', {className: 'phone-prog'}, ce('div', {className: 'phone-prog-b', style: {width: '56%'}})),
         ce('div', {className: 'phone-prog-l'}, '14 de 25 asignadas'),
-        ce('button', {
-          className: 'phone-action-btn',
-          style: {background: '#1a472a'},
-          onClick: () => onStart('Satisfacci\u00f3n municipal')
-        }, 'Continuar \u2192')
+        ce('button', {className: 'phone-action-btn', style: {background: '#1a472a'}, onClick: () => onStart('Satisfacci\u00F3n municipal')}, 'Continuar \u2192')
       ),
       ce('div', {className: 'phone-enc-card'},
         ce('div', {className: 'phone-enc-card-t'}, 'Seguridad barrial'),
-        ce('div', {className: 'phone-enc-card-m'}, '0 completadas \u00b7 Barrio Norte'),
+        ce('div', {className: 'phone-enc-card-m'}, '0 completadas \u00B7 Barrio Norte'),
         ce('div', {className: 'phone-prog'}, ce('div', {className: 'phone-prog-b', style: {width: '0%'}})),
         ce('div', {className: 'phone-prog-l'}, '0 de 20 asignadas'),
-        ce('button', {
-          className: 'phone-action-btn',
-          style: {background: '#52b788'},
-          onClick: () => onStart('Seguridad barrial')
-        }, 'Comenzar \u2192')
+        ce('button', {className: 'phone-action-btn', style: {background: '#52b788'}, onClick: () => onStart('Seguridad barrial')}, 'Comenzar \u2192')
       )
     )
   );
 }
 
-/* ── MOBILE APP SECTION ── */
-/* ── PHONE: COORDINADOR SCREEN ── */
 function PhoneCoordScreen() {
   const [mapTab, setMapTab] = useState('mapa');
   const encuestadores = [
-    {i:'MR', name:'Mar\u00eda R.', zone:'Barrio Norte', count:14, status:'active', bg:'#d8f3dc', tc:'#1a472a'},
+    {i:'MR', name:'Mar\u00EDa R.', zone:'Barrio Norte', count:14, status:'active', bg:'#d8f3dc', tc:'#1a472a'},
     {i:'JL', name:'Juan L.', zone:'Centro', count:9, status:'active', bg:'#e0f2fe', tc:'#0369a1'},
     {i:'AS', name:'Ana S.', zone:'Barrio Sur', count:7, status:'idle', bg:'#fef3c7', tc:'#b45309'},
     {i:'CP', name:'Carlos P.', zone:'Este', count:11, status:'active', bg:'#f3e8ff', tc:'#7c3aed'},
@@ -667,14 +596,9 @@ function PhoneCoordScreen() {
     {x:220, y:140, color:'#7c3aed', count:'11'},
   ];
   return ce('div', {style:{display:'flex',flexDirection:'column',height:'100%',background:'#f7f7f5'}},
-    ce('div', {className:'phone-home-header'},
-      ce('h4', null, 'Equipo Norte'),
-      ce('p', null, 'Coordinador: Roberto V.')
-    ),
+    ce('div', {className:'phone-home-header'}, ce('h4', null, 'Equipo Norte'), ce('p', null, 'Coordinador: Roberto V.')),
     ce('div', {style:{display:'flex',borderBottom:'1px solid var(--border)',background:'#fff',flexShrink:0}},
-      ['mapa','equipo'].map((t,i) => ce('button', {
-        key:t,
-        onClick:()=>setMapTab(t),
+      ['mapa','equipo'].map((t) => ce('button', {key:t, onClick:()=>setMapTab(t),
         style:{flex:1,padding:'10px',border:'none',background:'none',fontSize:12,fontWeight:700,cursor:'pointer',
           color: mapTab===t ? 'var(--accent)' : 'var(--ink3)',
           borderBottom: mapTab===t ? '2px solid var(--accent)' : '2px solid transparent'}
@@ -688,13 +612,12 @@ function PhoneCoordScreen() {
               ce('path', {d:'M0 90 Q70 70 140 90 Q210 110 280 90',stroke:'#a8d5a2',strokeWidth:2,fill:'none'}),
               ce('path', {d:'M100 0 L100 180',stroke:'#a8d5a2',strokeWidth:1.5,fill:'none'}),
               ce('path', {d:'M190 0 L190 180',stroke:'#a8d5a2',strokeWidth:1.5,fill:'none'}),
-              ...[{x:20,y:30,w:55,h:30},{x:110,y:100,w:60,h:35},{x:200,y:40,w:65,h:30},{x:30,y:120,w:50,h:30}]
-                .map((b,i)=>ce('rect',{key:'b'+i,...b,fill:'#c5dbc5',rx:4})),
+              ...[{x:20,y:30,w:55,h:30},{x:110,y:100,w:60,h:35},{x:200,y:40,w:65,h:30},{x:30,y:120,w:50,h:30}].map((b,i)=>ce('rect',{key:'b'+i,...b,fill:'#c5dbc5',rx:4})),
               ...pins.map((p,i)=>ce('g',{key:'p'+i},
                 ce('circle',{cx:p.x,cy:p.y,r:10,fill:p.color,opacity:.2}),
                 ce('circle',{cx:p.x,cy:p.y,r:6,fill:p.color,stroke:'#fff',strokeWidth:1.5}),
                 ce('rect',{x:p.x-14,y:p.y+8,width:28,height:16,fill:'#fff',rx:3,opacity:.95}),
-                ce('text',{x:p.x,y:p.y+19,textAnchor:'middle',fontSize:7,fill:p.color,fontWeight:700},p.count+' enc.')
+                ce('text',{x:p.x,y:p.y+19,textAnchor:'middle',fontSize:7,fill:p.color,fontWeight:700},p.count+" enc.")
               ))
             )
           ),
@@ -712,22 +635,18 @@ function PhoneCoordScreen() {
             ce('div',{className:'enc-av',style:{background:e.bg,color:e.tc,width:32,height:32,fontSize:12,flexShrink:0}},e.i),
             ce('div',{style:{flex:1}},
               ce('div',{style:{fontSize:12,fontWeight:700}},e.name),
-              ce('div',{style:{fontSize:11,color:'var(--ink3)'}},
-                ce('span',{className:'sdot '+(e.status==='active'?'s-on':'s-off')}),
-                e.zone
-              )
+              ce('div',{style:{fontSize:11,color:'var(--ink3)'}},ce('span',{className:'sdot '+(e.status==='active'?'s-on':'s-off')}),e.zone)
             ),
-            ce('div',{style:{fontSize:12,fontWeight:700,color:'var(--accent2)'}},e.count+' enc.')
+            ce('div',{style:{fontSize:12,fontWeight:700,color:'var(--accent2)'}},e.count+" enc.")
           ))
         )
   );
 }
 
-/* ── PHONE: ADMIN SCREEN ── */
 function PhoneAdminScreen() {
   const [selectedEnc, setSelectedEnc] = useState(0);
   const encuestas = [
-    {name:'Satisfacci\u00f3n municipal', total:412, meta:600, pct:69},
+    {name:'Satisfacci\u00F3n municipal', total:412, meta:600, pct:69},
     {name:'Seguridad barrial', total:187, meta:300, pct:62},
     {name:'Transporte urbano', total:98, meta:200, pct:49},
   ];
@@ -738,16 +657,11 @@ function PhoneAdminScreen() {
     {label:'Mala / Muy mala', pct:12, color:'#b7e4c7'},
   ];
   return ce('div', {style:{display:'flex',flexDirection:'column',height:'100%',background:'#f7f7f5'}},
-    ce('div', {className:'phone-home-header'},
-      ce('h4', null, 'Resultados en vivo'),
-      ce('p', null, 'Municipio de Posadas')
-    ),
+    ce('div', {className:'phone-home-header'}, ce('h4', null, 'Resultados en vivo'), ce('p', null, 'Municipio de Posadas')),
     ce('div', {style:{padding:'10px 12px',background:'#fff',borderBottom:'1px solid var(--border)',flexShrink:0}},
       ce('div', {style:{fontSize:10,color:'var(--ink3)',fontWeight:600,marginBottom:6,textTransform:'uppercase',letterSpacing:.5}}, 'Encuesta'),
       ce('div', {style:{display:'flex',gap:6,flexWrap:'wrap'}},
-        encuestas.map((enc,i)=>ce('button',{
-          key:i,
-          onClick:()=>setSelectedEnc(i),
+        encuestas.map((enc,i)=>ce('button',{key:i,onClick:()=>setSelectedEnc(i),
           style:{padding:'5px 10px',borderRadius:100,border:'1.5px solid '+(selectedEnc===i?'var(--accent)':'var(--border2)'),
             background:selectedEnc===i?'var(--accent-light)':'#fff',
             color:selectedEnc===i?'var(--accent)':'var(--ink3)',
@@ -766,20 +680,15 @@ function PhoneAdminScreen() {
         ce('div', {style:{fontSize:10,color:'var(--accent2)',marginTop:4,fontWeight:600}}, e.pct + '% completado')
       ),
       ce('div', {style:{background:'#fff',borderRadius:10,padding:14,border:'1px solid var(--border)'}},
-        ce('div', {style:{fontSize:12,fontWeight:700,marginBottom:12,fontFamily:'Syne'}}, '\u00bfC\u00f3mo calific\u00e1s la gesti\u00f3n?'),
+        ce('div', {style:{fontSize:12,fontWeight:700,marginBottom:12,fontFamily:'Syne'}}, '\u00BFC\u00F3mo calific\u00E1s la gesti\u00F3n?'),
         resultados.map((r,i)=>ce('div',{key:i,style:{marginBottom:10}},
-          ce('div',{style:{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:4}},
-            ce('span',{style:{color:'var(--ink2)',fontWeight:500}},r.label),
-            ce('span',{style:{fontWeight:700,color:r.color}},r.pct+'%')
-          ),
-          ce('div',{style:{height:5,background:'var(--surface2)',borderRadius:3,overflow:'hidden'}},
-            ce('div',{style:{height:5,background:r.color,borderRadius:3,width:r.pct+'%'}})
-          )
+          ce('div',{style:{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:4}},ce('span',{style:{color:'var(--ink2)',fontWeight:500}},r.label),ce('span',{style:{fontWeight:700,color:r.color}},r.pct+'%')),
+          ce('div',{style:{height:5,background:'var(--surface2)',borderRadius:3,overflow:'hidden'}},ce('div',{style:{height:5,background:r.color,borderRadius:3,width:r.pct+'%'}}))
         ))
       ),
       ce('div', {style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}},
         [{label:'Encuestadores activos',val:'23'},{label:'Equipos operando',val:'4'},
-         {label:'Respuestas \u00faltima hora',val:'+38'},{label:'Barrio l\u00edder',val:'Centro'}]
+         {label:'Respuestas \u00FAltima hora',val:'+38'},{label:'Barrio l\u00EDder',val:'Centro'}]
         .map((k,i)=>ce('div',{key:i,style:{background:'#fff',borderRadius:8,padding:'10px 12px',border:'1px solid var(--border)'}},
           ce('div',{style:{fontSize:10,color:'var(--ink3)',fontWeight:600,marginBottom:3}},k.label),
           ce('div',{style:{fontFamily:'Syne',fontSize:16,fontWeight:800,color:'var(--accent)'}},k.val)
@@ -789,7 +698,6 @@ function PhoneAdminScreen() {
   );
 }
 
-/* ── MOBILE APP SECTION ── */
 function MobileApp() {
   const [activeRole, setActiveRole] = useState('encuestador');
   const [activeSurvey, setActiveSurvey] = useState(null);
@@ -802,77 +710,60 @@ function MobileApp() {
 
   const roleFeatures = {
     encuestador: [
-      {icon:'clipboard', title:'Encuestas asignadas', desc:'Ve solo las encuestas que el coordinador le asign\u00f3. Nada m\u00e1s, nada menos.'},
-      {icon:'bolt', title:'Env\u00edo en tiempo real', desc:'Las respuestas llegan al panel central al instante, a medida que se completan.'},
-      {icon:'pin', title:'GPS autom\u00e1tico', desc:'Cada respuesta se env\u00eda con la ubicaci\u00f3n exacta. Sin configuraci\u00f3n manual.'},
-      {icon:'offline', title:'Funciona sin internet', desc:'Guarda respuestas offline y las sube autom\u00e1ticamente cuando vuelve la conexi\u00f3n.'},
+      {icon:'clipboard', title:'Encuestas asignadas', desc:'Ve solo las encuestas que el coordinador le asign\u00F3. Nada m\u00E1s, nada menos.'},
+      {icon:'bolt', title:'Env\u00EDo en tiempo real', desc:'Las respuestas llegan al panel central al instante, a medida que se completan.'},
+      {icon:'pin', title:'GPS autom\u00E1tico', desc:'Cada respuesta se env\u00EDa con la ubicaci\u00F3n exacta. Sin configuraci\u00F3n manual.'},
+      {icon:'offline', title:'Funciona sin internet', desc:'Guarda respuestas offline y las sube autom\u00E1ticamente cuando vuelve la conexi\u00F3n.'},
     ],
     coordinador: [
-      {icon:'mapa', title:'Mapa en tiempo real', desc:'Ve d\u00f3nde est\u00e1 cada encuestador de su equipo en este momento.'},
-      {icon:'people', title:'Control del equipo', desc:'Cu\u00e1ntas encuestas complet\u00f3 cada uno, qui\u00e9n est\u00e1 activo y qui\u00e9n est\u00e1 pausado.'},
+      {icon:'mapa', title:'Mapa en tiempo real', desc:'Ve d\u00F3nde est\u00E1 cada encuestador de su equipo en este momento.'},
+      {icon:'people', title:'Control del equipo', desc:'Cu\u00E1ntas encuestas complet\u00F3 cada uno, qui\u00E9n est\u00E1 activo y qui\u00E9n est\u00E1 pausado.'},
       {icon:'encuestas', title:'Asignar encuestas', desc:'Asigna o desasigna encuestas a sus encuestadores directamente desde la app.'},
-      {icon:'bolt', title:'Alertas instant\u00e1neas', desc:'Notificaci\u00f3n cuando un encuestador completa su meta o se queda sin conexi\u00f3n.'},
+      {icon:'bolt', title:'Alertas instant\u00E1neas', desc:'Notificaci\u00F3n cuando un encuestador completa su meta o se queda sin conexi\u00F3n.'},
     ],
     admin: [
-      {icon:'chart', title:'Resultados en vivo', desc:'Ve c\u00f3mo va cada encuesta en tiempo real, desde cualquier lugar.'},
-      {icon:'trend', title:'Gr\u00e1ficos instant\u00e1neos', desc:'Resultados por pregunta actualizados al momento, sin necesidad de abrir una computadora.'},
-      {icon:'encuestas', title:'Elegir la encuesta', desc:'Cambia entre encuestas activas con un toque para monitorear cada una por separado.'},
-      {icon:'people', title:'Estado del campo', desc:'Cu\u00e1ntos encuestadores est\u00e1n activos y cu\u00e1ntas respuestas van en total.'},
+      {icon:'chart', title:'Resultados en vivo', desc:'Ve c\u00F3mo va cada encuesta en tiempo real, desde cualquier lugar.'},
+      {icon:'trend', title:'Gr\u00E1ficos instant\u00E1neos', desc:'Resultados por pregunta actualizados al momento, sin computadora.'},
+      {icon:'encuestas', title:'Elegir la encuesta', desc:'Cambia entre encuestas activas con un toque para monitorear cada una.'},
+      {icon:'people', title:'Estado del campo', desc:'Cu\u00E1ntos encuestadores est\u00E1n activos y cu\u00E1ntas respuestas van en total.'},
     ],
   };
 
   function renderPhone() {
-    const statusBar = ce('div', {className:'phone-statusbar'}, ce('span',null,'9:41'), ce('span',null,'\u25cf\u25cf\u25cf'));
+    const statusBar = ce('div', {className:'phone-statusbar'}, ce('span',null,'9:41'), ce('span',null,'\u25CF\u25CF\u25CF'));
     if (activeRole === 'encuestador') {
       const h = activeSurvey ? 560 : 460;
       return ce('div', {className:'phone-frame'},
         statusBar,
         ce('div', {className:'phone-screen', style:{minHeight:h, transition:'min-height .3s'}},
-          activeSurvey
-            ? ce(PhoneSurveyScreen, {surveyName: activeSurvey, onBack: () => setActiveSurvey(null)})
-            : ce(PhoneHomeScreen, {onStart: name => setActiveSurvey(name)})
+          activeSurvey ? ce(PhoneSurveyScreen, {surveyName: activeSurvey, onBack: () => setActiveSurvey(null)}) : ce(PhoneHomeScreen, {onStart: name => setActiveSurvey(name)})
         )
       );
     }
     if (activeRole === 'coordinador') {
-      return ce('div', {className:'phone-frame'},
-        statusBar,
-        ce('div', {className:'phone-screen', style:{minHeight:500}}, ce(PhoneCoordScreen))
-      );
+      return ce('div', {className:'phone-frame'}, statusBar, ce('div', {className:'phone-screen', style:{minHeight:500}}, ce(PhoneCoordScreen)));
     }
     if (activeRole === 'admin') {
-      return ce('div', {className:'phone-frame'},
-        statusBar,
-        ce('div', {className:'phone-screen', style:{minHeight:520}}, ce(PhoneAdminScreen))
-      );
+      return ce('div', {className:'phone-frame'}, statusBar, ce('div', {className:'phone-screen', style:{minHeight:520}}, ce(PhoneAdminScreen)));
     }
   }
 
   return ce('section', {id:'app', className:'section mobile-section'},
     ce('div', {className:'container'},
-      ce('div', {className:'sec-label'}, 'App m\u00f3vil'),
+      ce('div', {className:'sec-label'}, 'App m\u00F3vil'),
       ce('h2', {className:'sec-title'}, 'Una app,\ntres experiencias'),
-      ce('p', {className:'sec-sub'}, 'Una sola app para todos los roles. Cada usuario ve exactamente lo que necesita seg\u00fan su perfil: encuestador, coordinador o admin.'),
+      ce('p', {className:'sec-sub'}, 'Una sola app para todos los roles. Cada usuario ve exactamente lo que necesita seg\u00FAn su perfil: encuestador, coordinador o admin.'),
       ce('div', {style:{display:'flex',gap:8,margin:'24px 0 36px'}},
-        roles.map(r => ce('button', {
-          key: r.key,
-          onClick: () => { setActiveRole(r.key); setActiveSurvey(null); },
+        roles.map(r => ce('button', {key: r.key, onClick: () => { setActiveRole(r.key); setActiveSurvey(null); },
           className: 'role-badge ' + r.badge,
-          style: {
-            cursor:'pointer', border: activeRole===r.key ? '2px solid currentColor' : '2px solid transparent',
-            padding:'6px 16px', fontSize:12, opacity: activeRole===r.key ? 1 : 0.55,
-            transition:'all .15s'
-          }
+          style: {cursor:'pointer', border: activeRole===r.key ? '2px solid currentColor' : '2px solid transparent', padding:'6px 16px', fontSize:12, opacity: activeRole===r.key ? 1 : 0.55, transition:'all .15s'}
         }, r.label))
       ),
       ce('div', {className:'mobile-grid'},
         ce('div', {className:'mob-feats'},
           roleFeatures[activeRole].map((f,i) => ce('div', {key:i, className:'mob-feat'},
             ce('div', {className:'feat-icon'}, ICONS[f.icon] || f.icon),
-            ce('div', null,
-              ce('div', {className:'feat-t'}, f.title),
-              ce('p', {className:'feat-d'}, f.desc)
-            )
+            ce('div', null, ce('div', {className:'feat-t'}, f.title), ce('p', {className:'feat-d'}, f.desc))
           ))
         ),
         renderPhone()
@@ -881,177 +772,149 @@ function MobileApp() {
   );
 }
 
-/* ── NAV ── */
 function Nav({active, onNav}) {
   return ce('nav', null,
-    ce('div', {className: 'nav-brand'}, 'Encuestas ', ce('span', null, 'Enfoque')),
-    ce('div', {className: 'nav-tabs'},
-      D.sections.map(s => ce('button', {
-        key: s.id,
-        className: 'nav-tab' + (active === s.id ? ' active' : ''),
-        onClick: () => { onNav(s.id); const el = document.getElementById(s.id); if (el) el.scrollIntoView({behavior: 'smooth'}); }
+    ce('div', {className:'nav-brand'}, 'Encuestas ', ce('span', null, 'Enfoque')),
+    ce('div', {className:'nav-tabs'},
+      D.sections.map(s => ce('button', {key:s.id, className:'nav-tab'+(active===s.id?' active':''),
+        onClick:()=>{ onNav(s.id); const el=document.getElementById(s.id); if(el) el.scrollIntoView({behavior:'smooth'}); }
       }, s.label))
     )
   );
 }
 
-/* ── HERO ── */
 function Hero() {
-  return ce('section', {id: 'inicio', className: 'section hero'},
-    ce('div', {className: 'container'},
-      ce('div', {className: 'hero-eyebrow'}, 'Sistema de encuestas electorales'),
-      ce('h1', null, 'Tom\u00e1 el pulso del territorio ', ce('em', null, 'en tiempo real')),
-      ce('p', {className: 'hero-sub'}, 'Una plataforma completa para que candidatos e intendentes hagan encuestas de campo con su propio equipo y vean los resultados al instante.'),
-      ce('div', {className: 'hero-btns'},
-        ce('button', {className: 'btn btn-primary', onClick: () => { const el = document.getElementById('precios'); if (el) el.scrollIntoView({behavior:'smooth'}); }}, '\u2192 Ver planes'),
-        ce('button', {className: 'btn btn-outline', onClick: () => { const el = document.getElementById('panel'); if (el) el.scrollIntoView({behavior:'smooth'}); }}, 'Ver el panel')
+  return ce('section', {id:'inicio', className:'section hero'},
+    ce('div', {className:'container'},
+      ce('div', {className:'hero-eyebrow'}, 'Sistema de encuestas electorales'),
+      ce('h1', null, 'Tom\u00E1 el pulso del territorio ', ce('em', null, 'en tiempo real')),
+      ce('p', {className:'hero-sub'}, 'Una plataforma completa para que candidatos e intendentes hagan encuestas de campo con su propio equipo y vean los resultados al instante.'),
+      ce('div', {className:'hero-btns'},
+        ce('button', {className:'btn btn-primary', onClick:()=>{ const el=document.getElementById('precios'); if(el) el.scrollIntoView({behavior:'smooth'}); }}, '\u2192 Ver planes'),
+        ce('button', {className:'btn btn-outline', onClick:()=>{ const el=document.getElementById('panel'); if(el) el.scrollIntoView({behavior:'smooth'}); }}, 'Ver el panel')
       ),
-      ce('div', {className: 'stats-row'},
-        [{num: '100%', label: 'Datos en tiempo real'}, {num: '3', label: 'Roles diferenciados'}, {num: '\u221e', label: 'Encuestas reutilizables'}, {num: '\uD83D\uDD12', label: 'Datos aislados por cliente'}]
-        .map((s, i) => ce('div', {key: i, className: 'stat-box'},
-          ce('span', {className: 'stat-num'}, s.num),
-          ce('span', {className: 'stat-label'}, s.label)
-        ))
+      ce('div', {className:'stats-row'},
+        [{num:'100%',label:'Datos en tiempo real'},{num:'3',label:'Roles diferenciados'},{num:'\u221E',label:'Encuestas reutilizables'},{num:'\uD83D\uDD12',label:'Datos aislados por cliente'}]
+        .map((s,i)=>ce('div',{key:i,className:'stat-box'},ce('span',{className:'stat-num'},s.num),ce('span',{className:'stat-label'},s.label)))
       )
     )
   );
 }
 
-/* ── ROLES ── */
 function Roles() {
   const [active, setActive] = useState('admin');
-  return ce('section', {id: 'sistema', className: 'section'},
-    ce('div', {className: 'container'},
-      ce('div', {className: 'sec-label'}, 'El sistema'),
-      ce('h2', {className: 'sec-title'}, 'Tres roles,\nuna plataforma'),
-      ce('p', {className: 'sec-sub'}, 'Cada usuario ve \u00fanicamente lo que necesita. El cliente tiene su propio acceso aislado y sus datos no se mezclan con los de otros clientes.'),
-      ce('div', {className: 'roles-grid'},
-        D.roles.map(r => ce('div', {key: r.key, className: 'role-card' + (active === r.key ? ' active' : ''), onClick: () => setActive(r.key)},
-          ce('span', {className: 'role-badge ' + r.badge}, r.label),
+  return ce('section', {id:'sistema', className:'section'},
+    ce('div', {className:'container'},
+      ce('div', {className:'sec-label'}, 'El sistema'),
+      ce('h2', {className:'sec-title'}, 'Tres roles,\nuna plataforma'),
+      ce('p', {className:'sec-sub'}, 'Cada usuario ve \u00FAnicamente lo que necesita. El cliente tiene su propio acceso aislado y sus datos no se mezclan con los de otros clientes.'),
+      ce('div', {className:'roles-grid'},
+        D.roles.map(r => ce('div', {key:r.key, className:'role-card'+(active===r.key?' active':''), onClick:()=>setActive(r.key)},
+          ce('span', {className:'role-badge '+r.badge}, r.label),
           ce('h3', null, r.title),
           ce('p', null, r.desc),
-          ce('ul', {className: 'role-perms'}, r.perms.map((p, i) => ce('li', {key: i}, p)))
+          ce('ul', {className:'role-perms'}, r.perms.map((p,i)=>ce('li',{key:i},p)))
         ))
       )
     )
   );
 }
 
-/* ── FLUJO ── */
 function Flujo() {
   const [step, setStep] = useState(0);
-  return ce('section', {id: 'flujo', className: 'section flow-section'},
-    ce('div', {className: 'container'},
-      ce('div', {className: 'sec-label'}, 'C\u00f3mo funciona'),
-      ce('h2', {className: 'sec-title'}, 'Del dise\u00f1o al dato\nen 5 pasos'),
-      ce('p', {className: 'sec-sub'}, 'El flujo completo desde que el admin arma una encuesta hasta que los resultados aparecen en el panel.'),
-      ce('div', {className: 'flow-steps'},
-        D.flowSteps.map((s, i) => ce('div', {key: i, className: 'flow-step' + (step === i ? ' active' : ''), onClick: () => setStep(i)},
-          ce('div', {className: 'flow-step-num'}, '0' + (i + 1)),
-          ce('h4', null, s.title)
+  return ce('section', {id:'flujo', className:'section flow-section'},
+    ce('div', {className:'container'},
+      ce('div', {className:'sec-label'}, 'C\u00F3mo funciona'),
+      ce('h2', {className:'sec-title'}, 'Del dise\u00F1o al dato\nen 5 pasos'),
+      ce('p', {className:'sec-sub'}, 'El flujo completo desde que nosotros armamos la encuesta hasta que los resultados aparecen en el panel.'),
+      ce('div', {className:'flow-steps'},
+        D.flowSteps.map((s,i)=>ce('div',{key:i,className:'flow-step'+(step===i?' active':''),onClick:()=>setStep(i)},
+          ce('div',{className:'flow-step-num'},'0'+(i+1)),ce('h4',null,s.title)
         ))
       ),
-      ce('div', {className: 'flow-detail fade-in', key: step},
+      ce('div', {className:'flow-detail fade-in', key:step},
         ce('h3', null, D.flowSteps[step].title),
         ce('p', null, D.flowSteps[step].detail),
-        ce('div', {className: 'chips'}, D.flowSteps[step].chips.map((c, i) => ce('span', {key: i, className: 'chip'}, c)))
+        ce('div', {className:'chips'}, D.flowSteps[step].chips.map((c,i)=>ce('span',{key:i,className:'chip'},c)))
       )
     )
   );
 }
 
-/* ── DASHBOARD SECTION ── */
 function Dashboard() {
-  return ce('section', {id: 'panel', className: 'section dash-section'},
-    ce('div', {className: 'container'},
-      ce('div', {className: 'sec-label'}, 'Panel central'),
-      ce('h2', {className: 'sec-title'}, 'Todo el territorio\nen una pantalla'),
-      ce('p', {className: 'sec-sub'}, 'El admin y el coordinador monitorean en tiempo real cada respuesta, cada encuestador y cada zona del municipio.'),
+  return ce('section', {id:'panel', className:'section dash-section'},
+    ce('div', {className:'container'},
+      ce('div', {className:'sec-label'}, 'Panel central'),
+      ce('h2', {className:'sec-title'}, 'Todo el territorio\nen una pantalla'),
+      ce('p', {className:'sec-sub'}, 'El admin y el coordinador monitorean en tiempo real cada respuesta, cada encuestador y cada zona del municipio.'),
       ce(DashPanel)
     )
   );
 }
 
-/* ── PRICING ── */
 function Pricing() {
-  return ce('section', {id: 'precios', className: 'section pricing-section'},
-    ce('div', {className: 'container'},
-      ce('div', {className: 'sec-label'}, 'Precios'),
-      ce('h2', {className: 'sec-title'}, 'Planes por suscripci\u00f3n\nmensual'),
-      ce('p', {className: 'sec-sub'}, 'Eleg\u00eds el plan seg\u00fan la cantidad de encuestas activas que necesit\u00e1s. Sin contratos anuales, cancel\u00e1s cuando quer\u00e9s.'),
-      ce('div', {className: 'pricing-grid'},
-        D.plans.map((plan, i) => ce('div', {key: i, className: 'plan-card' + (plan.featured ? ' featured' : '')},
-          plan.featured && ce('div', {className: 'plan-badge'}, '\u2b50 M\u00c1S POPULAR'),
-          ce('div', {className: 'plan-name'}, plan.name),
-          ce('div', {className: 'plan-desc'}, plan.desc),
-          ce('div', {className: 'plan-price'},
-            ce('span', {className: 'plan-currency'}, '$'),
-            ce('span', {className: 'plan-amount'}, plan.price),
-            ce('span', {className: 'plan-period'}, '/mes')
+  return ce('section', {id:'precios', className:'section pricing-section'},
+    ce('div', {className:'container'},
+      ce('div', {className:'sec-label'}, 'Planes'),
+      ce('h2', {className:'sec-title'}, 'Planes de suscripción\nmensual'),
+      ce('p', {className:'sec-sub'}, 'Cada plan incluye una cantidad de encuestas diseñadas por nuestro equipo. Encuestas adicionales tienen un costo extra. El acceso al panel y a la app está activo mientras la suscripción esté paga.'),
+      ce('div', {className:'pricing-grid'},
+        D.plans.map((plan,i) => ce('div', {key:i, className:'plan-card'+(plan.featured?' featured':'')},
+          plan.featured && ce('div', {className:'plan-badge'}, '\u2B50 M\u00C1S POPULAR'),
+          ce('div', {className:'plan-name'}, plan.name),
+          ce('div', {className:'plan-desc'}, plan.desc),
+          ce('div', {className:'plan-price'},
+            ce('span', {className:'plan-amount', style:{fontSize:34,letterSpacing:-1,lineHeight:1}}, 'Consultar')
           ),
-          ce('div', {className: 'plan-note'}, 'Pesos argentinos \u00b7 por organizaci\u00f3n'),
-          ce('hr', {className: 'plan-hr'}),
-          ce('ul', {className: 'plan-features'},
-            plan.features.map((f, j) => {
-              const text = typeof f === 'string' ? f : f.text;
-              const muted = typeof f === 'object' && f.muted;
-              return ce('li', {key: j, className: muted ? 'muted' : ''}, text);
+          ce('div', {className:'plan-note'}, 'Precio a convenir seg\u00FAn municipio'),
+          ce('hr', {className:'plan-hr'}),
+          ce('ul', {className:'plan-features'},
+            plan.features.map((f,j)=>{
+              const text = typeof f==='string' ? f : f.text;
+              const muted = typeof f==='object' && f.muted;
+              return ce('li',{key:j,className:muted?'muted':''},text);
             })
           ),
-          ce('button', {className: 'plan-cta ' + (plan.featured ? 'cta-solid' : 'cta-outline')},
-            plan.featured ? 'Empezar con Campa\u00f1a' : 'Elegir ' + plan.name
-          )
+          ce('button', {className:'plan-cta '+(plan.featured?'cta-solid':'cta-outline')}, 'Consultar precio')
         ))
       ),
-      ce('div', {className: 'ent-card'},
+      ce('div', {className:'ent-card'},
         ce('div', null,
-          ce('h3', null, 'Servicio de dise\u00f1o de encuestas'),
-          ce('p', null, 'No ten\u00e9s tiempo o no sab\u00e9s por d\u00f3nde empezar. Nosotros dise\u00f1amos las encuestas por vos: las preguntas correctas, en el orden correcto.'),
-          ce('div', {className: 'ent-tags'},
-            ['Dise\u00f1o de encuestas', 'Preguntas validadas', 'Entrega en 48h', 'Revisiones incluidas'].map((t, i) => ce('span', {key: i, className: 'etag'}, t))
+          ce('h3', null, 'Encuestas adicionales'),
+          ce('p', null, '\u00BFNecess\u00EDts m\u00E1s encuestas de las que incluye tu plan? Nosotros las armamos y las agregamos a tu cuenta. Sin cambiar de plan.'),
+          ce('div', {className:'ent-tags'},
+            ['Armadas por nuestro equipo','Entrega en 48h','Revisiones incluidas','Sin cambiar de plan']
+            .map((t,i)=>ce('span',{key:i,className:'etag'},t))
           )
         ),
-        ce('button', {className: 'btn btn-primary', style: {flexShrink: 0}}, 'Consultar precio')
+        ce('button', {className:'btn btn-primary', style:{flexShrink:0}}, 'Consultar')
       )
     )
   );
 }
 
-/* ── TECH ── */
 function Tech() {
-  return ce('section', {id: 'tecnologia', className: 'section tech-section'},
-    ce('div', {className: 'container'},
-      ce('div', {className: 'sec-label'}, 'Tecnolog\u00eda'),
-      ce('h2', {className: 'sec-title'}, 'Construido para\nescalar'),
-      ce('p', {className: 'sec-sub'}, 'Un solo sistema que funciona para todos los clientes. Cada campa\u00f1a nueva es solo un cliente m\u00e1s, sin trabajo extra de infraestructura.'),
-      ce('div', {className: 'tech-grid'},
-        D.techCards.map((c, i) => ce('div', {key: i, className: 'tech-card'},
-          ce('h4', null, c.title),
-          ce('p', null, c.text),
-          ce('span', {className: 'tech-tag'}, c.tag)
-        ))
+  return ce('section', {id:'tecnologia', className:'section tech-section'},
+    ce('div', {className:'container'},
+      ce('div', {className:'sec-label'}, 'Tecnolog\u00EDa'),
+      ce('h2', {className:'sec-title'}, 'Construido para\nescalar'),
+      ce('p', {className:'sec-sub'}, 'Un solo sistema que funciona para todos los clientes. Cada campa\u00F1a nueva es solo un cliente m\u00E1s, sin trabajo extra de infraestructura.'),
+      ce('div', {className:'tech-grid'},
+        D.techCards.map((c,i)=>ce('div',{key:i,className:'tech-card'},ce('h4',null,c.title),ce('p',null,c.text),ce('span',{className:'tech-tag'},c.tag)))
       )
     )
   );
 }
 
-/* ── FOOTER ── */
 function Footer() {
   return ce('footer', null,
-    ce('div', {className: 'footer-inner'},
-      ce('div', null,
-        ce('div', {className: 'footer-brand'}, 'Encuestas Enfoque'),
-        ce('p', null, 'Sistema de encuestas en tiempo real para campa\u00f1as electorales')
-      ),
-      ce('div', {style: {textAlign: 'right'}},
-        ce('p', {style: {color: 'rgba(255,255,255,.4)', fontSize: '12px', marginBottom: '4px'}}, 'Contacto'),
-        ce('div', {className: 'footer-email'}, 'encuestasenfoque@outlook.com')
-      )
+    ce('div', {className:'footer-inner'},
+      ce('div', null, ce('div', {className:'footer-brand'}, 'Encuestas Enfoque'), ce('p', null, 'Sistema de encuestas en tiempo real para campa\u00F1as electorales')),
+      ce('div', {style:{textAlign:'right'}}, ce('p', {style:{color:'rgba(255,255,255,.4)',fontSize:'12px',marginBottom:'4px'}}, 'Contacto'), ce('div', {className:'footer-email'}, 'encuestasenfoque@outlook.com'))
     )
   );
 }
 
-/* ── APP ── */
 function App() {
   const [activeSection, setActiveSection] = useState('inicio');
   useEffect(() => {
@@ -1065,21 +928,14 @@ function App() {
     window.addEventListener('scroll', handler, {passive: true});
     return () => window.removeEventListener('scroll', handler);
   }, []);
-
   return ce('div', null,
-    ce(Nav, {active: activeSection, onNav: setActiveSection}),
-    ce(Hero),
-    ce(Roles),
-    ce(Flujo),
-    ce(Dashboard),
-    ce(MobileApp),
-    ce(Pricing),
-    ce(Tech),
-    ce(Footer)
+    ce(Nav, {active:activeSection, onNav:setActiveSection}),
+    ce(Hero), ce(Roles), ce(Flujo), ce(Dashboard), ce(MobileApp), ce(Pricing), ce(Tech), ce(Footer)
   );
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(ce(App));
+
 </script>
 </body>
 </html>
