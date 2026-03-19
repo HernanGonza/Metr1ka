@@ -774,7 +774,7 @@ function MobileApp() {
 
 function Nav({active, onNav}) {
   return ce('nav', null,
-    ce('div', {className:'nav-brand'}, 'Encuestas ', ce('span', null, 'Enfoque')),
+    ce('div', {className:'nav-brand'}, 'Encuestas ', ce('span', null, 'Enfoque'), ce('span', null, 'Misiones')),
     ce('div', {className:'nav-tabs'},
       D.sections.map(s => ce('button', {key:s.id, className:'nav-tab'+(active===s.id?' active':''),
         onClick:()=>{ onNav(s.id); const el=document.getElementById(s.id); if(el) el.scrollIntoView({behavior:'smooth'}); }
