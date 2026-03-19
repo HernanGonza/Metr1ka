@@ -1,0 +1,56 @@
+.sidebar {
+  width: var(--sidebar-w);
+  background: #fff;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 50;
+}
+
+.brand {
+  padding: 20px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.brandName { display: flex; flex-direction: column; }
+.brandMain { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 16px; color: var(--accent); letter-spacing: -.3px; line-height: 1; }
+.brandSub  { font-family: 'DM Sans', sans-serif; font-weight: 400; font-size: 12px; color: var(--ink3); }
+.logo { height: 32px; object-fit: contain; }
+
+.nav { flex: 1; padding: 16px 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+
+.group { display: flex; flex-direction: column; gap: 2px; }
+.groupLabel {
+  font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--ink3);
+  padding: 0 8px; margin-bottom: 4px;
+}
+
+.item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; color: var(--ink2);
+  transition: all .15s; user-select: none;
+}
+.item:hover { background: var(--surface); color: var(--ink); }
+.item.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; }
+
+.footer {
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
+}
+.userInfo { flex: 1; min-width: 0; }
+.userName { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.userRole { font-size: 11px; color: var(--ink3); text-transform: capitalize; }
+.signOut {
+  background: none; border: none; color: var(--ink3);
+  font-size: 16px; padding: 4px; border-radius: 6px;
+  transition: all .15s; flex-shrink: 0;
+}
+.signOut:hover { background: var(--danger-light); color: var(--danger); }

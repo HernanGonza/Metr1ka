@@ -1,0 +1,20 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+.small { font-size: 10px; padding: 2px 8px; }
+
+.admin       { background: var(--accent-light); color: var(--accent2); }
+.coordinador { background: var(--warning-light); color: var(--warning); }
+.encuestador { background: var(--info-light);    color: var(--info); }
+.success     { background: var(--accent-light);  color: var(--accent2); }
+.warning     { background: var(--warning-light); color: var(--warning); }
+.danger      { background: var(--danger-light);  color: var(--danger); }
+.neutral     { background: var(--surface2);      color: var(--ink3); }
+.info        { background: var(--info-light);    color: var(--info); }

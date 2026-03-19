@@ -1,0 +1,14 @@
+.page { min-height: 100vh; background: var(--surface); display: flex; align-items: flex-start; justify-content: center; padding: 40px 24px; }
+.card { background: #fff; border: 1px solid var(--border); border-radius: var(--r2); padding: 40px; width: 100%; max-width: 640px; box-shadow: var(--shadow-lg); }
+.header { margin-bottom: 32px; }
+.header h2 { font-size: 24px; font-weight: 800; letter-spacing: -.5px; margin-bottom: 6px; }
+.header p  { font-size: 14px; color: var(--ink2); }
+.form { display: flex; flex-direction: column; gap: 28px; }
+.section { display: flex; flex-direction: column; gap: 14px; }
+.sectionTitle { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--accent2); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.label { font-size: 13px; font-weight: 600; color: var(--ink2); display: block; margin-bottom: 6px; }
+.select { width: 100%; padding: 10px 14px; border: 1.5px solid var(--border2); border-radius: var(--r); font-size: 14px; font-family: 'DM Sans', sans-serif; background: #fff; color: var(--ink); outline: none; }
+.select:focus { border-color: var(--accent); }
+.error { font-size: 13px; color: var(--danger); padding: 10px 14px; background: var(--danger-light); border-radius: var(--r); }
