@@ -965,7 +965,7 @@ function Nav({active, onNav}) {
   }
   return ce('div', null,
     ce('nav', null,
-      ce('div', {className:'nav-brand'}, 'Encuestas ', ce('span', null, 'Enfoque')),
+      ce('div', {className:'nav-brand'}, 'Encuestas ', ce('span', null, 'Enfoque Misiones')),
       ce('div', {className:'nav-tabs'},
         D.sections.map(s => ce('button', {key:s.id, className:'nav-tab'+(active===s.id?' active':''),
           onClick:()=>handleNav(s.id)
@@ -1109,7 +1109,7 @@ function Tech() {
 function Footer() {
   return ce('footer', null,
     ce('div', {className:'footer-inner'},
-      ce('div', null, ce('div', {className:'footer-brand'}, 'Encuestas Enfoque'), ce('p', null, 'Sistema de encuestas en tiempo real para campa\u00F1as electorales')),
+      ce('div', null, ce('div', {className:'footer-brand'}, 'Encuestas Enfoque Misiones'), ce('p', null, 'Sistema de encuestas en tiempo real para campa\u00F1as electorales')),
       ce('div', {style:{textAlign:'right'}}, ce('p', {style:{color:'rgba(255,255,255,.4)',fontSize:'12px',marginBottom:'4px'}}, 'Contacto'), ce('div', {className:'footer-email'}, 'encuestasenfoque@outlook.com'))
     )
   );
