@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Encuestas Enfoque Misiones</title>
+<title>Encuestas Enfoque</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -274,7 +274,18 @@ footer p{font-size:13px;color:rgba(255,255,255,.4);margin-top:4px}
   .grid2,.cards-grid{grid-template-columns:1fr}
   .flow-steps{flex-direction:column}
   .ent-card{flex-direction:column}
+  .nav-tabs{display:none}
+  .nav-hamburger{display:flex}
+  .nav-mobile-menu.open{display:flex}
 }
+.nav-hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:8px;border:none;background:none;border-radius:6px}
+.nav-hamburger:hover{background:var(--surface)}
+.nav-hamburger span{display:block;width:22px;height:2.5px;background:var(--accent);border-radius:2px;transition:all .2s}
+.nav-hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.nav-hamburger.open span:nth-child(2){opacity:0}
+.nav-hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.nav-mobile-menu{display:none;flex-direction:column;position:fixed;top:56px;left:0;right:0;background:rgba(250,250,248,.98);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:8px 16px 16px;z-index:99;gap:2px}
+.nav-mobile-menu .nav-tab{text-align:left;padding:10px 14px;font-size:14px}
 
 </style>
 </head>
@@ -773,11 +784,28 @@ function MobileApp() {
 }
 
 function Nav({active, onNav}) {
-  return ce('nav', null,
-    ce('div', {className:'nav-brand'}, 'Encuestas ', ce('span', null, 'Enfoque'), ce('span', null, 'Misiones')),
-    ce('div', {className:'nav-tabs'},
+  const [menuOpen, setMenuOpen] = useState(false);
+  function handleNav(id) {
+    onNav(id);
+    setMenuOpen(false);
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({behavior: 'smooth'});
+  }
+  return ce('div', null,
+    ce('nav', null,
+      ce('div', {className:'nav-brand'}, 'Encuestas ', ce('span', null, 'Enfoque')),
+      ce('div', {className:'nav-tabs'},
+        D.sections.map(s => ce('button', {key:s.id, className:'nav-tab'+(active===s.id?' active':''),
+          onClick:()=>handleNav(s.id)
+        }, s.label))
+      ),
+      ce('button', {className:'nav-hamburger'+(menuOpen?' open':''), onClick:()=>setMenuOpen(o=>!o), 'aria-label':'Menu'},
+        ce('span'), ce('span'), ce('span')
+      )
+    ),
+    ce('div', {className:'nav-mobile-menu'+(menuOpen?' open':'')},
       D.sections.map(s => ce('button', {key:s.id, className:'nav-tab'+(active===s.id?' active':''),
-        onClick:()=>{ onNav(s.id); const el=document.getElementById(s.id); if(el) el.scrollIntoView({behavior:'smooth'}); }
+        onClick:()=>handleNav(s.id)
       }, s.label))
     )
   );
@@ -909,7 +937,7 @@ function Tech() {
 function Footer() {
   return ce('footer', null,
     ce('div', {className:'footer-inner'},
-      ce('div', null, ce('div', {className:'footer-brand'}, 'Encuestas Enfoque Misiones '), ce('p', null, 'Sistema de encuestas en tiempo real para campa\u00F1as electorales')),
+      ce('div', null, ce('div', {className:'footer-brand'}, 'Encuestas Enfoque'), ce('p', null, 'Sistema de encuestas en tiempo real para campa\u00F1as electorales')),
       ce('div', {style:{textAlign:'right'}}, ce('p', {style:{color:'rgba(255,255,255,.4)',fontSize:'12px',marginBottom:'4px'}}, 'Contacto'), ce('div', {className:'footer-email'}, 'encuestasenfoque@outlook.com'))
     )
   );
