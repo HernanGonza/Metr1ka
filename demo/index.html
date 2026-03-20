@@ -96,8 +96,8 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(250,250,248,
 
 /* DASHBOARD */
 .dash-section{background:var(--paper)}
-.dash-wrap{margin-top:48px;border:1px solid var(--border2);border-radius:var(--r2);overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.06)}
-.dash-topbar{background:var(--ink);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:8px;font-size:13px}
+.dash-wrap{margin-top:48px;border:1px solid var(--border2);border-radius:var(--r2);overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.06);max-width:100%}
+.dash-topbar{background:var(--ink);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:8px;font-size:13px;overflow:hidden}
 .dot{width:10px;height:10px;border-radius:50%}
 .d-r{background:#ff5f57}.d-y{background:#febc2e}.d-g{background:#28c840}
 .dash-title{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;margin-left:8px}
@@ -110,7 +110,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(250,250,248,
 .sb-item.active{background:var(--accent-light);color:var(--accent)}
 .sb-icon{font-size:15px}
 .dash-main{padding:24px;overflow:auto}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;overflow:hidden}
 .kpi{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:16px}
 .kpi-l{font-size:10px;color:var(--ink3);font-weight:600;letter-spacing:.3px;margin-bottom:4px}
 .kpi-v{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;letter-spacing:-1px}
@@ -151,6 +151,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(250,250,248,
 .toggle.off::after{right:unset;left:2px}
 
 /* PRICING */
+
+.dash-sidebar-toggle{display:none;align-items:center;gap:8px;padding:8px 14px;background:var(--accent-light);color:var(--accent);border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;margin-bottom:14px;font-family:'DM Sans',sans-serif}
+.dash-sidebar-mobile{display:none;flex-direction:column;background:#fff;border:1px solid var(--border);border-radius:var(--r2);padding:12px;margin-bottom:14px;gap:2px}
+.dash-sidebar-mobile.open{display:flex}
 .pricing-section{background:var(--surface)}
 .pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px}
 .plan-card{background:var(--paper);border:1px solid var(--border);border-radius:var(--r2);padding:32px;position:relative;transition:all .2s}
@@ -279,19 +283,36 @@ footer p{font-size:13px;color:rgba(255,255,255,.4);margin-top:4px}
 .nav-mobile-menu .nav-tab{text-align:left;padding:12px 14px;font-size:15px;width:100%}
 
 @media(max-width:768px){
+  /* Nav */
   .nav-tabs{display:none !important}
   .nav-hamburger{display:flex !important}
-  .footer-inner{flex-direction:column;gap:20px;text-align:center}
-  .footer-email{text-align:center}
   nav{padding:0 1rem}
   .container{padding:0 1rem}
+  /* Footer */
+  .footer-inner{flex-direction:column;gap:20px;text-align:center}
+  .footer-email{text-align:center}
+  /* Layouts */
   .roles-grid,.pricing-grid,.mobile-grid,.tech-grid{grid-template-columns:1fr}
-  .dash-body{grid-template-columns:1fr}
-  .dash-sidebar{display:none}
   .stats-row,.kpis{grid-template-columns:repeat(2,1fr)}
   .grid2,.cards-grid{grid-template-columns:1fr}
   .flow-steps{flex-direction:column}
   .ent-card{flex-direction:column}
+  /* Role selector - centrado, botones pequeños para entrar en una fila */
+  .role-selector{justify-content:center !important;gap:6px !important;flex-wrap:nowrap !important}
+  .role-selector .role-badge{font-size:10px !important;padding:4px 8px !important;letter-spacing:0 !important}
+  /* Dashboard */
+  .dash-wrap{overflow:hidden !important;max-width:100% !important}
+  .dash-body{grid-template-columns:1fr !important;min-height:unset;overflow:hidden}
+  .dash-sidebar{display:none !important}
+  .dash-sidebar-toggle{display:flex !important}
+  .dash-main{padding:12px;overflow-x:hidden;max-width:100%}
+  .kpis{grid-template-columns:repeat(2,1fr) !important;gap:8px}
+  .kpi-v{font-size:18px}
+  .kpi-l{font-size:10px}
+  .dash-card-t{font-size:12px}
+  .chart-wrap{height:140px}
+  .dash-card{padding:12px}
+  .enc-list{overflow:hidden}
 }
 .pricing-section{background:var(--surface)}
 .pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px}
@@ -637,22 +658,33 @@ function DashPanel() {
     return null;
   }
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  function makeNavItem(s) {
+    return ce('div', {key: s.k, className: 'sb-item' + (tab === s.k ? ' active' : ''),
+      onClick: () => { setTab(s.k); setSidebarOpen(false); }},
+      ce('span', {className: 'sb-icon'}, ICONS[s.i] || s.i), s.l);
+  }
+  const sidebarInner = sidebar.map(function(grp) {
+    return ce('div', {key: grp.g, className: 'sb-section'},
+      ce('div', {className: 'sb-label'}, grp.g),
+      grp.items.map(function(s) { return makeNavItem(s); })
+    );
+  });
   return ce('div', {className: 'dash-wrap'},
     ce('div', {className: 'dash-topbar'},
       ce('div', {className: 'dot d-r'}), ce('div', {className: 'dot d-y'}), ce('div', {className: 'dot d-g'}),
-      ce('div', {className: 'dash-title'}, 'Panel Central \u2014 Municipio de Posadas'),
-      ce('div', {style: {marginLeft: 'auto', fontSize: '12px', opacity: .5}}, '\u25CF En vivo')
+      ce('div', {className: 'dash-title'}, 'Panel Central — Municipio de Posadas'),
+      ce('div', {style: {marginLeft: 'auto', fontSize: '12px', opacity: .5}}, '● En vivo')
     ),
     ce('div', {className: 'dash-body'},
-      ce('div', {className: 'dash-sidebar'},
-        sidebar.map(({g, items}) => ce('div', {key: g, className: 'sb-section'},
-          ce('div', {className: 'sb-label'}, g),
-          items.map(s => ce('div', {key: s.k, className: 'sb-item' + (tab === s.k ? ' active' : ''), onClick: () => setTab(s.k)},
-            ce('span', {className: 'sb-icon'}, ICONS[s.i] || s.i), s.l
-          ))
-        ))
-      ),
-      ce('div', {className: 'dash-main'}, renderMain())
+      ce('div', {className: 'dash-sidebar'}, sidebarInner),
+      ce('div', {className: 'dash-main'},
+        ce('button', {className: 'dash-sidebar-toggle', onClick: function() { setSidebarOpen(function(o) { return !o; }); }},
+          sidebarOpen ? '× Cerrar' : '☰ Menú'
+        ),
+        ce('div', {className: 'dash-sidebar-mobile' + (sidebarOpen ? ' open' : '')}, sidebarInner),
+        renderMain()
+      )
     )
   );
 }
@@ -904,7 +936,7 @@ function MobileApp() {
       ce('div', {className:'sec-label'}, 'App m\u00F3vil'),
       ce('h2', {className:'sec-title'}, 'Una app,\ntres experiencias'),
       ce('p', {className:'sec-sub'}, 'Una sola app para todos los roles. Cada usuario ve exactamente lo que necesita seg\u00FAn su perfil: encuestador, coordinador o admin.'),
-      ce('div', {style:{display:'flex',gap:8,margin:'24px 0 36px'}},
+      ce('div', {className:'role-selector', style:{display:'flex',gap:8,margin:'24px 0 36px',flexWrap:'wrap',justifyContent:'flex-start'}},
         roles.map(r => ce('button', {key: r.key, onClick: () => { setActiveRole(r.key); setActiveSurvey(null); },
           className: 'role-badge ' + r.badge,
           style: {cursor:'pointer', border: activeRole===r.key ? '2px solid currentColor' : '2px solid transparent', padding:'6px 16px', fontSize:12, opacity: activeRole===r.key ? 1 : 0.55, transition:'all .15s'}
