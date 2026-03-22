@@ -2,6 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute, DashboardLayout } from './components/layout'
 
+// Landing
+import Landing from './pages/landing/Landing'
+
 // Auth
 import Login           from './pages/auth/Login'
 import CompletarPerfil from './pages/auth/CompletarPerfil'
@@ -27,6 +30,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           {/* Public */}
+          <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
 
           {/* Complete profile (authenticated but incomplete) */}
@@ -58,7 +62,7 @@ export default function App() {
           </Route>
 
           {/* Fallback */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

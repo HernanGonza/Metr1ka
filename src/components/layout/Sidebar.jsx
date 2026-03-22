@@ -43,7 +43,7 @@ export function Sidebar() {
 
   async function handleSignOut() {
     await signOut()
-    navigate('/login')
+    navigate('/')
   }
 
   return (
@@ -53,7 +53,7 @@ export function Sidebar() {
           ? <img src={organizacion.logo_url} alt={organizacion.nombre} className={styles.logo} />
           : <div className={styles.brandName}>
               <span className={styles.brandMain}>Encuestas</span>
-              <span className={styles.brandSub}>Enfoque Misiones</span>
+              <span className={styles.brandSub}>Enfoque</span>
             </div>
         }
       </div>

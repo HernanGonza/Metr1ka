@@ -10,7 +10,7 @@ export function ProtectedRoute({ roles = null }) {
     return <Spinner center size="lg" />
   }
 
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/" replace />
 
   // Perfil incompleto → obligar a completarlo
   if (!perfilCompleto && window.location.pathname !== '/completar-perfil') {
