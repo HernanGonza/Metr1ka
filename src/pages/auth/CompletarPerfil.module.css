@@ -1,14 +1,128 @@
-.page { min-height: 100vh; background: var(--surface); display: flex; align-items: flex-start; justify-content: center; padding: 40px 24px; }
-.card { background: #fff; border: 1px solid var(--border); border-radius: var(--r2); padding: 40px; width: 100%; max-width: 640px; box-shadow: var(--shadow-lg); }
-.header { margin-bottom: 32px; }
-.header h2 { font-size: 24px; font-weight: 800; letter-spacing: -.5px; margin-bottom: 6px; }
-.header p  { font-size: 14px; color: var(--ink2); }
-.form { display: flex; flex-direction: column; gap: 28px; }
-.section { display: flex; flex-direction: column; gap: 14px; }
-.sectionTitle { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--accent2); }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-.label { font-size: 13px; font-weight: 600; color: var(--ink2); display: block; margin-bottom: 6px; }
-.select { width: 100%; padding: 10px 14px; border: 1.5px solid var(--border2); border-radius: var(--r); font-size: 14px; font-family: 'DM Sans', sans-serif; background: #fff; color: var(--ink); outline: none; }
-.select:focus { border-color: var(--accent); }
-.error { font-size: 13px; color: var(--danger); padding: 10px 14px; background: var(--danger-light); border-radius: var(--r); }
+.page {
+  min-height: 100vh;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+.welcome {
+  background: #fff;
+  border-radius: var(--r2);
+  padding: 48px 40px;
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 4px 24px rgba(0,0,0,.07);
+}
+.welcomeIcon  { font-size: 48px; margin-bottom: 20px; }
+.welcomeTitle { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; }
+.welcomeSub   { font-size: 16px; color: var(--ink2); line-height: 1.6; margin-bottom: 32px; }
+.card {
+  background: #fff;
+  border-radius: var(--r2);
+  padding: 32px;
+  max-width: 540px;
+  width: 100%;
+  box-shadow: 0 4px 24px rgba(0,0,0,.07);
+}
+.progressWrap {
+  height: 4px;
+  background: var(--surface2);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.progressBar {
+  height: 4px;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width .4s ease;
+}
+.progressLabel {
+  font-size: 11px;
+  color: var(--ink3);
+  font-weight: 600;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+.brand {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--accent);
+  margin-bottom: 28px;
+}
+.brandSub { color: var(--ink3); font-weight: 400; }
+.step { display: flex; flex-direction: column; }
+.stepContent { flex: 1; }
+.stepTitle {
+  font-family: 'Syne', sans-serif;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  margin-bottom: 6px;
+}
+.stepSub {
+  font-size: 14px;
+  color: var(--ink2);
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+.stepFields { display: flex; flex-direction: column; gap: 16px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.fieldLabel { font-size: 13px; font-weight: 600; color: var(--ink2); }
+.input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border2);
+  border-radius: var(--r);
+  font-size: 15px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  transition: border-color .15s;
+  background: #fff;
+  color: var(--ink);
+  box-sizing: border-box;
+}
+.input:focus { border-color: var(--accent); }
+.input::placeholder { color: var(--ink3); }
+.stepFooter {
+  display: flex;
+  gap: 10px;
+  margin-top: 28px;
+  justify-content: flex-end;
+}
+.btnNext {
+  padding: 12px 24px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--r);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all .15s;
+}
+.btnNext:hover:not(:disabled) { background: var(--accent2); transform: translateY(-1px); }
+.btnNext:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.btnBack {
+  padding: 12px 20px;
+  background: transparent;
+  color: var(--ink2);
+  border: 1.5px solid var(--border2);
+  border-radius: var(--r);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all .15s;
+}
+.btnBack:hover { background: var(--surface); }
+@media (max-width: 480px) {
+  .card, .welcome { padding: 24px 20px; }
+  .stepTitle { font-size: 20px; }
+  .welcomeTitle { font-size: 26px; }
+}

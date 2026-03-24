@@ -2,6 +2,10 @@ import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { Spinner } from '../ui'
 
+function homeByRol(rol) {
+  if (rol === 'superadmin' || rol === 'editor') return '/superadmin'
+  return '/dashboard'
+}
 export function ProtectedRoute({ roles = null }) {
   const { user, perfil, loading, rol, perfilCompleto } = useAuth()
 
@@ -10,16 +14,17 @@ export function ProtectedRoute({ roles = null }) {
     return <Spinner center size="lg" />
   }
 
+  // No autenticado → landing
   if (!user) return <Navigate to="/" replace />
 
-  // Perfil incompleto → obligar a completarlo
+  // Perfil incompleto → completar
   if (!perfilCompleto && window.location.pathname !== '/completar-perfil') {
     return <Navigate to="/completar-perfil" replace />
   }
 
-  // Rol no permitido
+  // Rol no permitido → home según su rol
   if (roles && rol && !roles.includes(rol)) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={homeByRol(rol)} replace />
   }
 
   return <Outlet />
