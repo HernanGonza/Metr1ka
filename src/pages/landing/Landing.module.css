@@ -1184,6 +1184,12 @@
   object-fit: contain;
 }
 
+.brandLogoMain {
+  height: 25px;
+  width: auto;
+  object-fit: contain;
+}
+
 /* Modificador para el logo de Paralelo (más chico en su archivo original) */
 .brandLogoParalelo {
   height: 110px; /* Ajustá este valor hasta que se vea del mismo tamaño visual que Enfoque */

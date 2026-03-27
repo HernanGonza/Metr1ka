@@ -4,6 +4,7 @@ import Chart from 'chart.js/auto'
 import styles from './Landing.module.css'
 import logoEnfoque  from '../../assets/logo-enfoque.png'
 import logoParalelo from '../../assets/logo-paralelo.webp'
+import LogoMetr1ka from '../../assets/LogoMetr1ka.svg'
 import {
   SECTIONS, FLOW_STEPS, ROLES, PLANS, TESTIMONIALS,
   SURVEY_QUESTIONS, MOBILE_FEATURES, DASHBOARD_SIDEBAR, DASHBOARD_DATA,
@@ -100,7 +101,7 @@ function Nav({ active, onNav }) {
     <>
       <nav className={styles.nav}>
         <div className={styles.navBrand}>
-          <span className={styles.brandName}>METR<span className={styles.brand1}>1</span>KA</span>
+          <img src={LogoMetr1ka} alt="METR1KA" className={styles.brandLogoMain} />
           <span className={styles.brandPowered}>
             by
             <img src={logoEnfoque}  alt="Enfoque"  className={styles.brandLogo} />
