@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { Spinner, Badge } from '../../components/ui'
 
@@ -100,16 +101,37 @@ function EditModal({ susc, org, onClose, onSaved }) {
 export default function Suscripciones() {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState(null) // { susc, org }
+  const [editing, setEditing] = useState(null)
   const [filterEstado, setFilterEstado] = useState('todas')
 
   async function fetchData() {
     setLoading(true)
-    const { data: orgs } = await supabase
+
+    // Query con FK explícita para que Supabase infiera bien la relación
+    const { data: orgsData } = await supabase
       .from('organizaciones')
-      .select('id, nombre, color_primario, activo, suscripciones(plan, estado, fecha_vencimiento, monto, notas)')
+      .select('*, suscripciones!suscripciones_organizacion_id_fkey(plan, estado, fecha_vencimiento, monto, notas)')
       .order('nombre')
-    setData(orgs || [])
+
+    // Contar usuarios por organización por separado (como en Organizaciones.jsx)
+    const { data: perfilesData } = await supabase
+      .from('perfiles')
+      .select('organizacion_id')
+      .not('organizacion_id', 'is', null)
+
+    const conteoPerfiles = (perfilesData || []).reduce((acc, p) => {
+      acc[p.organizacion_id] = (acc[p.organizacion_id] || 0) + 1
+      return acc
+    }, {})
+
+    // Normalizar: suscripciones viene como objeto (no array) por el unique constraint
+    const orgsConDatos = (orgsData || []).map(org => ({
+      ...org,
+      suscripcion: Array.isArray(org.suscripciones) ? org.suscripciones[0] : org.suscripciones,
+      usuarios_count: conteoPerfiles[org.id] || 0,
+    }))
+
+    setData(orgsConDatos)
     setLoading(false)
   }
 
@@ -126,23 +148,23 @@ export default function Suscripciones() {
   }
 
   const filtered = data.filter(o => {
-    const susc = o.suscripciones?.[0]
+    const susc = o.suscripcion
     if (filterEstado === 'todas') return true
     return susc?.estado === filterEstado
   })
 
   const stats = {
-    activas:    data.filter(o => o.suscripciones?.[0]?.estado === 'activa').length,
-    trial:      data.filter(o => o.suscripciones?.[0]?.estado === 'trial').length,
-    vencidas:   data.filter(o => o.suscripciones?.[0]?.estado === 'vencida').length,
-    suspendidas:data.filter(o => o.suscripciones?.[0]?.estado === 'suspendida').length,
+    activas:    data.filter(o => o.suscripcion?.estado === 'activa').length,
+    trial:      data.filter(o => o.suscripcion?.estado === 'trial').length,
+    vencidas:   data.filter(o => o.suscripcion?.estado === 'vencida').length,
+    suspendidas:data.filter(o => o.suscripcion?.estado === 'suspendida').length,
   }
 
   return (
     <div className="sa-page">
       {editing && (
         <EditModal
-          susc={editing.org.suscripciones?.[0]}
+          susc={editing.org.suscripcion}
           org={editing.org}
           onClose={() => setEditing(null)}
           onSaved={fetchData}
@@ -195,19 +217,23 @@ export default function Suscripciones() {
                   <th>Vencimiento</th>
                   <th>Días restantes</th>
                   <th>Monto</th>
+                  <th>Usuarios</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(org => {
-                  const susc = org.suscripciones?.[0]
+                  const susc = org.suscripcion
                   const dias = diasRestantes(susc?.fecha_vencimiento)
                   return (
                     <tr key={org.id}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <div style={{ width: 24, height: 24, borderRadius: 6, background: org.color_primario || 'var(--accent)', flexShrink: 0 }} />
-                          <span style={{ fontWeight: 600, fontSize: 13 }}>{org.nombre}</span>
+                          <div>
+                            <span style={{ fontWeight: 600, fontSize: 13 }}>{org.nombre}</span>
+                            <div style={{ fontSize: 11, color: 'var(--ink3)', fontFamily: 'monospace' }}>{org.id.substring(0, 8)}...</div>
+                          </div>
                         </div>
                       </td>
                       <td><span style={{ fontSize: 13, fontWeight: 600 }}>{PLAN_LABELS[susc?.plan] || '—'}</span></td>
@@ -221,11 +247,18 @@ export default function Suscripciones() {
                         ) : <span style={{ color: 'var(--ink3)', fontSize: 12 }}>—</span>}
                       </td>
                       <td><span style={{ fontSize: 13 }}>{susc?.monto ? `$${Number(susc.monto).toLocaleString('es-AR')}` : '—'}</span></td>
+                      <td><span style={{ fontSize: 13, fontWeight: 500 }}>{org.usuarios_count}</span></td>
                       <td>
-                        <button onClick={() => setEditing({ org })}
-                          style={{ padding: '5px 12px', background: 'var(--accent-light)', color: 'var(--accent2)', border: '1px solid transparent', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontFamily: 'DM Sans', fontWeight: 600 }}>
-                          Editar
-                        </button>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => setEditing({ org })}
+                            style={{ padding: '5px 12px', background: 'var(--accent-light)', color: 'var(--accent2)', border: '1px solid transparent', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontFamily: 'DM Sans', fontWeight: 600 }}>
+                            Editar
+                          </button>
+                          <Link to={`/superadmin/usuarios?org=${org.id}`}
+                            style={{ padding: '5px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', fontSize: 12, textDecoration: 'none', fontFamily: 'DM Sans' }}>
+                            Ver usuarios
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   )
