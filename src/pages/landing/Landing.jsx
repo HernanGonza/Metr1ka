@@ -4,7 +4,8 @@ import Chart from 'chart.js/auto'
 import styles from './Landing.module.css'
 import logoEnfoque  from '../../assets/logo-enfoque.png'
 import logoParalelo from '../../assets/logo-paralelo.webp'
-import LogoMetr1ka from '../../assets/LogoMetr1ka.svg'
+import LogoMetr1ka  from '../../assets/LogoMetr1ka.svg'
+import { FaFacebookF, FaInstagram, FaLinkedinIn } from 'react-icons/fa'
 import {
   SECTIONS, FLOW_STEPS, ROLES, PLANS, TESTIMONIALS,
   SURVEY_QUESTIONS, MOBILE_FEATURES, DASHBOARD_SIDEBAR, DASHBOARD_DATA,
@@ -69,7 +70,6 @@ function MapSVG({ full }) {
         <path d="M190 0 L190 360" stroke="#a8d5a2" strokeWidth={2} fill="none" />
         <path d="M400 0 L400 360" stroke="#a8d5a2" strokeWidth={2} fill="none" />
         {[{x:25,y:45,w:85,h:42},{x:125,y:175,w:95,h:52},{x:245,y:65,w:75,h:38},{x:315,y:195,w:88,h:48},{x:425,y:75,w:105,h:46},{x:445,y:260,w:72,h:52}].map((b,i)=><rect key={i} {...b} fill="#c5dbc5" rx={5}/>)}
-        {/* Zona geofencing */}
         <polygon points="80,60 280,40 320,200 120,220" fill="rgba(26,71,42,.12)" stroke="#1a472a" strokeWidth={2} strokeDasharray="8,4"/>
         <text x="185" y="135" textAnchor="middle" fontSize={10} fill="#1a472a" fontWeight={700} opacity={.7}>Zona Norte</text>
         <text x={300} y={348} textAnchor="middle" fontSize={11} fill="#5a9e5a" fontWeight={600}>Posadas, Misiones</text>
@@ -102,11 +102,7 @@ function Nav({ active, onNav }) {
       <nav className={styles.nav}>
         <div className={styles.navBrand}>
           <img src={LogoMetr1ka} alt="METR1KA" className={styles.brandLogoMain} />
-          <span className={styles.brandPowered}>
-            by
-            <img src={logoEnfoque}  alt="Enfoque"  className={styles.brandLogo} />
-            <img src={logoParalelo} alt="Paralelo" className={`${styles.brandLogo} ${styles.brandLogoParalelo}`} />
-          </span>
+          
         </div>
         <div className={styles.navTabs}>
           {SECTIONS.map(s => (
@@ -150,10 +146,10 @@ function Hero() {
         </div>
         <div className={styles.statsRow}>
           {[
-            { num: '100%', label: 'Datos en tiempo real'        },
-            { num: '4',    label: 'Roles diferenciados'         },
-            { num: '∞',    label: 'Encuestas reutilizables'     },
-            { num: '🔒',   label: 'Datos aislados por cliente'  },
+            { num: '100%', label: 'Datos en tiempo real'       },
+            { num: '4',    label: 'Roles diferenciados'        },
+            { num: '∞',    label: 'Encuestas reutilizables'    },
+            { num: '🔒',   label: 'Datos aislados por cliente' },
           ].map((s, i) => (
             <div key={i} className={styles.statBox}>
               <span className={styles.statNum}>{s.num}</span>
@@ -161,6 +157,42 @@ function Hero() {
             </div>
           ))}
         </div>
+      </div>
+    </section>
+  )
+}
+
+/* ── SOBRE NOSOTROS ── */
+function SobreNosotros() {
+  return (
+    <section id="nosotros" className={`${styles.section} ${styles.sobreSection}`}>
+      <div className={styles.container}>
+        <div className={styles.secLabel}>Nuestra historia</div>
+        <h2 className={styles.secTitle}>Sobre METR1KA</h2>
+        <div className={styles.aboutContent}>
+          <p>
+            METR1KA nace como un proyecto conjunto entre <strong>Enfoque Misiones</strong> y <strong>Paralelo Software Studio</strong>, con el propósito de transformar la forma en que se crean, gestionan y analizan las encuestas en Misiones.
+          </p>
+          <p>
+            Enfoque Misiones, el diario digital referente de la provincia, identificó una necesidad recurrente en su trabajo diario: las herramientas de encuestas tradicionales eran lentas, poco intuitivas y limitadas a la hora de generar datos útiles en tiempo real.
+          </p>
+          <p>
+            Fue así como decidimos unir fuerzas: la experiencia periodística y el profundo conocimiento del territorio de Enfoque Misiones, junto con la capacidad técnica de <strong>Paralelo Software Studio</strong>, especializada en crear soluciones digitales escalables y centradas en la experiencia del usuario.
+          </p>
+          <div className={styles.aboutHighlight}>
+            <p><strong>El resultado es METR1KA:</strong> una plataforma moderna de encuestas en tiempo real que permite:</p>
+            <ul>
+              <li>Crear encuestas profesionales y asignarlas a equipos de campo</li>
+              <li>Recolectar respuestas de forma instantánea con GPS</li>
+              <li>Visualizar resultados en vivo con gráficos claros</li>
+              <li>Controlar zonas de trabajo con geofencing por equipo</li>
+            </ul>
+          </div>
+          <p>
+            Nuestra misión es democratizar el acceso a herramientas de investigación de campo, permitiendo a organizaciones, empresas y gobiernos tomar decisiones basadas en datos reales, comenzando desde Misiones hacia todo el país.
+          </p>
+        </div>
+        
       </div>
     </section>
   )
@@ -328,11 +360,9 @@ function DashboardPreview() {
             <div key={i} className={styles.itemCard}>
               <div className={styles.itemCardT}>{e.name}</div>
               <div style={{ fontSize:11, color:'var(--ink3)', marginBottom:8, marginTop:2 }}>Coordinador</div>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <div className={styles.encAv} style={{ background:e.coordBg, color:e.coordTc, width:26, height:26, fontSize:10 }}>{e.coordI}</div>
-                  <span style={{ fontSize:13, fontWeight:600 }}>{e.coord}</span>
-                </div>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+                <div className={styles.encAv} style={{ background:e.coordBg, color:e.coordTc, width:26, height:26, fontSize:10 }}>{e.coordI}</div>
+                <span style={{ fontSize:13, fontWeight:600 }}>{e.coord}</span>
               </div>
               <div className={styles.itemCardM}>
                 <span className={`${styles.tag} ${styles.tb}`}>{e.enc} encuestadores</span>
@@ -453,7 +483,7 @@ function DashboardPreview() {
   )
 }
 
-/* ── PHONE SURVEY ── */
+/* ── PHONE COMPONENTS ── */
 function PhoneSurvey({ surveyName, onBack }) {
   const [step, setStep]       = useState(0)
   const [answers, setAnswers] = useState({})
@@ -472,7 +502,7 @@ function PhoneSurvey({ surveyName, onBack }) {
         <div className={styles.phoneSvDoneIcon}>✅</div>
         <h4>¡Completada!</h4>
         <p>Respuestas enviadas al panel central.</p>
-        <button className={styles.phoneActionBtn} style={{ background:'#1a472a', marginTop:16 }} onClick={onBack}>← Volver a encuestas</button>
+        <button className={styles.phoneActionBtn} style={{ background:'#1a472a', marginTop:16 }} onClick={onBack}>← Volver</button>
       </div>
     )
     if (q.type === 'multi' || q.type === 'sino') return (
@@ -529,10 +559,7 @@ function PhoneSurvey({ surveyName, onBack }) {
 function PhoneHome({ onStart }) {
   return (
     <>
-      <div className={styles.phoneHomeHeader}>
-        <h4>Mis encuestas</h4><p>Hola, María. Tenés 2 activas.</p>
-      </div>
-      {/* Zona geofencing activa */}
+      <div className={styles.phoneHomeHeader}><h4>Mis encuestas</h4><p>Hola, María. Tenés 2 activas.</p></div>
       <div style={{ margin:'10px 12px 0', padding:'8px 12px', background:'#d8f3dc', borderRadius:8, display:'flex', alignItems:'center', gap:8 }}>
         <span style={{ fontSize:14 }}>📍</span>
         <div>
@@ -575,47 +602,47 @@ function PhoneCoord() {
       <div style={{ display:'flex', borderBottom:'1px solid var(--border)', background:'#fff', flexShrink:0 }}>
         {['mapa','equipo'].map(t => (
           <button key={t} onClick={() => setMapTab(t)} style={{ flex:1, padding:'10px', border:'none', background:'none', fontSize:12, fontWeight:700, cursor:'pointer', color:mapTab===t?'var(--accent)':'var(--ink3)', borderBottom:mapTab===t?'2px solid var(--accent)':'2px solid transparent' }}>
-            {t==='mapa'?'🗺️ Mapa en vivo':'👥 Mi equipo'}
+            {t==='mapa'?'🗺️ Mapa':'👥 Equipo'}
           </button>
         ))}
       </div>
       {mapTab === 'mapa' ? (
         <div style={{ flex:1, display:'flex', flexDirection:'column', padding:12, gap:10 }}>
-          <div style={{ background:'#deefd8', borderRadius:10, overflow:'hidden', flex:1, minHeight:140 }}>
+          <div style={{ background:'#deefd8', borderRadius:10, overflow:'hidden', flex:1, minHeight:120 }}>
             <svg width="100%" height="100%" viewBox="0 0 280 180" preserveAspectRatio="xMidYMid slice">
               <rect width={280} height={180} fill="#deefd8"/>
               <path d="M0 90 Q70 70 140 90 Q210 110 280 90" stroke="#a8d5a2" strokeWidth={2} fill="none"/>
-              {[{x:20,y:30,w:55,h:30},{x:110,y:100,w:60,h:35},{x:200,y:40,w:65,h:30},{x:30,y:120,w:50,h:30}].map((b,i)=><rect key={i} {...b} fill="#c5dbc5" rx={4}/>)}
+              {[{x:20,y:30,w:55,h:30},{x:110,y:100,w:60,h:35},{x:200,y:40,w:65,h:30}].map((b,i)=><rect key={i} {...b} fill="#c5dbc5" rx={4}/>)}
               <polygon points="20,20 200,15 220,160 30,165" fill="rgba(26,71,42,.12)" stroke="#1a472a" strokeWidth={1.5} strokeDasharray="6,3"/>
-              {[{x:80,y:80,color:'#1a472a',count:'14'},{x:150,y:130,color:'#0369a1',count:'9'},{x:195,y:75,color:'#b45309',count:'7'},{x:220,y:140,color:'#7c3aed',count:'11'}].map((p,i)=>(
+              {[{x:80,y:80,color:'#1a472a'},{x:150,y:130,color:'#0369a1'},{x:195,y:75,color:'#b45309'}].map((p,i)=>(
                 <g key={i}>
-                  <circle cx={p.x} cy={p.y} r={10} fill={p.color} opacity={.2}/>
-                  <circle cx={p.x} cy={p.y} r={6}  fill={p.color} stroke="#fff" strokeWidth={1.5}/>
+                  <circle cx={p.x} cy={p.y} r={9} fill={p.color} opacity={.2}/>
+                  <circle cx={p.x} cy={p.y} r={5} fill={p.color} stroke="#fff" strokeWidth={1.5}/>
                 </g>
               ))}
             </svg>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-            {[{label:'Activos',val:'3',color:'#22c55e'},{label:'En pausa',val:'1',color:'#f59e0b'},{label:'Encuestas hoy',val:'41',color:'var(--accent)'},{label:'Meta diaria',val:'60',color:'var(--ink3)'}].map((k,i)=>(
-              <div key={i} style={{ background:'#fff', borderRadius:8, padding:'10px 12px', border:'1px solid var(--border)' }}>
-                <div style={{ fontSize:10, color:'var(--ink3)', fontWeight:600, marginBottom:3 }}>{k.label}</div>
-                <div style={{ fontFamily:'Syne', fontSize:20, fontWeight:800, color:k.color }}>{k.val}</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+            {[{label:'Activos',val:'3',color:'#22c55e'},{label:'Encuestas hoy',val:'41',color:'var(--accent)'}].map((k,i)=>(
+              <div key={i} style={{ background:'#fff', borderRadius:8, padding:'8px 10px', border:'1px solid var(--border)' }}>
+                <div style={{ fontSize:10, color:'var(--ink3)', fontWeight:600, marginBottom:2 }}>{k.label}</div>
+                <div style={{ fontFamily:'Syne', fontSize:18, fontWeight:800, color:k.color }}>{k.val}</div>
               </div>
             ))}
           </div>
         </div>
       ) : (
-        <div style={{ flex:1, padding:12, overflowY:'auto' }}>
+        <div style={{ flex:1, padding:10, overflowY:'auto' }}>
           {encuestadores.map((e, i) => (
-            <div key={i} style={{ background:'#fff', borderRadius:9, padding:10, marginBottom:8, border:'1px solid var(--border)', display:'flex', alignItems:'center', gap:10 }}>
-              <div className={styles.encAv} style={{ background:e.bg, color:e.tc, width:32, height:32, fontSize:12 }}>{e.i}</div>
+            <div key={i} style={{ background:'#fff', borderRadius:8, padding:9, marginBottom:6, border:'1px solid var(--border)', display:'flex', alignItems:'center', gap:8 }}>
+              <div className={styles.encAv} style={{ background:e.bg, color:e.tc, width:30, height:30, fontSize:11 }}>{e.i}</div>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:12, fontWeight:700 }}>{e.name}</div>
-                <div style={{ fontSize:11, color:'var(--ink3)' }}>
+                <div style={{ fontSize:10, color:'var(--ink3)' }}>
                   <span className={`${styles.sDot} ${e.status==='active'?styles.sOn:styles.sOff}`}/>{e.zone}
                 </div>
               </div>
-              <div style={{ fontSize:12, fontWeight:700, color:'var(--accent2)' }}>{e.count} enc.</div>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--accent2)' }}>{e.count}</div>
             </div>
           ))}
         </div>
@@ -629,7 +656,6 @@ function PhoneAdmin() {
   const encuestas = [
     { name:'Satisfacción general', total:412, meta:600, pct:69 },
     { name:'Seguridad barrial',    total:187, meta:300, pct:62 },
-    { name:'Atención ciudadana',   total:98,  meta:200, pct:49 },
   ]
   const e = encuestas[selected]
   const resultados = [
@@ -640,36 +666,33 @@ function PhoneAdmin() {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#f7f7f5' }}>
       <div className={styles.phoneHomeHeader}><h4>Resultados en vivo</h4><p>Posadas, Misiones</p></div>
-      <div style={{ padding:'10px 12px', background:'#fff', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-        <div style={{ fontSize:10, color:'var(--ink3)', fontWeight:600, marginBottom:6, textTransform:'uppercase', letterSpacing:.5 }}>Encuesta</div>
-        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+      <div style={{ padding:'8px 12px', background:'#fff', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+        <div style={{ display:'flex', gap:6 }}>
           {encuestas.map((enc,i)=>(
-            <button key={i} onClick={()=>setSelected(i)} style={{ padding:'5px 10px', borderRadius:100, border:`1.5px solid ${selected===i?'var(--accent)':'var(--border2)'}`, background:selected===i?'var(--accent-light)':'#fff', color:selected===i?'var(--accent)':'var(--ink3)', fontSize:11, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap', fontFamily:'DM Sans' }}>
-              {enc.name.split(' ').slice(0,2).join(' ')}
+            <button key={i} onClick={()=>setSelected(i)} style={{ padding:'4px 10px', borderRadius:100, border:`1.5px solid ${selected===i?'var(--accent)':'var(--border2)'}`, background:selected===i?'var(--accent-light)':'#fff', color:selected===i?'var(--accent)':'var(--ink3)', fontSize:10, fontWeight:600, cursor:'pointer', fontFamily:'DM Sans' }}>
+              {enc.name.split(' ')[0]}
             </button>
           ))}
         </div>
       </div>
-      <div style={{ flex:1, padding:12, overflowY:'auto', display:'flex', flexDirection:'column', gap:10 }}>
-        <div style={{ background:'#fff', borderRadius:10, padding:14, border:'1px solid var(--border)' }}>
-          <div style={{ fontSize:11, color:'var(--ink3)', fontWeight:600, marginBottom:2 }}>{e.name}</div>
-          <div style={{ fontFamily:'Syne', fontSize:28, fontWeight:800, color:'var(--accent)', letterSpacing:-1 }}>{e.total}</div>
-          <div style={{ fontSize:11, color:'var(--ink3)', marginBottom:10 }}>respuestas de {e.meta} previstas</div>
-          <div style={{ height:6, background:'var(--surface2)', borderRadius:3, overflow:'hidden' }}>
-            <div style={{ height:6, background:'var(--accent)', borderRadius:3, width:`${e.pct}%` }}/>
+      <div style={{ flex:1, padding:10, overflowY:'auto', display:'flex', flexDirection:'column', gap:8 }}>
+        <div style={{ background:'#fff', borderRadius:10, padding:12, border:'1px solid var(--border)' }}>
+          <div style={{ fontFamily:'Syne', fontSize:26, fontWeight:800, color:'var(--accent)', letterSpacing:-1 }}>{e.total}</div>
+          <div style={{ fontSize:10, color:'var(--ink3)', marginBottom:8 }}>de {e.meta} previstas</div>
+          <div style={{ height:5, background:'var(--surface2)', borderRadius:3, overflow:'hidden' }}>
+            <div style={{ height:5, background:'var(--accent)', borderRadius:3, width:`${e.pct}%` }}/>
           </div>
-          <div style={{ fontSize:10, color:'var(--accent2)', marginTop:4, fontWeight:600 }}>{e.pct}% completado</div>
+          <div style={{ fontSize:10, color:'var(--accent2)', marginTop:3, fontWeight:600 }}>{e.pct}%</div>
         </div>
-        <div style={{ background:'#fff', borderRadius:10, padding:14, border:'1px solid var(--border)' }}>
-          <div style={{ fontSize:12, fontWeight:700, marginBottom:12, fontFamily:'Syne' }}>¿Cómo calificás la gestión?</div>
+        <div style={{ background:'#fff', borderRadius:10, padding:12, border:'1px solid var(--border)' }}>
           {resultados.map((r,i)=>(
-            <div key={i} style={{ marginBottom:10 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:4 }}>
-                <span style={{ color:'var(--ink2)', fontWeight:500 }}>{r.label}</span>
+            <div key={i} style={{ marginBottom:8 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, marginBottom:3 }}>
+                <span style={{ color:'var(--ink2)' }}>{r.label}</span>
                 <span style={{ fontWeight:700, color:r.color }}>{r.pct}%</span>
               </div>
-              <div style={{ height:5, background:'var(--surface2)', borderRadius:3, overflow:'hidden' }}>
-                <div style={{ height:5, background:r.color, borderRadius:3, width:`${r.pct}%` }}/>
+              <div style={{ height:4, background:'var(--surface2)', borderRadius:2, overflow:'hidden' }}>
+                <div style={{ height:4, background:r.color, borderRadius:2, width:`${r.pct}%` }}/>
               </div>
             </div>
           ))}
@@ -757,7 +780,7 @@ function Pricing() {
       <div className={styles.container}>
         <div className={styles.secLabel}>Planes</div>
         <h2 className={styles.secTitle}>Planes de suscripción mensual</h2>
-        <p className={styles.secSub}>Cada plan incluye encuestas diseñadas por nuestro equipo. Encuestas adicionales tienen costo extra. El acceso está activo mientras la suscripción esté paga.</p>
+        <p className={styles.secSub}>Cada plan incluye encuestas diseñadas por nuestro equipo. El acceso está activo mientras la suscripción esté paga.</p>
         <div className={styles.pricingGrid}>
           {PLANS.map((plan, i) => (
             <div key={i} className={`${styles.planCard} ${plan.featured ? styles.featured : ''}`}>
@@ -781,14 +804,14 @@ function Pricing() {
         <div className={styles.entCard}>
           <div>
             <h3>Encuestas adicionales</h3>
-            <p>¿Necesitás más encuestas de las que incluye tu plan? Nosotros las armamos y las agregamos a tu cuenta. Sin cambiar de plan.</p>
+            <p>¿Necesitás más encuestas de las que incluye tu plan? Las armamos y las agregamos. Sin cambiar de plan.</p>
             <div className={styles.entTags}>
               {['Armadas por nuestro equipo','Entrega en 48h','Revisiones incluidas','Sin cambiar de plan'].map((t,i)=>(
                 <span key={i} className={styles.eTag}>{t}</span>
               ))}
             </div>
           </div>
-          <button className={styles.btnPrimary}>Consultar</button>
+          <a href="mailto:hola@metr1ka.com" className={styles.btnPrimary}>Consultar</a>
         </div>
       </div>
     </section>
@@ -826,25 +849,56 @@ function Clientes() {
 function Footer() {
   return (
     <footer className={styles.footer}>
-      <div className={styles.footerInner}>
-        <div className={styles.footerLeft}>
-          <div className={styles.footerBrand}>
-            METR<span style={{ color:'#52b788' }}>1</span>KA
-          </div>
-          <div className={styles.footerSub}>Sistema de encuestas en tiempo real para organizaciones</div>
+      <div className={styles.footerTop}>
+        {/* Col 1: Logo + descripción */}
+        <div className={styles.footerCol}>
+          <img src={LogoMetr1ka} alt="METR1KA" className={styles.footerLogoMain} />
+          <p className={styles.footerDesc}>
+            Plataforma de encuestas profesionales en tiempo real. Desarrollada en Misiones, Argentina.
+          </p>
           <div className={styles.footerLogos}>
-            <img src={logoEnfoque}  alt="Enfoque"  className={styles.footerLogo} />
-            <img src={logoParalelo} alt="Paralelo" className={`${styles.footerLogo} ${styles.footerLogoParalelo}`} />
+            <img src={logoEnfoque}  alt="Enfoque Misiones"      className={styles.footerLogoPartner} />
+            <img src={logoParalelo} alt="Paralelo Software Studio" className={styles.footerLogoPartnerParalelo} />
           </div>
         </div>
-        <div className={styles.footerRight}>
-          <div className={styles.footerContactTitle}>Contacto</div>
+
+        {/* Col 2: Producto */}
+        <div className={styles.footerCol}>
+          <h4 className={styles.footerColTitle}>Producto</h4>
+          <div className={styles.footerLinks}>
+            <button onClick={() => document.getElementById('inicio')?.scrollIntoView({ behavior:'smooth' })} className={styles.footerLink}>Inicio</button>
+            <button onClick={() => document.getElementById('sistema')?.scrollIntoView({ behavior:'smooth' })} className={styles.footerLink}>El sistema</button>
+            <button onClick={() => document.getElementById('flujo')?.scrollIntoView({ behavior:'smooth' })} className={styles.footerLink}>Flujo</button>
+            <button onClick={() => document.getElementById('app')?.scrollIntoView({ behavior:'smooth' })} className={styles.footerLink}>App móvil</button>
+            <button onClick={() => document.getElementById('precios')?.scrollIntoView({ behavior:'smooth' })} className={styles.footerLink}>Precios</button>
+          </div>
+        </div>
+
+        {/* Col 3: Empresa */}
+        <div className={styles.footerCol}>
+          <h4 className={styles.footerColTitle}>Empresa</h4>
+          <div className={styles.footerLinks}>
+            <button onClick={() => document.getElementById('nosotros')?.scrollIntoView({ behavior:'smooth' })} className={styles.footerLink}>Sobre nosotros</button>
+            <a href="mailto:hola@metr1ka.com" className={styles.footerLink}>Contacto</a>
+          </div>
+        </div>
+
+        {/* Col 4: Contacto + redes */}
+        <div className={styles.footerCol}>
+          <h4 className={styles.footerColTitle}>Contacto</h4>
           <a href="mailto:hola@metr1ka.com" className={styles.footerEmail}>hola@metr1ka.com</a>
-          <div className={styles.footerUrl}>www.metr1ka.com</div>
+          <span className={styles.footerUrl}>www.metr1ka.com</span>
+          <div className={styles.socialIcons}>
+            <a href="#" className={styles.socialIcon} aria-label="Facebook"><FaFacebookF /></a>
+            <a href="#" className={styles.socialIcon} aria-label="Instagram"><FaInstagram /></a>
+            <a href="#" className={styles.socialIcon} aria-label="LinkedIn"><FaLinkedinIn /></a>
+          </div>
         </div>
       </div>
+
       <div className={styles.footerBottom}>
-        © {new Date().getFullYear()} METR1KA · Todos los derechos reservados · Desarrollado por <strong>Paralelo Software Studio</strong>
+        <span>© {new Date().getFullYear()} METR1KA · Todos los derechos reservados</span>
+        <span>Desarrollado por <strong>Paralelo Software Studio</strong></span>
       </div>
     </footer>
   )
@@ -870,6 +924,7 @@ export default function Landing() {
     <div className={styles.page}>
       <Nav active={activeSection} onNav={setActiveSection} />
       <Hero />
+      <SobreNosotros />
       <Roles />
       <Flujo />
       <DashboardPreview />

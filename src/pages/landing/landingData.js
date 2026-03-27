@@ -1,5 +1,6 @@
 export const SECTIONS = [
   { id: 'inicio',    label: 'Inicio'     },
+  { id: 'nosotros',  label: 'Nosotros'   },
   { id: 'sistema',   label: 'El sistema' },
   { id: 'flujo',     label: 'Flujo'      },
   { id: 'panel',     label: 'Panel'      },
