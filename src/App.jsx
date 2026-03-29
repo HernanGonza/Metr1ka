@@ -76,6 +76,13 @@ export default function App() {
             </Route>
           </Route>
 
+          {/* Suscripcion — solo admin (no gestor) */}
+          <Route element={<ProtectedRoute roles={['admin']} />}>
+            <Route element={<DashboardLayout />}>
+              <Route path="/suscripcion" element={<ConfiguracionAdmin />} />
+            </Route>
+          </Route>
+
           {/* Coordinador routes */}
           <Route element={<ProtectedRoute roles={['coordinador']} />}>
             <Route element={<DashboardLayout />}>

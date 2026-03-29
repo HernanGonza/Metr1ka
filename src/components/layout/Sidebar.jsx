@@ -2,8 +2,27 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { Avatar } from '../ui'
 import styles from './Sidebar.module.css'
+import LogoMetr1ka from '../../assets/LogoMetr1ka.svg'
 
 const NAV_ADMIN = [
+  { group: 'Principal',    items: [
+    { to: '/dashboard',      icon: '📊', label: 'Dashboard' },
+    { to: '/mapa',           icon: '🗺️', label: 'Mapa en vivo' },
+  ]},
+  { group: 'Gestión',      items: [
+    { to: '/encuestas',      icon: '📋', label: 'Encuestas' },
+    { to: '/equipos',        icon: '👥', label: 'Equipos' },
+    { to: '/coordinadores',  icon: '👔', label: 'Coordinadores y Gestores' },
+    { to: '/encuestadores',  icon: '👤', label: 'Encuestadores' },
+  ]},
+  { group: 'Herramientas', items: [
+    { to: '/reportes',       icon: '📁', label: 'Reportes' },
+    { to: '/configuracion',  icon: '⚙️', label: 'Configuración' },
+    { to: '/suscripcion',    icon: '💳', label: 'Suscripción' },
+  ]},
+]
+
+const NAV_GESTOR = [
   { group: 'Principal',    items: [
     { to: '/dashboard',      icon: '📊', label: 'Dashboard' },
     { to: '/mapa',           icon: '🗺️', label: 'Mapa en vivo' },
@@ -35,7 +54,7 @@ export function Sidebar() {
   const { perfil, rol, organizacion, signOut } = useAuth()
   const navigate = useNavigate()
 
-  const nav = rol === 'coordinador' ? NAV_COORDINADOR : NAV_ADMIN
+  const nav = rol === 'coordinador' ? NAV_COORDINADOR : rol === 'gestor' ? NAV_GESTOR : NAV_ADMIN
 
   const initials = perfil
     ? (perfil.nombre_completo || '').split(' ').slice(0,2).map(n => n[0]).join('').toUpperCase()
@@ -52,8 +71,7 @@ export function Sidebar() {
         {organizacion?.logo_url
           ? <img src={organizacion.logo_url} alt={organizacion.nombre} className={styles.logo} />
           : <div className={styles.brandName}>
-              <span className={styles.brandMain}>Encuestas</span>
-              <span className={styles.brandSub}>Enfoque</span>
+              <img src={LogoMetr1ka} alt="Metr1ka" />
             </div>
         }
       </div>
