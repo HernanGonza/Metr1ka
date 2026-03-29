@@ -7,7 +7,7 @@ import styles from './Page.module.css'
 
 const ROL_LABEL = { coordinador: 'Coordinador', gestor: 'Gestor' }
 
-function InviteModal({ onClose, onSaved, orgId, session }) {
+function InviteModal({ onClose, onSaved, session }) {
   const [form, setForm]   = useState({ email: '', rol: 'coordinador' })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
@@ -17,14 +17,14 @@ function InviteModal({ onClose, onSaved, orgId, session }) {
     if (!form.email.trim()) { setError('El email es obligatorio'); return }
     setSaving(true); setError('')
     try {
-      const res = await fetch('https://zjphrjcpkzlmdpqhjypq.supabase.co/functions/v1/invite-user', {
+      const res = await fetch('https://zjphrjcpkzlmdpqhjypq.supabase.co/functions/v1/invite-member', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ email: form.email, rol: form.rol, organizacion_id: orgId }),
+        body: JSON.stringify({ email: form.email, rol: form.rol }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Error al invitar')
@@ -178,7 +178,6 @@ export default function Coordinadores() {
 
       {showInvite && session && (
         <InviteModal
-          orgId={perfil?.organizacion_id}
           session={session}
           onClose={() => setShowInvite(false)}
           onSaved={() => { setShowInvite(false); fetchData() }}

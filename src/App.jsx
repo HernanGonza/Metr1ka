@@ -29,6 +29,7 @@ import CoordinadoresAdmin from './pages/admin/Coordinadores'
 import EncuestadoresAdmin from './pages/admin/Encuestadores'
 import ReportesAdmin      from './pages/admin/Reportes'
 import ConfiguracionAdmin from './pages/admin/Configuracion'
+import SuscripcionAdmin   from './pages/admin/Suscripcion'
 
 // Coordinador
 import DashboardCoord from './pages/coordinador/Dashboard'
@@ -79,7 +80,7 @@ export default function App() {
           {/* Suscripcion — solo admin (no gestor) */}
           <Route element={<ProtectedRoute roles={['admin']} />}>
             <Route element={<DashboardLayout />}>
-              <Route path="/suscripcion" element={<ConfiguracionAdmin />} />
+              <Route path="/suscripcion" element={<SuscripcionAdmin />} />
             </Route>
           </Route>
 

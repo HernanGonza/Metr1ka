@@ -15,14 +15,14 @@ function InviteModal({ onClose, onSaved, orgId, session }) {
     if (!email.trim()) { setError('El email es obligatorio'); return }
     setSaving(true); setError('')
     try {
-      const res = await fetch('https://zjphrjcpkzlmdpqhjypq.supabase.co/functions/v1/invite-user', {
+      const res = await fetch('https://zjphrjcpkzlmdpqhjypq.supabase.co/functions/v1/invite-member', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ email, rol: 'encuestador', organizacion_id: orgId }),
+        body: JSON.stringify({ email, rol: 'encuestador' }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Error al invitar')
