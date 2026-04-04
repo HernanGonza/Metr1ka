@@ -20,20 +20,18 @@ const PASOS = {
 export default function Encuestas() {
   const [encuestas, setEncuestas]   = useState([])
   const [loading, setLoading]       = useState(true)
-  const [draggingId, setDraggingId] = useState(null) // solo el ID, no el objeto
+  const [draggingId, setDraggingId] = useState(null)
   const [dragOver, setDragOver]     = useState(null)
   const navigate = useNavigate()
 
   async function fetchData() {
     setLoading(true)
-    const { data } = await supabase
+    // Sin join a preguntas(count) — causa timeout por RLS
+    const { data, error } = await supabase
       .from('encuestas')
-      .select(`
-        id, nombre, descripcion, estado_produccion, creado_en,
-        org:organizaciones!organizacion_id(nombre, color_primario),
-        preguntas(count)
-      `)
+      .select('id, nombre, descripcion, estado_produccion, creado_en, organizacion_id, org:organizaciones!organizacion_id(nombre, color_primario)')
       .order('creado_en', { ascending: false })
+    if (error) console.error('fetchData error:', error)
     setEncuestas(data || [])
     setLoading(false)
   }
@@ -41,30 +39,19 @@ export default function Encuestas() {
   useEffect(() => { fetchData() }, [])
 
   async function moveEncuesta(id, nuevoEstado) {
-    // Actualizar UI inmediatamente
     setEncuestas(prev => prev.map(e => e.id === id ? { ...e, estado_produccion: nuevoEstado } : e))
-    // Limpiar dragging ANTES de la DB call para que la UI no quede stuck
     setDraggingId(null)
     await supabase.from('encuestas').update({ estado_produccion: nuevoEstado }).eq('id', id)
   }
 
-  function onDragStart(e, enc) {
-    setDraggingId(enc.id)
-    e.dataTransfer.effectAllowed = 'move'
-  }
-  function onDragEnd() {
-    setDraggingId(null)
-    setDragOver(null)
-  }
+  function onDragStart(e, enc) { setDraggingId(enc.id); e.dataTransfer.effectAllowed = 'move' }
+  function onDragEnd() { setDraggingId(null); setDragOver(null) }
   function onDragOver(e, key) { e.preventDefault(); setDragOver(key) }
   function onDrop(e, key) {
     e.preventDefault()
     const enc = encuestas.find(e => e.id === draggingId)
-    if (enc && enc.estado_produccion !== key) {
-      moveEncuesta(enc.id, key)
-    } else {
-      setDraggingId(null)
-    }
+    if (enc && enc.estado_produccion !== key) moveEncuesta(enc.id, key)
+    else setDraggingId(null)
     setDragOver(null)
   }
 
@@ -109,7 +96,6 @@ export default function Encuestas() {
                     {byEstado(col.key).length}
                   </span>
                 </div>
-
                 <div style={{ padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {byEstado(col.key).map(enc => (
                     <KanbanCard
@@ -167,40 +153,31 @@ function KanbanCard({ enc, col, isDragging, onDragStart, onDragEnd, onMove, onCl
           </span>
         </div>
       )}
-
       <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4, lineHeight: 1.3 }}>{enc.nombre}</div>
-
       {enc.org && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: enc.org.color_primario || 'var(--accent)', flexShrink: 0 }} />
           <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{enc.org.nombre}</span>
         </div>
       )}
-
       {enc.descripcion && (
         <div style={{ fontSize: 11, color: 'var(--ink2)', marginBottom: 8, lineHeight: 1.4 }}>
           {enc.descripcion.length > 70 ? enc.descripcion.substring(0, 70) + '…' : enc.descripcion}
         </div>
       )}
-
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{enc.preguntas?.[0]?.count ?? 0} preguntas</span>
         <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{new Date(enc.creado_en).toLocaleDateString('es-AR')}</span>
       </div>
-
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
         {pasos.map(paso => {
           const dest = COLS.find(c => c.key === paso)
           if (!dest) return null
           return (
-            <button
-              key={paso}
-              onClick={() => onMove(enc.id, paso)}
-              style={{
-                padding: '4px 9px', background: dest.bg, color: dest.color,
-                border: `1px solid ${dest.border}`, borderRadius: 6,
-                fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans',
-              }}>
+            <button key={paso} onClick={() => onMove(enc.id, paso)} style={{
+              padding: '4px 9px', background: dest.bg, color: dest.color,
+              border: `1px solid ${dest.border}`, borderRadius: 6,
+              fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans',
+            }}>
               {paso === 'para_revisar' ? '📤 Enviar a revisión' :
                paso === 'publicada'    ? '✓ Publicar'          :
                paso === 'en_proceso'   ? '▶ Tomar'             :

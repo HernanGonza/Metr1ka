@@ -1,0 +1,362 @@
+import { useState, useEffect, useMemo, useCallback, memo } from 'react'
+import { supabase } from '../../lib/supabase'
+
+const RAZONES_NO_RESPUESTA = [
+  'No hay nadie en casa',
+  'No quiere participar',
+  'No cumple el perfil buscado',
+  'Barrera de idioma',
+  'Motivo de salud',
+]
+
+const PreguntaScreen = memo(function PreguntaScreen({
+  pregunta, total, indice, respuesta, onChange, onAnterior, onSiguiente, esPrimera, esUltima
+}) {
+  const opciones = useMemo(() =>
+    [...(pregunta.opciones_pregunta || [])].sort((a, b) => a.orden - b.orden),
+    [pregunta.opciones_pregunta]
+  )
+
+  const puedeAvanzar = !pregunta.requerida ||
+    (respuesta !== null && respuesta !== undefined && respuesta !== '')
+
+  const btnOpcion = (activo) => ({
+    display: 'block', width: '100%', padding: '14px 16px', marginBottom: 8,
+    borderRadius: 12, textAlign: 'left', fontSize: 15, fontFamily: 'DM Sans',
+    cursor: 'pointer', border: `2px solid ${activo ? '#1a472a' : '#e5e7eb'}`,
+    background: activo ? '#d8f3dc' : '#fff', color: activo ? '#1a472a' : '#333',
+    fontWeight: activo ? 700 : 400, transition: 'all .15s',
+  })
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px 20px 0' }}>
+      {/* Header pregunta */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          {pregunta.es_base ? '📌 Pregunta base' : `Pregunta ${indice} de ${total}`}
+          {!pregunta.requerida && <span style={{ marginLeft: 8, color: '#bbb' }}>· Opcional</span>}
+        </div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: '#111', lineHeight: 1.4 }}>
+          {pregunta.texto}
+        </div>
+      </div>
+
+      {/* Input */}
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 8 }}>
+        {pregunta.tipo === 'si_no' && ['Sí', 'No'].map(op => (
+          <button key={op} onClick={() => onChange(op)} style={btnOpcion(respuesta === op)}>{op}</button>
+        ))}
+
+        {pregunta.tipo === 'opcion_multiple' && opciones.map(op => (
+          <button key={op.id} onClick={() => onChange(op.texto)} style={btnOpcion(respuesta === op.texto)}>
+            {op.texto}
+          </button>
+        ))}
+
+        {pregunta.tipo === 'escala' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+              {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
+                <button key={n} onClick={() => onChange(n)} style={{
+                  padding: '14px 0', borderRadius: 10, fontSize: 16, fontWeight: 700,
+                  fontFamily: 'DM Sans', cursor: 'pointer',
+                  border: `2px solid ${respuesta === n ? '#1a472a' : '#e5e7eb'}`,
+                  background: respuesta === n ? '#1a472a' : '#fff',
+                  color: respuesta === n ? '#fff' : '#333',
+                }}>{n}</button>
+              ))}
+            </div>
+            {respuesta && (
+              <div style={{ textAlign: 'center', fontSize: 13, color: '#1a472a', fontWeight: 600 }}>
+                Seleccionaste: {respuesta}
+              </div>
+            )}
+          </div>
+        )}
+
+        {pregunta.tipo === 'texto_libre' && (
+          <textarea
+            value={respuesta || ''}
+            onChange={e => onChange(e.target.value)}
+            placeholder="Escribí tu respuesta..."
+            rows={4}
+            style={{
+              width: '100%', padding: '12px', border: '2px solid #e5e7eb',
+              borderRadius: 12, fontSize: 15, fontFamily: 'DM Sans',
+              resize: 'none', boxSizing: 'border-box', outline: 'none',
+            }}
+          />
+        )}
+      </div>
+
+      {/* Navegación */}
+      <div style={{ display: 'flex', gap: 10, padding: '16px 0 20px' }}>
+        {!esPrimera && (
+          <button onClick={onAnterior} style={{
+            flex: 1, padding: '13px', background: 'none',
+            border: '1.5px solid #e5e7eb', borderRadius: 12,
+            fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans', color: '#666',
+          }}>← Anterior</button>
+        )}
+        <button onClick={onSiguiente} disabled={!puedeAvanzar} style={{
+          flex: 2, padding: '13px',
+          background: puedeAvanzar ? '#1a472a' : '#e5e7eb',
+          color: puedeAvanzar ? '#fff' : '#aaa',
+          border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
+          cursor: puedeAvanzar ? 'pointer' : 'not-allowed', fontFamily: 'DM Sans',
+        }}>
+          {esUltima ? '✓ Finalizar' : 'Siguiente →'}
+        </button>
+      </div>
+    </div>
+  )
+})
+
+export default function SimuladorEncuesta({ encuestaId, orgId, onClose }) {
+  const [encuesta,   setEncuesta]   = useState(null)
+  const [preguntas,  setPreguntas]  = useState([])
+  const [pantalla,   setPantalla]   = useState('inicio')
+  const [paso,       setPaso]       = useState(0)
+  const [respuestas, setRespuestas] = useState({})
+  const [razonNR,    setRazonNR]    = useState('')
+  const [noResponde, setNoResponde] = useState(false)
+  const [loading,    setLoading]    = useState(true)
+
+  useEffect(() => {
+    let mounted = true
+    async function load() {
+      // get_encuesta_full — 1 sola conexión, evita timeout de RLS
+      const { data } = await supabase.rpc('get_encuesta_full', {
+        p_encuesta_id: encuestaId,
+        p_org_id: orgId,
+      })
+      if (!mounted) return
+      if (data && !data.error) {
+        setEncuesta(data.encuesta)
+        setPreguntas(data.preguntas || [])
+      }
+      setLoading(false)
+    }
+    load()
+    return () => { mounted = false }
+  }, [encuestaId])
+
+  // Todas las preguntas en orden — la de "participa" va primero
+  // Las demás siguen en el flujo normal
+  const preguntasEncuesta = useMemo(() =>
+    preguntas.filter(p => p.clave_base !== 'participa'),
+    [preguntas]
+  )
+
+  const preguntaParticipa = useMemo(() =>
+    preguntas.find(p => p.clave_base === 'participa'),
+    [preguntas]
+  )
+
+  const preguntaActual = preguntasEncuesta[paso]
+
+  const razonesNR = useMemo(() => [
+    ...RAZONES_NO_RESPUESTA,
+    ...(encuesta?.config_muestreo?.razon_no_respuesta_extra || []),
+  ], [encuesta])
+
+  // Contar solo preguntas no-base para el contador visible
+  // Total visible = todas las preguntas que responde (base + cliente)
+  const totalNoBase = preguntasEncuesta.length
+
+  // Índice visible (solo cuenta preguntas no-base)
+  const indiceVisible = useMemo(() => {
+    if (!preguntaActual) return null
+    return preguntasEncuesta.findIndex(p => p.id === preguntaActual.id) + 1
+  }, [preguntaActual, preguntasEncuesta])
+
+  const handleRespuesta = useCallback((valor) => {
+    setRespuestas(prev => ({ ...prev, [preguntaActual.id]: valor }))
+  }, [preguntaActual])
+
+  const handleSiguiente = useCallback(() => {
+    if (paso < preguntasEncuesta.length - 1) {
+      setPaso(p => p + 1)
+    } else {
+      setPantalla('fin')
+    }
+  }, [paso, preguntasEncuesta.length])
+
+  const handleAnterior = useCallback(() => {
+    setPaso(p => Math.max(p - 1, 0))
+  }, [])
+
+  const handleIniciar = useCallback(() => {
+    // Si hay pregunta de participación, verificarla primero
+    if (preguntaParticipa) {
+      // Mostrar la pregunta de participa como pantalla especial
+      setPantalla('participa')
+    } else {
+      setPantalla('encuesta')
+    }
+  }, [preguntaParticipa])
+
+  const progreso = preguntasEncuesta.length > 0
+    ? ((paso + 1) / preguntasEncuesta.length) * 100
+    : 0
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+      zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    }}>
+      {/* Marco celular */}
+      <div style={{
+        width: 375, maxHeight: '88vh', background: '#fff',
+        borderRadius: 36, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
+      }}>
+        {/* Status bar */}
+        <div style={{
+          background: '#1a472a', padding: '10px 20px 8px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
+        }}>
+          <span style={{ color: '#d8f3dc', fontSize: 12, fontWeight: 800, letterSpacing: 1 }}>METR1KA</span>
+          <button onClick={onClose} style={{
+            background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff',
+            borderRadius: 100, padding: '3px 12px', fontSize: 11, cursor: 'pointer',
+            fontFamily: 'DM Sans', fontWeight: 600,
+          }}>✕ Cerrar</button>
+        </div>
+
+        {/* Barra progreso */}
+        {pantalla === 'encuesta' && (
+          <div style={{ height: 3, background: '#e5e7eb', flexShrink: 0 }}>
+            <div style={{ height: '100%', background: '#1a472a', width: `${progreso}%`, transition: 'width 0.3s' }} />
+          </div>
+        )}
+
+        {/* Contenido scrolleable */}
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {loading ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 32, height: 32, border: '3px solid #1a472a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+            </div>
+
+          ) : pantalla === 'inicio' ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '32px 24px', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+              <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#d8f3dc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, marginBottom: 20 }}>📋</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#1a472a', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Encuesta</div>
+              <h2 style={{ fontSize: 19, fontWeight: 800, color: '#111', margin: '0 0 10px', lineHeight: 1.3 }}>{encuesta?.nombre}</h2>
+              {encuesta?.descripcion && <p style={{ fontSize: 13, color: '#666', margin: '0 0 32px', lineHeight: 1.6 }}>{encuesta.descripcion}</p>}
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 24 }}>
+                {preguntasEncuesta.length} preguntas · ~{Math.ceil(preguntasEncuesta.length * 0.5)} min
+              </div>
+              <button onClick={handleIniciar} style={{
+                width: '100%', padding: '15px', background: '#1a472a', color: '#fff',
+                border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'DM Sans', marginBottom: 10,
+              }}>Comenzar encuesta</button>
+              <button onClick={onClose} style={{
+                width: '100%', padding: '13px', background: 'none', color: '#888',
+                border: '1.5px solid #e5e7eb', borderRadius: 14, fontSize: 14,
+                cursor: 'pointer', fontFamily: 'DM Sans',
+              }}>Cancelar</button>
+            </div>
+
+          ) : pantalla === 'participa' ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '28px 20px' }}>
+              <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase' }}>📌 Pregunta base</div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: '#111', lineHeight: 1.4, marginBottom: 24 }}>
+                {preguntaParticipa?.texto}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {['Sí', 'No'].map(op => (
+                  <button key={op} onClick={() => {
+                    setRespuestas(r => ({ ...r, [preguntaParticipa.id]: op }))
+                    if (op === 'No') setPantalla('no_responde')
+                    else { setPaso(0); setPantalla('encuesta') }
+                  }} style={{
+                    padding: '16px', borderRadius: 12, fontSize: 15, fontWeight: 600,
+                    fontFamily: 'DM Sans', cursor: 'pointer',
+                    border: '2px solid #e5e7eb', background: '#fff', color: '#333',
+                  }}>{op}</button>
+                ))}
+              </div>
+            </div>
+
+          ) : pantalla === 'no_responde' ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '24px 20px' }}>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Razón de no respuesta</div>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 20 }}>Seleccioná el motivo</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+                {razonesNR.map(r => (
+                  <button key={r} onClick={() => setRazonNR(r)} style={{
+                    padding: '13px 14px', borderRadius: 10, textAlign: 'left',
+                    fontSize: 13, fontFamily: 'DM Sans', cursor: 'pointer',
+                    border: `2px solid ${razonNR === r ? '#1a472a' : '#e5e7eb'}`,
+                    background: razonNR === r ? '#d8f3dc' : '#fff',
+                    color: razonNR === r ? '#1a472a' : '#333',
+                    fontWeight: razonNR === r ? 700 : 400,
+                  }}>{r}</button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingBottom: 8 }}>
+                <button onClick={() => setPantalla('participa')} style={{
+                  flex: 1, padding: '12px', background: 'none',
+                  border: '1.5px solid #e5e7eb', borderRadius: 12,
+                  fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans', color: '#666',
+                }}>Volver</button>
+                <button onClick={() => { setNoResponde(true); setPantalla('fin') }}
+                  disabled={!razonNR} style={{
+                  flex: 2, padding: '12px',
+                  background: razonNR ? '#c0392b' : '#e5e7eb',
+                  color: razonNR ? '#fff' : '#aaa',
+                  border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700,
+                  cursor: razonNR ? 'pointer' : 'not-allowed', fontFamily: 'DM Sans',
+                }}>Registrar y salir</button>
+              </div>
+            </div>
+
+          ) : pantalla === 'encuesta' && preguntaActual ? (
+            <PreguntaScreen
+              pregunta={preguntaActual}
+              total={totalNoBase}
+              indice={indiceVisible}
+              respuesta={respuestas[preguntaActual.id]}
+              onChange={handleRespuesta}
+              onAnterior={handleAnterior}
+              onSiguiente={handleSiguiente}
+              esPrimera={paso === 0}
+              esUltima={paso === preguntasEncuesta.length - 1}
+            />
+
+          ) : pantalla === 'fin' ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '40px 24px', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: noResponde ? '#fef3c7' : '#d8f3dc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, marginBottom: 20 }}>
+                {noResponde ? '📝' : '✅'}
+              </div>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111', margin: '0 0 10px' }}>
+                {noResponde ? 'Registrado' : '¡Gracias!'}
+              </h2>
+              <p style={{ fontSize: 14, color: '#666', margin: '0 0 32px', lineHeight: 1.6 }}>
+                {noResponde ? 'La razón de no respuesta fue registrada.' : 'La encuesta fue completada exitosamente.'}
+              </p>
+              <button onClick={() => { setPaso(0); setRespuestas({}); setRazonNR(''); setNoResponde(false); setPantalla('inicio') }}
+                style={{ width: '100%', padding: '13px', background: 'none', border: '1.5px solid #e5e7eb', borderRadius: 14, fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans', color: '#666', marginBottom: 10 }}>
+                🔄 Reiniciar simulación
+              </button>
+              <button onClick={onClose} style={{
+                width: '100%', padding: '14px', background: '#1a472a', color: '#fff',
+                border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'DM Sans',
+              }}>Cerrar simulador</button>
+            </div>
+
+          ) : null}
+        </div>
+
+        {/* Home indicator */}
+        <div style={{ background: '#fff', padding: '8px 0', display: 'flex', justifyContent: 'center', flexShrink: 0, borderTop: '1px solid #f0f0f0' }}>
+          <div style={{ width: 120, height: 4, background: '#e5e7eb', borderRadius: 4 }} />
+        </div>
+      </div>
+    </div>
+  )
+}
