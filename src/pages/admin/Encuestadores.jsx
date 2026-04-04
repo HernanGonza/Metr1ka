@@ -112,10 +112,10 @@ function DesactivarModal({ encuestador, onClose, onSaved }) {
     'Solicitud del encuestador',
     'Otra razón',
   ]
-  const [razon,    setRazon]    = useState('')
-  const [detalle,  setDetalle]  = useState('')
-  const [saving,   setSaving]   = useState(false)
-  const [error,    setError]    = useState('')
+  const [razon,   setRazon]   = useState('')
+  const [detalle, setDetalle] = useState('')
+  const [saving,  setSaving]  = useState(false)
+  const [error,   setError]   = useState('')
 
   async function handleSave() {
     if (!razon) { setError('Seleccioná una razón'); return }
@@ -182,11 +182,13 @@ export default function Encuestadores() {
   const [encuestadores, setEncuestadores] = useState([])
   const [equipos,       setEquipos]       = useState([])
   const [loading,       setLoading]       = useState(true)
-  const [tab,           setTab]           = useState('activos') // 'activos' | 'inactivos'
+  const [tab,           setTab]           = useState('activos')
   const [showInvite,    setShowInvite]    = useState(false)
   const [asignando,     setAsignando]     = useState(null)
   const [desactivando,  setDesactivando]  = useState(null)
   const [session,       setSession]       = useState(null)
+  const [busqueda,      setBusqueda]      = useState('')
+  const [filtroEquipo,  setFiltroEquipo]  = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
@@ -222,7 +224,21 @@ export default function Encuestadores() {
   const activos   = encuestadores.filter(e => e.activo !== false)
   const inactivos = encuestadores.filter(e => e.activo === false)
   const sinEquipo = activos.filter(e => !e.equipo_encuestadores?.length).length
-  const lista     = tab === 'activos' ? activos : inactivos
+
+  const aplicarFiltros = (lista) => lista.filter(e => {
+    const q = busqueda.toLowerCase()
+    const matchNombre = !busqueda ||
+      (e.nombre_completo || '').toLowerCase().includes(q) ||
+      (e.email || '').toLowerCase().includes(q)
+    const matchEquipo = !filtroEquipo ||
+      (filtroEquipo === '__sin__' && !e.equipo_encuestadores?.length) ||
+      e.equipo_encuestadores?.[0]?.equipo_id === filtroEquipo
+    return matchNombre && matchEquipo
+  })
+
+  const lista         = aplicarFiltros(tab === 'activos' ? activos : inactivos)
+  const hayFiltros    = busqueda || filtroEquipo
+  const inp = { padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: '#fff' }
 
   return (
     <div className={styles.page}>
@@ -267,6 +283,32 @@ export default function Encuestadores() {
           </div>
         )}
 
+        {/* Filtros */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
+            <input
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre o email..."
+              style={{ ...inp, width: '100%', paddingLeft: 32, boxSizing: 'border-box' }}
+            />
+            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink3)', fontSize: 13, pointerEvents: 'none' }}>🔍</span>
+            {busqueda && (
+              <button onClick={() => setBusqueda('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink3)', fontSize: 16, lineHeight: 1 }}>×</button>
+            )}
+          </div>
+          <select value={filtroEquipo} onChange={e => setFiltroEquipo(e.target.value)} style={{ ...inp, minWidth: 160 }}>
+            <option value="">Todos los equipos</option>
+            {equipos.map(eq => <option key={eq.id} value={eq.id}>{eq.nombre}</option>)}
+            <option value="__sin__">⚠ Sin equipo</option>
+          </select>
+          {hayFiltros && (
+            <button onClick={() => { setBusqueda(''); setFiltroEquipo('') }} style={{ ...inp, cursor: 'pointer', color: 'var(--ink3)' }}>
+              Limpiar
+            </button>
+          )}
+        </div>
+
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
           {[['activos', `Activos (${activos.length})`], ['inactivos', `Desactivados (${inactivos.length})`]].map(([v, label]) => (
@@ -280,12 +322,20 @@ export default function Encuestadores() {
           ))}
         </div>
 
+        {hayFiltros && !loading && (
+          <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 8 }}>
+            {lista.length} resultado{lista.length !== 1 ? 's' : ''} encontrado{lista.length !== 1 ? 's' : ''}
+          </div>
+        )}
+
         {loading ? <Spinner center size="lg" /> : (
           lista.length === 0 ? (
             <div className={styles.empty}>
-              {tab === 'activos'
-                ? <><p>No hay encuestadores activos.</p><button onClick={() => setShowInvite(true)} style={{ padding: '10px 20px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'DM Sans' }}>Invitar primer encuestador</button></>
-                : <p>No hay encuestadores desactivados.</p>
+              {hayFiltros
+                ? <p>No hay encuestadores que coincidan con los filtros.</p>
+                : tab === 'activos'
+                  ? <><p>No hay encuestadores activos.</p><button onClick={() => setShowInvite(true)} style={{ padding: '10px 20px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'DM Sans' }}>Invitar primer encuestador</button></>
+                  : <p>No hay encuestadores desactivados.</p>
               }
             </div>
           ) : (
@@ -300,6 +350,7 @@ export default function Encuestadores() {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 14 }}>{enc.nombre_completo || 'Sin nombre'}</div>
+                      <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 1 }}>{enc.email || '—'}</div>
                       <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
                         {tab === 'activos' && (equipoNombre
                           ? <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 600, background: 'var(--accent-light)', color: 'var(--accent2)' }}>{equipoNombre}</span>
