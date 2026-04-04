@@ -4,12 +4,15 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { Topbar } from '../../components/layout'
 import { Spinner } from '../../components/ui'
-import { Bar } from 'react-chartjs-2'
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend } from 'chart.js'
+import { Bar, Pie, Line, Doughnut } from 'react-chartjs-2'
+import {
+  Chart as ChartJS, CategoryScale, LinearScale, BarElement,
+  ArcElement, PointElement, LineElement, Tooltip, Legend, Filler
+} from 'chart.js'
 import { cacheGet, cacheSet } from '../../lib/cache'
 import styles from './Page.module.css'
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Tooltip, Legend, Filler)
 
 const ESTADO_CONFIG = {
   pendiente:    { label: 'Pendiente',    color: '#b45309', bg: '#fef3c7' },
@@ -18,9 +21,35 @@ const ESTADO_CONFIG = {
   publicada:    { label: 'Publicada',    color: '#1a472a', bg: '#d8f3dc' },
 }
 
-function PreguntaChart({ pregunta, filas }) {
+// Paleta variada — cada índice de pregunta recibe colores distintos
+const PALETAS = [
+  ['#1a472a','#2d6a4f','#40916c','#52b788','#74c69d','#95d5b2'],
+  ['#0369a1','#0284c7','#0ea5e9','#38bdf8','#7dd3fc','#bae6fd'],
+  ['#7c3aed','#8b5cf6','#a78bfa','#c4b5fd','#6d28d9','#5b21b6'],
+  ['#b45309','#d97706','#f59e0b','#fbbf24','#fcd34d','#fde68a'],
+  ['#be185d','#db2777','#ec4899','#f472b6','#f9a8d4','#fce7f3'],
+  ['#047857','#059669','#10b981','#34d399','#6ee7b7','#a7f3d0'],
+]
+
+const TIPOS_GRAFICO = [
+  { value: 'bar',      label: '▌ Barras' },
+  { value: 'pie',      label: '◕ Torta' },
+  { value: 'doughnut', label: '◎ Rosquilla' },
+  { value: 'line',     label: '↗ Líneas' },
+]
+
+const DEFAULT_TIPO = {
+  si_no:           'doughnut',
+  escala:          'bar',
+  opcion_multiple: 'bar',
+  texto_libre:     null,
+}
+
+function PreguntaChart({ pregunta, filas, paletaIdx }) {
   const { tipo } = pregunta
-  const opciones = pregunta.opciones_pregunta || []
+  const opciones  = pregunta.opciones_pregunta || []
+  const paleta    = PALETAS[paletaIdx % PALETAS.length]
+  const [tipoGrafico, setTipoGrafico] = useState(DEFAULT_TIPO[tipo] || 'bar')
 
   const datos = useMemo(() => {
     if (tipo === 'texto_libre') return null
@@ -39,26 +68,94 @@ function PreguntaChart({ pregunta, filas }) {
         conteo[op.texto] = fila ? Number(fila.cantidad) : 0
       })
     }
+    const labels = Object.keys(conteo)
     const values = Object.values(conteo)
     const total  = values.reduce((a, b) => a + b, 0)
     if (total === 0) return null
-    return { labels: Object.keys(conteo), datasets: [{ data: values, backgroundColor: '#1a472a', borderRadius: 4, borderSkipped: false }], total }
-  }, [filas, opciones, tipo])
+
+    const isPie  = tipoGrafico === 'pie' || tipoGrafico === 'doughnut'
+    const isLine = tipoGrafico === 'line'
+    const isBar  = tipoGrafico === 'bar'
+
+    return {
+      labels,
+      datasets: [{
+        label: pregunta.texto,
+        data: values,
+        backgroundColor: isPie
+          ? paleta.slice(0, labels.length)
+          : isLine
+            ? `${paleta[0]}33`
+            : paleta.slice(0, labels.length),
+        borderColor: isLine ? paleta[0] : isPie ? '#fff' : undefined,
+        borderWidth: isPie ? 2 : isLine ? 2.5 : 0,
+        borderRadius: isBar ? 6 : 0,
+        borderSkipped: false,
+        fill: isLine,
+        tension: 0.4,
+        pointBackgroundColor: isLine ? paleta[0] : undefined,
+        pointRadius: isLine ? 5 : undefined,
+        pointHoverRadius: isLine ? 7 : undefined,
+      }],
+      total,
+    }
+  }, [filas, opciones, tipo, tipoGrafico, paleta])
+
+  const chartOptions = useMemo(() => {
+    const isPie  = tipoGrafico === 'pie' || tipoGrafico === 'doughnut'
+    const total  = datos?.total || 1
+    return {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: isPie,
+          position: 'bottom',
+          labels: { font: { family: 'DM Sans', size: 11 }, padding: 14, boxWidth: 12 },
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const val = ctx.parsed?.y ?? ctx.parsed
+              return ` ${ctx.label}: ${val} (${Math.round(val / total * 100)}%)`
+            }
+          },
+          bodyFont: { family: 'DM Sans' },
+          titleFont: { family: 'DM Sans' },
+        },
+      },
+      scales: isPie ? {} : {
+        x: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 11 } } },
+        y: { beginAtZero: true, grid: { color: '#f0f0f0' }, ticks: { stepSize: 1, font: { family: 'DM Sans', size: 11 } } },
+      },
+    }
+  }, [tipoGrafico, datos?.total])
 
   const card = { background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px' }
+  const btnStyle = (v) => ({
+    padding: '3px 10px', borderRadius: 100, fontSize: 11, fontFamily: 'DM Sans', cursor: 'pointer',
+    border: `1.5px solid ${tipoGrafico === v ? paleta[0] : 'var(--border2)'}`,
+    background: tipoGrafico === v ? `${paleta[0]}18` : '#fff',
+    color: tipoGrafico === v ? paleta[0] : 'var(--ink3)',
+    fontWeight: tipoGrafico === v ? 700 : 400,
+    transition: 'all .15s',
+  })
 
+  // Texto libre
   if (tipo === 'texto_libre') {
     const textos = filas.filter(f => f.valor_texto?.trim())
     const total  = textos.reduce((s, f) => s + Number(f.cantidad), 0)
     return (
       <div style={card}>
-        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{pregunta.texto}</div>
-        <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 8 }}>{total} respuestas</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: paleta[0], flexShrink: 0 }} />
+          <div style={{ fontSize: 13, fontWeight: 700 }}>{pregunta.texto}</div>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 8 }}>{total} respuestas · texto libre</div>
         {textos.length === 0
           ? <div style={{ fontSize: 13, color: 'var(--ink3)' }}>Sin respuestas aún</div>
           : <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 200, overflowY: 'auto' }}>
               {textos.slice(0, 20).map((f, i) => (
-                <div key={i} style={{ fontSize: 12, padding: '6px 10px', background: 'var(--surface)', borderRadius: 'var(--r)', color: 'var(--ink2)' }}>
+                <div key={i} style={{ fontSize: 12, padding: '6px 10px', background: `${paleta[0]}10`, borderLeft: `3px solid ${paleta[0]}`, borderRadius: '0 var(--r) var(--r) 0', color: 'var(--ink2)' }}>
                   "{f.valor_texto}"
                 </div>
               ))}
@@ -69,21 +166,31 @@ function PreguntaChart({ pregunta, filas }) {
     )
   }
 
+  const tiposDisponibles = tipo === 'escala' ? TIPOS_GRAFICO : TIPOS_GRAFICO.filter(t => t.value !== 'line')
+  const ChartComp = { bar: Bar, pie: Pie, doughnut: Doughnut, line: Line }[tipoGrafico]
+  const chartHeight = (tipoGrafico === 'pie' || tipoGrafico === 'doughnut') ? 220 : 190
+
   return (
     <div style={card}>
-      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{pregunta.texto}</div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: paleta[0], flexShrink: 0, marginTop: 2 }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{pregunta.texto}</div>
+            {datos && <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>{datos.total} respuestas</div>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {tiposDisponibles.map(t => (
+            <button key={t.value} style={btnStyle(t.value)} onClick={() => setTipoGrafico(t.value)}>{t.label}</button>
+          ))}
+        </div>
+      </div>
       {!datos
-        ? <div style={{ fontSize: 13, color: 'var(--ink3)' }}>Sin respuestas aún</div>
-        : <>
-            <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 8 }}>{datos.total} respuestas</div>
-            <div style={{ height: 180 }}>
-              <Bar data={datos} options={{
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.parsed.y} (${Math.round(ctx.parsed.y / datos.total * 100)}%)` } } },
-                scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 1 } } },
-              }} />
-            </div>
-          </>
+        ? <div style={{ fontSize: 13, color: 'var(--ink3)', padding: '20px 0', textAlign: 'center' }}>Sin respuestas aún</div>
+        : <div style={{ height: chartHeight }}>
+            <ChartComp data={datos} options={chartOptions} />
+          </div>
       }
     </div>
   )
@@ -149,10 +256,10 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
   )
 
   const kpis = [
-    { label: 'Respuestas',       value: resumen?.total_sesiones   || 0, color: 'var(--accent)' },
-    { label: 'Encuestadores',    value: resumen?.encuestadores    || 0, color: '#0369a1' },
-    { label: 'Equipos activos',  value: resumen?.equipos          || 0, color: '#7c3aed' },
-    { label: 'Última respuesta', value: resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—', color: '#b45309' },
+    { label: 'Respuestas',       value: resumen?.total_sesiones   || 0, color: 'var(--accent)',  border: '#1a472a' },
+    { label: 'Encuestadores',    value: resumen?.encuestadores    || 0, color: '#0369a1',         border: '#0369a1' },
+    { label: 'Equipos activos',  value: resumen?.equipos          || 0, color: '#7c3aed',         border: '#7c3aed' },
+    { label: 'Última respuesta', value: resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—', color: '#b45309', border: '#b45309' },
   ]
 
   const hayFiltros = filtros.equipo_id || filtros.encuestador_id || filtros.fecha_desde || filtros.fecha_hasta
@@ -160,15 +267,18 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
         {kpis.map((k, i) => (
-          <div key={i} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 18px', borderLeft: `4px solid ${k.color}` }}>
-            <div style={{ fontSize: 12, color: 'var(--ink3)', fontWeight: 600 }}>{k.label}</div>
-            <div style={{ fontFamily: 'Syne', fontSize: 26, fontWeight: 800, color: k.color, letterSpacing: -1 }}>{k.value}</div>
+          <div key={i} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 18px', borderTop: `3px solid ${k.border}` }}>
+            <div style={{ fontFamily: 'Syne', fontSize: 28, fontWeight: 800, color: k.color, letterSpacing: -1 }}>{k.value}</div>
+            <div style={{ fontSize: 12, color: 'var(--ink3)', fontWeight: 600, marginTop: 2 }}>{k.label}</div>
           </div>
         ))}
       </div>
 
+      {/* Filtros */}
       <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '12px 16px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)' }}>Equipo</label>
@@ -196,6 +306,7 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
         {loadingR && <span style={{ fontSize: 11, color: 'var(--ink3)', alignSelf: 'flex-end', paddingBottom: 8 }}>Actualizando...</span>}
       </div>
 
+      {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)' }}>
         {[['resumen','Resumen'],['preguntas','Por pregunta'],['encuestadores','Encuestadores']].map(([v, label]) => (
           <button key={v} onClick={() => setVista(v)} style={{
@@ -209,14 +320,18 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
       </div>
 
       {vista === 'resumen' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14 }}>
-          {preguntas.slice(0, 4).map(p => <PreguntaChart key={p.id} pregunta={p} filas={filasPorPregunta[String(p.id)] || []} />)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 14 }}>
+          {preguntas.slice(0, 4).map((p, i) => (
+            <PreguntaChart key={p.id} pregunta={p} filas={filasPorPregunta[String(p.id)] || []} paletaIdx={i} />
+          ))}
         </div>
       )}
 
       {vista === 'preguntas' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {preguntas.map(p => <PreguntaChart key={p.id} pregunta={p} filas={filasPorPregunta[String(p.id)] || []} />)}
+          {preguntas.map((p, i) => (
+            <PreguntaChart key={p.id} pregunta={p} filas={filasPorPregunta[String(p.id)] || []} paletaIdx={i} />
+          ))}
         </div>
       )}
 
@@ -293,7 +408,7 @@ export default function EncuestaDetalle() {
   const debounceRef = useRef(null)
   useEffect(() => {
     if (!encuesta || encuesta.estado_produccion !== 'publicada') return
-    if (!hayFiltros) return // sin filtros ya tenemos las respuestas de fetchBase
+    if (!hayFiltros) return
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => fetchRespuestas(), 300)
     return () => clearTimeout(debounceRef.current)
@@ -303,42 +418,28 @@ export default function EncuestaDetalle() {
     const cacheKey = `enc_base:${id}`
     const cached   = cacheGet(cacheKey)
     if (cached) {
-      setEncuesta(cached.encuesta)
-      setPreguntas(cached.preguntas)
-      setResumen(cached.resumen)
-      setEncuestadores(cached.encuestadores)
-      setEquipos(cached.equipos)
-      setRespuestas(cacheGet(`enc_resp:${id}:base`) || [])
-      setLoading(false)
-      return
+      setEncuesta(cached.encuesta); setPreguntas(cached.preguntas)
+      setResumen(cached.resumen);   setEncuestadores(cached.encuestadores)
+      setEquipos(cached.equipos);   setRespuestas(cacheGet(`enc_resp:${id}:base`) || [])
+      setLoading(false); return
     }
     setLoading(true); setError('')
     try {
-      // Una sola RPC — 1 conexión en vez de 5
       const { data, error: rpcErr } = await supabase.rpc('get_encuesta_full', {
-        p_encuesta_id: id,
-        p_org_id:      perfil.organizacion_id,
+        p_encuesta_id: id, p_org_id: perfil.organizacion_id,
       })
       if (rpcErr) throw rpcErr
       if (!data || data.error === 'not_found') { navigate('/encuestas'); return }
-
       const payload = {
-        encuesta:      data.encuesta,
-        preguntas:     data.preguntas     || [],
-        resumen:       data.resumen       || null,
-        encuestadores: data.encuestadores || [],
-        equipos:       data.equipos       || [],
+        encuesta: data.encuesta, preguntas: data.preguntas || [],
+        resumen: data.resumen || null, encuestadores: data.encuestadores || [], equipos: data.equipos || [],
       }
       cacheSet(cacheKey, payload, 300_000)
       const respBase = data.respuestas || []
       cacheSet(`enc_resp:${id}:base`, respBase, 300_000)
-
-      setEncuesta(payload.encuesta)
-      setPreguntas(payload.preguntas)
-      setResumen(payload.resumen)
-      setEncuestadores(payload.encuestadores)
-      setEquipos(payload.equipos)
-      setRespuestas(respBase)
+      setEncuesta(payload.encuesta); setPreguntas(payload.preguntas)
+      setResumen(payload.resumen);   setEncuestadores(payload.encuestadores)
+      setEquipos(payload.equipos);   setRespuestas(respBase)
     } catch (e) { console.error(e); setError(e.message) }
     setLoading(false)
   }
@@ -348,16 +449,12 @@ export default function EncuestaDetalle() {
     const cacheKey = `enc_resp:${id}:${filtrosKey}`
     const cached   = cacheGet(cacheKey)
     if (cached) { setRespuestas(cached); return }
-
     setLoadingR(true)
     try {
       const { data, error: rpcErr } = await supabase.rpc('get_encuesta_full', {
-        p_encuesta_id:    id,
-        p_org_id:         perfil.organizacion_id,
-        p_equipo_id:      filtroEquipo      || null,
-        p_encuestador_id: filtroEncuestador || null,
-        p_fecha_desde:    filtroDesde       || null,
-        p_fecha_hasta:    filtroHasta       || null,
+        p_encuesta_id: id, p_org_id: perfil.organizacion_id,
+        p_equipo_id: filtroEquipo || null, p_encuestador_id: filtroEncuestador || null,
+        p_fecha_desde: filtroDesde || null, p_fecha_hasta: filtroHasta || null,
       })
       if (rpcErr) throw rpcErr
       const result = data?.respuestas || []
@@ -369,11 +466,9 @@ export default function EncuestaDetalle() {
 
   function handleFiltroChange(campo, valor) {
     if (campo === '_reset') {
-      setFiltroEquipo(null); setFiltroEncuestador(null)
-      setFiltroDesde(null);  setFiltroHasta(null)
-      // volver a respuestas base
-      const respBase = cacheGet(`enc_resp:${id}:base`)
-      if (respBase) setRespuestas(respBase)
+      setFiltroEquipo(null); setFiltroEncuestador(null); setFiltroDesde(null); setFiltroHasta(null)
+      const base = cacheGet(`enc_resp:${id}:base`)
+      if (base) setRespuestas(base)
       return
     }
     if (campo === 'equipo_id')      { setFiltroEquipo(valor); setFiltroEncuestador(null); return }
@@ -405,12 +500,9 @@ export default function EncuestaDetalle() {
       <div className={styles.content}>
         {error && <div style={{ padding: '10px 16px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 'var(--r)', fontSize: 13, color: '#c0392b', marginBottom: 12 }}>Error: {error}</div>}
         {encuesta.estado_produccion === 'publicada'
-          ? <VistaResultados
-              preguntas={preguntas} resumen={resumen}
-              respuestas={respuestas} encuestadores={encuestadores}
-              equipos={equipos} filtros={filtros}
-              onFiltroChange={handleFiltroChange} loadingR={loadingR}
-            />
+          ? <VistaResultados preguntas={preguntas} resumen={resumen} respuestas={respuestas}
+              encuestadores={encuestadores} equipos={equipos} filtros={filtros}
+              onFiltroChange={handleFiltroChange} loadingR={loadingR} />
           : <VistaProduccion encuesta={encuesta} preguntas={preguntas} />
         }
       </div>

@@ -65,11 +65,9 @@ function AsignarEquipoModal({ encuestador, equipos, equipoActual, onClose, onSav
   async function handleSave() {
     setSaving(true); setError('')
     try {
-      // Quitar del equipo actual si existe
       if (equipoActual) {
         await supabase.from('equipo_encuestadores').delete().eq('encuestador_id', encuestador.id)
       }
-      // Asignar al nuevo equipo
       if (selected) {
         await supabase.from('equipo_encuestadores').insert({ encuestador_id: encuestador.id, equipo_id: selected })
       }
@@ -105,14 +103,90 @@ function AsignarEquipoModal({ encuestador, equipos, equipoActual, onClose, onSav
   )
 }
 
+function DesactivarModal({ encuestador, onClose, onSaved }) {
+  const RAZONES = [
+    'Bajo rendimiento',
+    'Incumplimiento de protocolo',
+    'Problemas de conducta',
+    'Finalización de contrato',
+    'Solicitud del encuestador',
+    'Otra razón',
+  ]
+  const [razon,    setRazon]    = useState('')
+  const [detalle,  setDetalle]  = useState('')
+  const [saving,   setSaving]   = useState(false)
+  const [error,    setError]    = useState('')
+
+  async function handleSave() {
+    if (!razon) { setError('Seleccioná una razón'); return }
+    setSaving(true); setError('')
+    try {
+      const motivo = detalle.trim() ? `${razon}: ${detalle.trim()}` : razon
+      await supabase.from('perfiles').update({
+        activo: false,
+        motivo_desactivacion: motivo,
+        desactivado_en: new Date().toISOString(),
+      }).eq('id', encuestador.id)
+      onSaved(); onClose()
+    } catch (err) { setError(err.message) }
+    setSaving(false)
+  }
+
+  return (
+    <div className={styles.modal}>
+      <div className={styles.modalContent}>
+        <div className={styles.modalHeader}>
+          <h3>Desactivar — {encuestador.nombre_completo}</h3>
+          <button className={styles.closeBtn} onClick={onClose}>×</button>
+        </div>
+        <div className={styles.modalBody}>
+          <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 'var(--r)', fontSize: 13, color: '#c0392b', marginBottom: 8 }}>
+            El encuestador verá un aviso en su app móvil con la razón de desactivación.
+          </div>
+          <div className={styles.formGroup}>
+            <label>Razón *</label>
+            <select value={razon} onChange={e => setRazon(e.target.value)} className={styles.select}>
+              <option value="">Seleccioná una razón</option>
+              {RAZONES.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div className={styles.formGroup}>
+            <label>Detalle adicional (opcional)</label>
+            <textarea
+              value={detalle}
+              onChange={e => setDetalle(e.target.value)}
+              placeholder="Agregá más contexto si lo necesitás..."
+              rows={3}
+              style={{ width: '100%', padding: '8px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', resize: 'vertical', boxSizing: 'border-box' }}
+            />
+          </div>
+          {error && <div className={styles.error}>{error}</div>}
+          <div className={styles.modalActions}>
+            <button onClick={onClose} disabled={saving}>Cancelar</button>
+            <button onClick={handleSave} disabled={saving} style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }}>
+              {saving ? 'Desactivando...' : 'Desactivar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const COLORS      = ['#d8f3dc','#e0f2fe','#fef3c7','#f3e8ff','#fce7f3','#ecfdf5']
+const TEXT_COLORS = ['#1a472a','#0369a1','#b45309','#7c3aed','#be185d','#047857']
+const initials    = (n) => (n || '').split(' ').slice(0,2).map(x => x[0]).join('').toUpperCase()
+
 export default function Encuestadores() {
   const { perfil } = useAuth()
   const [encuestadores, setEncuestadores] = useState([])
-  const [equipos, setEquipos]   = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [showInvite, setShowInvite] = useState(false)
-  const [asignando, setAsignando]   = useState(null)
-  const [session, setSession]       = useState(null)
+  const [equipos,       setEquipos]       = useState([])
+  const [loading,       setLoading]       = useState(true)
+  const [tab,           setTab]           = useState('activos') // 'activos' | 'inactivos'
+  const [showInvite,    setShowInvite]    = useState(false)
+  const [asignando,     setAsignando]     = useState(null)
+  const [desactivando,  setDesactivando]  = useState(null)
+  const [session,       setSession]       = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
@@ -136,19 +210,19 @@ export default function Encuestadores() {
 
   useEffect(() => { fetchData() }, [perfil?.organizacion_id])
 
-  async function toggleActivo(enc) {
-    await supabase.from('perfiles').update({ activo: !enc.activo }).eq('id', enc.id)
+  async function activar(enc) {
+    await supabase.from('perfiles').update({
+      activo: true,
+      motivo_desactivacion: null,
+      desactivado_en: null,
+    }).eq('id', enc.id)
     fetchData()
   }
 
-  const COLORS = ['#d8f3dc','#e0f2fe','#fef3c7','#f3e8ff','#fce7f3','#ecfdf5']
-  const TEXT_COLORS = ['#1a472a','#0369a1','#b45309','#7c3aed','#be185d','#047857']
-  const initials = (n) => (n || '').split(' ').slice(0,2).map(x => x[0]).join('').toUpperCase()
-
-  // Stats
-  const total   = encuestadores.length
-  const activos = encuestadores.filter(e => e.activo).length
-  const sinEquipo = encuestadores.filter(e => !e.equipo_encuestadores?.length).length
+  const activos   = encuestadores.filter(e => e.activo !== false)
+  const inactivos = encuestadores.filter(e => e.activo === false)
+  const sinEquipo = activos.filter(e => !e.equipo_encuestadores?.length).length
+  const lista     = tab === 'activos' ? activos : inactivos
 
   return (
     <div className={styles.page}>
@@ -166,58 +240,94 @@ export default function Encuestadores() {
           onSaved={() => { setAsignando(null); fetchData() }}
         />
       )}
+      {desactivando && (
+        <DesactivarModal
+          encuestador={desactivando}
+          onClose={() => setDesactivando(null)}
+          onSaved={() => { setDesactivando(null); fetchData() }}
+        />
+      )}
 
       <div className={styles.content}>
-        {total > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 24 }}>
+
+        {/* Stats */}
+        {encuestadores.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
             {[
-              { label: 'Total', value: total, color: 'var(--accent)', bg: 'var(--accent-light)' },
-              { label: 'Activos', value: activos, color: '#0369a1', bg: '#e0f2fe' },
-              { label: 'Sin equipo', value: sinEquipo, color: sinEquipo > 0 ? '#b45309' : '#1a472a', bg: sinEquipo > 0 ? '#fef3c7' : 'var(--accent-light)' },
+              { label: 'Total',      value: encuestadores.length, color: 'var(--accent)',  bg: 'var(--accent-light)' },
+              { label: 'Activos',    value: activos.length,       color: '#0369a1',        bg: '#e0f2fe' },
+              { label: 'Inactivos',  value: inactivos.length,     color: inactivos.length > 0 ? '#c0392b' : '#1a472a', bg: inactivos.length > 0 ? '#fef2f2' : 'var(--accent-light)' },
+              { label: 'Sin equipo', value: sinEquipo,             color: sinEquipo > 0 ? '#b45309' : '#1a472a', bg: sinEquipo > 0 ? '#fef3c7' : 'var(--accent-light)' },
             ].map((s, i) => (
-              <div key={i} style={{ background: s.bg, borderRadius: 'var(--r2)', padding: '16px 20px' }}>
-                <div style={{ fontFamily: 'Syne', fontSize: 28, fontWeight: 800, color: s.color }}>{s.value}</div>
-                <div style={{ fontSize: 13, color: s.color, fontWeight: 500, marginTop: 2 }}>{s.label}</div>
+              <div key={i} style={{ background: s.bg, borderRadius: 'var(--r2)', padding: '14px 18px' }}>
+                <div style={{ fontFamily: 'Syne', fontSize: 26, fontWeight: 800, color: s.color }}>{s.value}</div>
+                <div style={{ fontSize: 12, color: s.color, fontWeight: 500, marginTop: 2 }}>{s.label}</div>
               </div>
             ))}
           </div>
         )}
 
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
+          {[['activos', `Activos (${activos.length})`], ['inactivos', `Desactivados (${inactivos.length})`]].map(([v, label]) => (
+            <button key={v} onClick={() => setTab(v)} style={{
+              padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer',
+              fontSize: 13, fontFamily: 'DM Sans', marginBottom: -1,
+              fontWeight: tab === v ? 700 : 400,
+              color: tab === v ? 'var(--accent)' : 'var(--ink3)',
+              borderBottom: tab === v ? '2px solid var(--accent)' : '2px solid transparent',
+            }}>{label}</button>
+          ))}
+        </div>
+
         {loading ? <Spinner center size="lg" /> : (
-          encuestadores.length === 0 ? (
+          lista.length === 0 ? (
             <div className={styles.empty}>
-              <p>No hay encuestadores todavía.</p>
-              <button onClick={() => setShowInvite(true)} style={{ padding: '10px 20px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'DM Sans' }}>
-                Invitar primer encuestador
-              </button>
+              {tab === 'activos'
+                ? <><p>No hay encuestadores activos.</p><button onClick={() => setShowInvite(true)} style={{ padding: '10px 20px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'DM Sans' }}>Invitar primer encuestador</button></>
+                : <p>No hay encuestadores desactivados.</p>
+              }
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {encuestadores.map((enc, i) => {
+              {lista.map((enc, i) => {
                 const ci = i % COLORS.length
                 const equipoNombre = enc.equipo_encuestadores?.[0]?.equipos?.nombre
                 return (
-                  <div key={enc.id} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div key={enc.id} style={{ background: '#fff', border: `1px solid ${tab === 'inactivos' ? '#fca5a5' : 'var(--border)'}`, borderRadius: 'var(--r2)', padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 12, opacity: tab === 'inactivos' ? 0.85 : 1 }}>
                     <div style={{ width: 38, height: 38, borderRadius: '50%', background: COLORS[ci], color: TEXT_COLORS[ci], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
                       {initials(enc.nombre_completo)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 14 }}>{enc.nombre_completo || 'Sin nombre'}</div>
                       <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-                        {equipoNombre
+                        {tab === 'activos' && (equipoNombre
                           ? <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 600, background: 'var(--accent-light)', color: 'var(--accent2)' }}>{equipoNombre}</span>
                           : <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, background: '#fef3c7', color: '#b45309', fontWeight: 600 }}>⚠ Sin equipo</span>
-                        }
-                        {!enc.activo && <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: '#fdecea', color: 'var(--danger)' }}>Inactivo</span>}
+                        )}
                       </div>
+                      {tab === 'inactivos' && enc.motivo_desactivacion && (
+                        <div style={{ marginTop: 6, padding: '6px 10px', background: '#fef2f2', borderRadius: 'var(--r)', fontSize: 12, color: '#c0392b' }}>
+                          <span style={{ fontWeight: 700 }}>Razón: </span>{enc.motivo_desactivacion}
+                          {enc.desactivado_en && <span style={{ color: 'var(--ink3)', marginLeft: 8 }}>{new Date(enc.desactivado_en).toLocaleDateString('es-AR')}</span>}
+                        </div>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                      <button onClick={() => setAsignando(enc)} style={{ padding: '6px 12px', background: 'var(--accent-light)', color: 'var(--accent2)', border: '1.5px solid var(--accent2)', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
-                        Equipo
-                      </button>
-                      <button onClick={() => toggleActivo(enc)} style={{ padding: '6px 12px', background: 'none', color: enc.activo ? 'var(--danger)' : 'var(--accent2)', border: `1.5px solid ${enc.activo ? 'var(--danger)' : 'var(--accent2)'}`, borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
-                        {enc.activo ? 'Desactivar' : 'Activar'}
-                      </button>
+                      {tab === 'activos' ? (
+                        <>
+                          <button onClick={() => setAsignando(enc)} style={{ padding: '6px 12px', background: 'var(--accent-light)', color: 'var(--accent2)', border: '1.5px solid var(--accent2)', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                            Equipo
+                          </button>
+                          <button onClick={() => setDesactivando(enc)} style={{ padding: '6px 12px', background: 'none', color: 'var(--danger)', border: '1.5px solid var(--danger)', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                            Desactivar
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => activar(enc)} style={{ padding: '6px 12px', background: 'var(--accent-light)', color: 'var(--accent2)', border: '1.5px solid var(--accent2)', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                          Reactivar
+                        </button>
+                      )}
                     </div>
                   </div>
                 )

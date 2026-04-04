@@ -15,9 +15,16 @@ const ESTADO_CONFIG = {
 }
 const FILTROS = ['todas', 'pendiente', 'en_proceso', 'para_revisar', 'publicada']
 
+const TIPO_CONFIG = {
+  domiciliaria: { label: 'Domiciliaria', icon: '🏠', color: '#1a472a', bg: '#d8f3dc' },
+  callejera:    { label: 'Callejera',    icon: '🚶', color: '#0369a1', bg: '#e0f2fe' },
+  telefonica:   { label: 'Telefónica',   icon: '📞', color: '#7c3aed', bg: '#f3e8ff' },
+  online:       { label: 'Online',       icon: '🌐', color: '#b45309', bg: '#fef3c7' },
+}
+
 // ── Modal solicitar encuesta ──
 function RequestModal({ organizacionId, onClose, onSaved }) {
-  const [form, setForm]     = useState({ nombre: '', descripcion: '' })
+  const [form, setForm]     = useState({ nombre: '', descripcion: '', tipo_encuesta: 'domiciliaria' })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
 
@@ -31,6 +38,7 @@ function RequestModal({ organizacionId, onClose, onSaved }) {
         pedido_por: organizacionId,
         nombre: form.nombre,
         descripcion: form.descripcion || null,
+        tipo_encuesta: form.tipo_encuesta,
         estado_produccion: 'pendiente',
         geofencing_activo: false,
       })
@@ -71,6 +79,20 @@ function RequestModal({ organizacionId, onClose, onSaved }) {
               rows={3}
               disabled={saving}
             />
+          </div>
+          <div className={styles.formGroup}>
+            <label>Tipo de encuesta *</label>
+            <select value={form.tipo_encuesta} onChange={e => setForm(f => ({ ...f, tipo_encuesta: e.target.value }))} disabled={saving} style={{ padding: '8px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: '#fff', width: '100%' }}>
+              <option value="domiciliaria">🏠 Domiciliaria — zona + manzanas + parcelas</option>
+              <option value="callejera">🚶 Callejera — solo zona geográfica</option>
+              <option value="telefonica">📞 Telefónica — sin zona ni geofencing</option>
+              <option value="online" disabled>🌐 Online — próximamente</option>
+            </select>
+            <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
+              { form.tipo_encuesta === 'domiciliaria' && 'El encuestador visita domicilios en manzanas seleccionadas.' }
+              { form.tipo_encuesta === 'callejera'    && 'El encuestador trabaja en una zona pero no en domicilios fijos.' }
+              { form.tipo_encuesta === 'telefonica'   && 'Sin geofencing ni zona. Los encuestadores pueden estar en cualquier lugar.' }
+            </div>
           </div>
           {error && <div className={styles.error}>{error}</div>}
           <div className={styles.modalActions}>
@@ -145,32 +167,16 @@ function AssignModal({ encuesta, equipos, asignados, onClose, onSaved }) {
             <div className={styles.equiposList}>
               {equipos.map(eq => (
                 <div key={eq.id}
+                  className={`${styles.equipoItem} ${selected.has(eq.id) ? styles.equipoItemSelected : ''}`}
                   onClick={() => !saving && toggle(eq.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 14px', borderRadius: 'var(--r)',
-                    border: `1.5px solid ${selected.has(eq.id) ? 'var(--accent)' : 'var(--border)'}`,
-                    background: selected.has(eq.id) ? 'var(--accent-light)' : '#fff',
-                    cursor: saving ? 'not-allowed' : 'pointer',
-                    opacity: saving ? 0.6 : 1,
-                    transition: 'all .15s',
-                    marginBottom: 6,
-                  }}
+                  style={{ cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}
                 >
-                  <div style={{
-                    width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-                    border: `2px solid ${selected.has(eq.id) ? 'var(--accent)' : 'var(--border2)'}`,
-                    background: selected.has(eq.id) ? 'var(--accent)' : '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'all .15s',
-                  }}>
-                    {selected.has(eq.id) && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>}
-                  </div>
+                  <input type="checkbox" checked={selected.has(eq.id)} onChange={() => toggle(eq.id)} readOnly disabled={saving} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: selected.has(eq.id) ? 'var(--accent)' : 'var(--ink)' }}>{eq.nombre}</div>
-                    <div style={{ fontSize: 11, color: 'var(--accent2)', marginTop: 2, minHeight: 14 }}>
-                      {selected.has(eq.id) ? '✓ Seleccionado' : asignados.includes(eq.id) ? 'Ya asignado — clic para deseleccionar' : ''}
-                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{eq.nombre}</div>
+                    {asignados.includes(eq.id) && (
+                      <div style={{ fontSize: 11, color: 'var(--accent2)', marginTop: 2 }}>Ya asignado</div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -225,9 +231,16 @@ function EncuestaCard({ encuesta, onApprove, onAssign, onMuestreo, onView }) {
     <div className={`${styles.encuestaCard} ${esPublicada ? styles.encuestaCardPublicada : ''}`} onClick={onView}>
       <div className={styles.encuestaHeader}>
         <h4>{encuesta.nombre}</h4>
-        <span style={{ padding: '3px 10px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: cfg.bg, color: cfg.color, whiteSpace: 'nowrap', flexShrink: 0 }}>
-          {cfg.label}
-        </span>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          {(() => { const t = TIPO_CONFIG[encuesta.tipo_encuesta]; return t ? (
+            <span style={{ padding: '3px 9px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: t.bg, color: t.color, whiteSpace: 'nowrap' }}>
+              {t.icon} {t.label}
+            </span>
+          ) : null })()}
+          <span style={{ padding: '3px 10px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: cfg.bg, color: cfg.color, whiteSpace: 'nowrap' }}>
+            {cfg.label}
+          </span>
+        </div>
       </div>
       {encuesta.descripcion && <p className={styles.encuestaDesc}>{encuesta.descripcion}</p>}
       <div className={styles.encuestaMeta}>
@@ -249,9 +262,11 @@ function EncuestaCard({ encuesta, onApprove, onAssign, onMuestreo, onView }) {
             <button onClick={onAssign} style={{ padding: '7px 14px', background: 'var(--surface)', color: 'var(--ink2)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
               👥 {equiposAsignados > 0 ? `${equiposAsignados} equipo${equiposAsignados !== 1 ? 's' : ''}` : 'Asignar equipos'}
             </button>
-            <button onClick={onMuestreo} style={{ padding: '7px 14px', background: encuesta.area_geojson ? 'var(--accent-light)' : 'var(--accent)', color: encuesta.area_geojson ? 'var(--accent2)' : '#fff', border: encuesta.area_geojson ? '1.5px solid var(--accent2)' : 'none', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
-              {encuesta.area_geojson ? '⚙️ Muestreo ✓' : '⚙️ Configurar muestreo'}
-            </button>
+            {!['telefonica','online'].includes(encuesta.tipo_encuesta) && (
+              <button onClick={onMuestreo} style={{ padding: '7px 14px', background: encuesta.area_geojson ? 'var(--accent-light)' : 'var(--accent)', color: encuesta.area_geojson ? 'var(--accent2)' : '#fff', border: encuesta.area_geojson ? '1.5px solid var(--accent2)' : 'none', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                {encuesta.area_geojson ? '⚙️ Muestreo ✓' : '⚙️ Configurar muestreo'}
+              </button>
+            )}
           </>
         )}
         {enProduccion && (
