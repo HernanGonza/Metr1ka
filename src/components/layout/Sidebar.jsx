@@ -70,8 +70,7 @@ export function Sidebar() {
         {organizacion?.logo_url
           ? <img src={organizacion.logo_url} alt={organizacion.nombre} className={styles.logo} />
           : <div className={styles.brandName}>
-              <span className={styles.brandMain}>Encuestas</span>
-              <span className={styles.brandSub}>Enfoque</span>
+              <img src="src/assets/LogoMetr1ka.svg" alt="Metr1ka" />
             </div>
         }
       </div>

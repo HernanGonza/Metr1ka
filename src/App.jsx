@@ -30,6 +30,7 @@ import EncuestadoresAdmin from './pages/admin/Encuestadores'
 import ReportesAdmin      from './pages/admin/Reportes'
 import ConfiguracionAdmin from './pages/admin/Configuracion'
 import SuscripcionAdmin   from './pages/admin/Suscripcion'
+import TestManzanas from './pages/admin/TestManzanas'
 
 // Coordinador
 import DashboardCoord from './pages/coordinador/Dashboard'
@@ -74,6 +75,7 @@ export default function App() {
               <Route path="/encuestadores" element={<EncuestadoresAdmin />} />
               <Route path="/reportes"      element={<ReportesAdmin />} />
               <Route path="/configuracion" element={<ConfiguracionAdmin />} />
+              <Route path="/test-manzanas" element={<TestManzanas />} />
             </Route>
           </Route>
 

@@ -15,7 +15,7 @@
   max-width: 420px;
   box-shadow: var(--shadow-lg);
 }
-.brand { margin-bottom: 32px; }
+.brand { margin-bottom: 32px; align-items: center; display: flex; flex-direction: column; gap: 4px; }
 .brandMain { display: block; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; color: var(--accent); letter-spacing: -.5px; }
 .brandSub  { display: block; font-size: 13px; color: var(--ink3); }
 .title     { font-size: 22px; font-weight: 800; letter-spacing: -.5px; margin-bottom: 8px; }
@@ -62,4 +62,9 @@
   cursor: pointer;
   text-decoration: underline;
   margin-top: 8px;
+}
+
+.logo {
+  width: 250px;
+  height: auto;
 }

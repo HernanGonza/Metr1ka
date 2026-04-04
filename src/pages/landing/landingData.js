@@ -133,7 +133,7 @@ export const TESTIMONIALS = [
     quote: 'En menos de una semana teníamos el equipo de campo cargando encuestas en tiempo real. El mapa con la ubicación de cada encuestador nos cambió la forma de operar.',
     name: 'Roberto V.',
     role: 'Coordinador de campo',
-    org: 'Municipio Posadas',
+    org: 'Campaña de Marketing',
     initials: 'RV',
     bg: '#d8f3dc',
     tc: '#1a472a',

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { Button, Input } from '../../components/ui'
 import styles from './Login.module.css'
+import logoMetr1ka from '../../assets/LogoMetr1ka.svg'
 
 async function getRedirectPath() {
   const { data: { user } } = await supabase.auth.getUser()
@@ -97,8 +98,7 @@ export default function Login() {
     <div className={styles.page}>
       <div className={styles.card}>
         <div className={styles.brand}>
-          <span className={styles.brandMain}>Encuestas</span>
-          <span className={styles.brandSub}>Enfoque</span>
+          <img src={logoMetr1ka} alt="Logo Metr1ka" className={styles.logo} />
         </div>
 
         {invited && (
