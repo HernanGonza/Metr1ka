@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { Avatar } from '../ui'
 import styles from './Sidebar.module.css'
+import LogoMetr1ka from '../../assets/LogoMetr1ka.svg'
 
 const NAV_ADMIN = [
   { group: 'Principal',    items: [
@@ -70,7 +71,7 @@ export function Sidebar() {
         {organizacion?.logo_url
           ? <img src={organizacion.logo_url} alt={organizacion.nombre} className={styles.logo} />
           : <div className={styles.brandName}>
-              <img src="src/assets/LogoMetr1ka.svg" alt="Metr1ka" />
+              <img src={LogoMetr1ka} alt="Metr1ka" />
             </div>
         }
       </div>
