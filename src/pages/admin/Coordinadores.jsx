@@ -5,10 +5,8 @@ import { Topbar } from '../../components/layout'
 import { Spinner } from '../../components/ui'
 import styles from './Page.module.css'
 
-const ROL_LABEL = { coordinador: 'Coordinador', gestor: 'Gestor' }
-
-function InviteModal({ onClose, onSaved, session }) {
-  const [form, setForm]   = useState({ email: '', rol: 'coordinador' })
+function InviteModal({ onClose, onSaved, session, rolInicial }) {
+  const [form, setForm]     = useState({ email: '', rol: rolInicial || 'coordinador' })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
 
@@ -29,33 +27,28 @@ function InviteModal({ onClose, onSaved, session }) {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Error al invitar')
       onSaved(); onClose()
-    } catch (err) {
-      setError(err.message)
-    }
+    } catch (err) { setError(err.message) }
     setSaving(false)
   }
+
+  const esCoord = form.rol === 'coordinador'
 
   return (
     <div className={styles.modal}>
       <div className={styles.modalContent}>
         <div className={styles.modalHeader}>
-          <h3>Invitar colaborador</h3>
+          <h3>Invitar {esCoord ? 'coordinador' : 'gestor'}</h3>
           <button className={styles.closeBtn} onClick={onClose}>×</button>
         </div>
         <form onSubmit={handleSubmit} className={styles.modalBody}>
           <div className={styles.formGroup}>
             <label>Email *</label>
-            <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="colaborador@email.com" required />
+            <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder={`${esCoord ? 'coordinador' : 'gestor'}@email.com`} required />
           </div>
-          <div className={styles.formGroup}>
-            <label>Rol</label>
-            <select value={form.rol} onChange={e => setForm(f => ({ ...f, rol: e.target.value }))}>
-              <option value="coordinador">Coordinador — gestiona un equipo en campo</option>
-              <option value="gestor">Gestor — mismo acceso que admin sin suscripción</option>
-            </select>
-          </div>
-          <div style={{ padding: '10px 14px', background: 'var(--surface)', borderRadius: 'var(--r)', fontSize: 13, color: 'var(--ink3)' }}>
-            Le llegará un email para completar su registro.
+          <div style={{ padding: '10px 14px', background: esCoord ? '#e0f2fe' : '#f3e8ff', borderRadius: 'var(--r)', fontSize: 13, color: esCoord ? '#0369a1' : '#7c3aed' }}>
+            {esCoord
+              ? 'El coordinador gestionará un equipo en campo desde la app móvil y el panel web.'
+              : 'El gestor tiene el mismo acceso que el admin pero sin gestión de suscripción.'}
           </div>
           {error && <div className={styles.error}>{error}</div>}
           <div className={styles.modalActions}>
@@ -81,14 +74,12 @@ function AsignarEquipoModal({ perfil: miembro, equipos, onClose, onSaved }) {
   async function handleSave() {
     setSaving(true); setError('')
     try {
-      // Quitar desvinculados
       for (const equipoId of equiposAsignados) {
         if (!selected.has(equipoId)) {
           await supabase.from('equipo_coordinadores').delete()
             .eq('coordinador_id', miembro.id).eq('equipo_id', equipoId)
         }
       }
-      // Agregar nuevos
       for (const equipoId of selected) {
         if (!equiposAsignados.includes(equipoId)) {
           await supabase.from('equipo_coordinadores').insert({ coordinador_id: miembro.id, equipo_id: equipoId })
@@ -108,7 +99,7 @@ function AsignarEquipoModal({ perfil: miembro, equipos, onClose, onSaved }) {
         </div>
         <div className={styles.modalBody}>
           {equipos.length === 0
-            ? <p style={{ color: 'var(--ink3)', fontSize: 14 }}>No hay equipos creados. Creá primero un equipo en la sección Equipos.</p>
+            ? <p style={{ color: 'var(--ink3)', fontSize: 14 }}>No hay equipos creados todavía.</p>
             : (
               <div className={styles.equiposList}>
                 {equipos.map(eq => (
@@ -131,14 +122,58 @@ function AsignarEquipoModal({ perfil: miembro, equipos, onClose, onSaved }) {
   )
 }
 
+const COLORS      = ['#d8f3dc','#e0f2fe','#fef3c7','#f3e8ff','#fce7f3','#ecfdf5']
+const TEXT_COLORS = ['#1a472a','#0369a1','#b45309','#7c3aed','#be185d','#047857']
+const initials    = (n) => (n || '').split(' ').slice(0,2).map(x => x[0]).join('').toUpperCase()
+
+function TarjetaMiembro({ m, i, equipos, onAsignar, onToggleActivo, puedeGestionar }) {
+  const ci = i % COLORS.length
+  const equiposNombre = m.equipo_coordinadores?.map(ec => ec.equipos?.nombre).filter(Boolean) || []
+  const esCoord = m.rol === 'coordinador'
+  return (
+    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ width: 38, height: 38, borderRadius: '50%', background: COLORS[ci], color: TEXT_COLORS[ci], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+        {initials(m.nombre_completo)}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 14 }}>{m.nombre_completo || 'Sin nombre'}</div>
+        <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 1 }}>{m.email || '—'}</div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
+          {esCoord
+            ? equiposNombre.length > 0
+              ? equiposNombre.map((eq, j) => <span key={j} style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 600, background: 'var(--accent-light)', color: 'var(--accent2)' }}>{eq}</span>)
+              : <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, background: 'var(--surface2)', color: 'var(--ink3)' }}>Sin equipo</span>
+            : null
+          }
+          {!m.activo && <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: '#fdecea', color: 'var(--danger)' }}>Inactivo</span>}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+        {esCoord && (
+          <button onClick={() => onAsignar(m)} style={{ padding: '6px 12px', background: 'var(--accent-light)', color: 'var(--accent2)', border: '1.5px solid var(--accent2)', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+            Equipos
+          </button>
+        )}
+        {puedeGestionar && (
+          <button onClick={() => onToggleActivo(m)} style={{ padding: '6px 12px', background: 'none', color: m.activo ? 'var(--danger)' : 'var(--accent2)', border: `1.5px solid ${m.activo ? 'var(--danger)' : 'var(--accent2)'}`, borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+            {m.activo ? 'Desactivar' : 'Activar'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function Coordinadores() {
-  const { perfil, rol } = useAuth()
-  const [miembros, setMiembros] = useState([])
-  const [equipos, setEquipos]   = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [showInvite, setShowInvite] = useState(false)
-  const [asignando, setAsignando]   = useState(null)
-  const [session, setSession]       = useState(null)
+  const { perfil } = useAuth()
+  const [miembros,  setMiembros]  = useState([])
+  const [equipos,   setEquipos]   = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [invitando, setInvitando] = useState(null)
+  const [asignando, setAsignando] = useState(null)
+  const [session,   setSession]   = useState(null)
+
+  const esGestor = perfil?.rol === 'gestor'
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
@@ -167,23 +202,82 @@ export default function Coordinadores() {
     fetchData()
   }
 
-  const initials = (nombre) => (nombre || '').split(' ').slice(0,2).map(n => n[0]).join('').toUpperCase()
+  const coordinadores = miembros.filter(m => m.rol === 'coordinador')
+  const gestores      = miembros.filter(m => m.rol === 'gestor')
 
-  const COLORS = ['#d8f3dc', '#e0f2fe', '#fef3c7', '#f3e8ff', '#fce7f3', '#ecfdf5']
-  const TEXT_COLORS = ['#1a472a', '#0369a1', '#b45309', '#7c3aed', '#be185d', '#047857']
+  const statsCoord = [
+    { label: 'Total',      value: coordinadores.length,                                                 color: '#0369a1', bg: '#e0f2fe' },
+    { label: 'Activos',    value: coordinadores.filter(m => m.activo !== false).length,                 color: 'var(--accent)', bg: 'var(--accent-light)' },
+    { label: 'Con equipo', value: coordinadores.filter(m => m.equipo_coordinadores?.length > 0).length, color: '#047857', bg: '#ecfdf5' },
+    { label: 'Sin equipo', value: coordinadores.filter(m => !m.equipo_coordinadores?.length).length,    color: '#b45309', bg: '#fef3c7' },
+  ]
+
+  const statsGestor = [
+    { label: 'Total',     value: gestores.length,                                color: '#7c3aed', bg: '#f3e8ff' },
+    { label: 'Activos',   value: gestores.filter(m => m.activo !== false).length, color: 'var(--accent)', bg: 'var(--accent-light)' },
+    { label: 'Inactivos', value: gestores.filter(m => m.activo === false).length, color: '#c0392b', bg: '#fef2f2' },
+  ]
+
+  const seccion = (titulo, descripcion, colorBadge, bgBadge, stats, lista, rolInvitar, idx0, puedeInvitar, puedeGestionar) => (
+    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ padding: '3px 10px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: bgBadge, color: colorBadge }}>{titulo}</span>
+          </div>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--ink3)' }}>{descripcion}</p>
+        </div>
+        {puedeInvitar && (
+          <button
+            onClick={() => setInvitando(rolInvitar)}
+            style={{ padding: '7px 16px', background: colorBadge, color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', flexShrink: 0 }}
+          >
+            + Invitar
+          </button>
+        )}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${stats.length}, 1fr)`, borderBottom: '1px solid var(--border)' }}>
+        {stats.map((s, i) => (
+          <div key={i} style={{ padding: '14px 18px', borderRight: i < stats.length - 1 ? '1px solid var(--border)' : 'none', background: s.bg }}>
+            <div style={{ fontFamily: 'Syne', fontSize: 24, fontWeight: 800, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: s.color, fontWeight: 500, marginTop: 2 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {lista.length === 0 ? (
+          <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--ink3)', fontSize: 13 }}>
+            No hay {titulo.toLowerCase()} todavía.
+          </div>
+        ) : (
+          lista.map((m, i) => (
+            <TarjetaMiembro
+              key={m.id} m={m} i={idx0 + i}
+              equipos={equipos}
+              onAsignar={setAsignando}
+              onToggleActivo={toggleActivo}
+              puedeGestionar={puedeGestionar}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  )
 
   return (
     <div className={styles.page}>
-      <Topbar title="Coordinadores y Gestores" action={{ label: '+ Invitar', onClick: () => setShowInvite(true) }} />
+      <Topbar title="Coordinadores y Gestores" />
 
-      {showInvite && session && (
+      {invitando && session && (
         <InviteModal
           session={session}
-          onClose={() => setShowInvite(false)}
-          onSaved={() => { setShowInvite(false); fetchData() }}
+          rolInicial={invitando}
+          onClose={() => setInvitando(null)}
+          onSaved={() => { setInvitando(null); fetchData() }}
         />
       )}
-
       {asignando && (
         <AsignarEquipoModal
           perfil={asignando}
@@ -195,54 +289,24 @@ export default function Coordinadores() {
 
       <div className={styles.content}>
         {loading ? <Spinner center size="lg" /> : (
-          miembros.length === 0 ? (
-            <div className={styles.empty}>
-              <p>No hay coordinadores ni gestores todavía.</p>
-              <button onClick={() => setShowInvite(true)} style={{ padding: '10px 20px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'DM Sans' }}>
-                Invitar primer colaborador
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {miembros.map((m, i) => {
-                const ci = i % COLORS.length
-                const equiposAsignados = m.equipo_coordinadores?.map(ec => ec.equipos?.nombre).filter(Boolean) || []
-                return (
-                  <div key={m.id} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: COLORS[ci], color: TEXT_COLORS[ci], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
-                      {initials(m.nombre_completo)}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{m.nombre_completo || 'Sin nombre'}</div>
-                      <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 2 }}>{m.email || '—'}</div>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                        <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: m.rol === 'gestor' ? '#f3e8ff' : '#e0f2fe', color: m.rol === 'gestor' ? '#7c3aed' : '#0369a1' }}>
-                          {ROL_LABEL[m.rol]}
-                        </span>
-                        {equiposAsignados.length > 0
-                          ? equiposAsignados.map((eq, j) => (
-                            <span key={j} style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 600, background: 'var(--accent-light)', color: 'var(--accent2)' }}>{eq}</span>
-                          ))
-                          : <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, background: 'var(--surface2)', color: 'var(--ink3)' }}>Sin equipo</span>
-                        }
-                        {!m.activo && <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: '#fdecea', color: 'var(--danger)' }}>Inactivo</span>}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                      {m.rol === 'coordinador' && (
-                        <button onClick={() => setAsignando(m)} style={{ padding: '6px 12px', background: 'var(--accent-light)', color: 'var(--accent2)', border: '1.5px solid var(--accent2)', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
-                          Equipos
-                        </button>
-                      )}
-                      <button onClick={() => toggleActivo(m)} style={{ padding: '6px 12px', background: 'none', color: m.activo ? 'var(--danger)' : 'var(--accent2)', border: `1.5px solid ${m.activo ? 'var(--danger)' : 'var(--accent2)'}`, borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
-                        {m.activo ? 'Desactivar' : 'Activar'}
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {seccion(
+              'Coordinadores',
+              'Gestionan equipos en campo. Acceden desde la app móvil y el panel web.',
+              '#0369a1', '#e0f2fe',
+              statsCoord, coordinadores, 'coordinador', 0,
+              true,    // gestor SÍ puede invitar coordinadores
+              true     // gestor SÍ puede desactivar coordinadores
+            )}
+            {seccion(
+              'Gestores',
+              'Acceso completo al panel web. Mismo nivel que admin, sin gestión de suscripción.',
+              '#7c3aed', '#f3e8ff',
+              statsGestor, gestores, 'gestor', coordinadores.length,
+              !esGestor,  // gestor NO puede invitar gestores
+              !esGestor   // gestor NO puede desactivar gestores
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -30,7 +30,7 @@ const NAV_GESTOR = [
   { group: 'Gestión',      items: [
     { to: '/encuestas',      icon: '📋', label: 'Encuestas' },
     { to: '/equipos',        icon: '👥', label: 'Equipos' },
-    { to: '/coordinadores',  icon: '👔', label: 'Coordinadores' },
+    { to: '/coordinadores',  icon: '👔', label: 'Coordinadores y Gestores' },
     { to: '/encuestadores',  icon: '👤', label: 'Encuestadores' },
   ]},
   { group: 'Herramientas', items: [
