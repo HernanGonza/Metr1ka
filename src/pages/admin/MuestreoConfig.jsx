@@ -124,7 +124,7 @@ function filtrarDentroDeZona(features, zonaGeoJSON) {
 // ════════════════════════════════════════════════
 // MAPA EMBEBIDO (zona + manzanas, sin modal)
 // ════════════════════════════════════════════════
-function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange, onManzanasChange, soloZona = false }) {
+function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange, onManzanasChange }) {
   const mapRef    = useRef(null)
   const mapInst   = useRef(null)
   const Lref      = useRef(null)
@@ -191,12 +191,7 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
         selRef.current = new Set(); setNSel(0); setNManz(0)
         setModo('idle')
         // Auto-fetch manzanas al cerrar el polígono
-        if (!soloZona) {
-          await cargarManzanasAuto(L, map, e.layer)
-        } else {
-          // Callejera: solo zona, sin manzanas
-          onZonaChange({ type: 'FeatureCollection', features: [{ ...e.layer.toGeoJSON(), properties: { tipo: 'zona' } }] })
-        }
+        await cargarManzanasAuto(L, map, e.layer)
       })
       map.on('pm:drawend',      () => { if (mounted) setModo('idle') })
       map.on('pm:actioncancel', () => { if (mounted) setModo('idle') })
@@ -337,10 +332,7 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
     await cargarManzanasAuto(Lref.current, mapInst.current, zonaRef.current)
   }
 
-  const tieneZona   = !!zonaRef.current || !!zonaActual?.features?.find(f => f.properties?.tipo === 'zona')
-  const tipoEnc     = encuesta?.tipo_encuesta || 'domiciliaria'
-  const esCallejera   = tipoEnc === 'callejera'
-  const esTelefonica  = tipoEnc === 'telefonica' || tipoEnc === 'online'
+  const tieneZona = !!zonaRef.current || !!zonaActual?.features?.find(f => f.properties?.tipo === 'zona')
 
   const btnT = (active) => ({
     padding: '6px 13px', borderRadius: 'var(--r)', cursor: 'pointer',
@@ -417,19 +409,117 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
 // ════════════════════════════════════════════════
 // PANEL DE CONFIGURACIÓN (derecha)
 // ════════════════════════════════════════════════
-function PanelConfig({ config, onChange }) {
+
+// ════════════════════════════════════════════════
+// SELECTOR DE RAZONES DE NO RESPUESTA
+// ════════════════════════════════════════════════
+function RazonesSelector({ organizacionId, seleccionadas, onChangeSel }) {
+  const [razones,    setRazones]    = useState([])
   const [nuevaRazon, setNuevaRazon] = useState('')
-  const razones = config.razon_no_respuesta_extra || []
+  const [saving,     setSaving]     = useState(false)
+
+  useEffect(() => {
+    if (!organizacionId) return
+    supabase.from('razones_no_respuesta')
+      .select('id, label, organizacion_id')
+      .or(`organizacion_id.eq.${organizacionId},organizacion_id.is.null`)
+      .eq('activa', true)
+      .order('orden')
+      .then(({ data }) => setRazones(data || []))
+  }, [organizacionId])
+
+  function toggle(id) {
+    if (seleccionadas.includes(id)) {
+      onChangeSel(seleccionadas.filter(x => x !== id))
+    } else {
+      onChangeSel([...seleccionadas, id])
+    }
+  }
+
+  async function agregarPersonalizada() {
+    const label = nuevaRazon.trim()
+    if (!label || !organizacionId) return
+    setSaving(true)
+    const { data } = await supabase.from('razones_no_respuesta').insert({
+      organizacion_id: organizacionId,
+      label,
+      orden: razones.length + 1,
+    }).select().single()
+    if (data) {
+      setRazones(prev => [...prev, data])
+      onChangeSel([...seleccionadas, data.id])
+    }
+    setNuevaRazon('')
+    setSaving(false)
+  }
+
+  const nSel = seleccionadas.length
+  const secStyle = { background: '#fff', border: `1px solid ${nSel < 2 ? '#fca5a5' : 'var(--border)'}`, borderRadius: 'var(--r)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }
+
+  return (
+    <div style={secStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>Razones de no-respuesta</div>
+        <span style={{ fontSize: 11, fontWeight: 600, color: nSel < 2 ? '#c0392b' : 'var(--accent2)', background: nSel < 2 ? '#fef2f2' : 'var(--accent-light)', padding: '2px 8px', borderRadius: 100 }}>
+          {nSel} seleccionada{nSel !== 1 ? 's' : ''} {nSel < 2 ? '· mín. 2' : '✓'}
+        </span>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: -6 }}>
+        Seleccioná las que van a aparecer en la app cuando el encuestador registre una no-respuesta.
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {razones.map(r => {
+          const sel = seleccionadas.includes(r.id)
+          const esSistema = r.organizacion_id === null
+          return (
+            <div key={r.id} onClick={() => toggle(r.id)} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', cursor: 'pointer',
+              border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border2)'}`,
+              background: sel ? 'var(--accent-light)' : '#fff',
+              transition: 'all .15s',
+            }}>
+              <div style={{
+                width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                border: `2px solid ${sel ? 'var(--accent)' : 'var(--border2)'}`,
+                background: sel ? 'var(--accent)' : '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {sel && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+              </div>
+              <span style={{ flex: 1, fontSize: 12, color: sel ? 'var(--accent2)' : 'var(--ink2)', fontWeight: sel ? 600 : 400 }}>
+                {r.label}
+              </span>
+              {!esSistema && (
+                <button onClick={async e => {
+                  e.stopPropagation()
+                  await supabase.from('razones_no_respuesta').delete().eq('id', r.id)
+                  setRazones(prev => prev.filter(x => x.id !== r.id))
+                  onChangeSel(seleccionadas.filter(x => x !== r.id))
+                }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 14, padding: '0 2px', lineHeight: 1 }}>×</button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input value={nuevaRazon} onChange={e => setNuevaRazon(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && agregarPersonalizada()}
+          placeholder="Agregar razón personalizada..."
+          style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, fontFamily: 'DM Sans', outline: 'none' }} />
+        <button onClick={agregarPersonalizada} disabled={saving || !nuevaRazon.trim()}
+          style={{ padding: '6px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans', opacity: !nuevaRazon.trim() ? 0.5 : 1 }}>+</button>
+      </div>
+    </div>
+  )
+}
+
+function PanelConfig({ config, onChange, organizacionId }) {
   const k = config.intervalo_salto || 2
 
   function update(key, val) { onChange({ ...config, [key]: val }) }
-
-  function agregarRazon() {
-    const r = nuevaRazon.trim()
-    if (!r || razones.includes(r)) return
-    update('razon_no_respuesta_extra', [...razones, r])
-    setNuevaRazon('')
-  }
 
   const secStyle = { background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }
   const labelStyle = { fontSize: 13, fontWeight: 700, color: 'var(--ink)' }
@@ -501,36 +591,13 @@ function PanelConfig({ config, onChange }) {
         </div>
       </div>
 
-      {/* Razones de no-respuesta */}
-      <div style={secStyle}>
-        <div style={labelStyle}>Razones de no-respuesta</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-          {RAZONES_SISTEMA.map(r => (
-            <span key={r.key} style={{ padding: '3px 9px', borderRadius: 100, fontSize: 11, background: 'var(--surface)', color: 'var(--ink2)', border: '1px solid var(--border)' }}>{r.label}</span>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <input value={nuevaRazon} onChange={e => setNuevaRazon(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && agregarRazon()}
-            placeholder="Agregar razón personalizada..."
-            style={{ flex: 1, padding: '6px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, fontFamily: 'DM Sans', outline: 'none' }} />
-          <button onClick={agregarRazon}
-            style={{ padding: '6px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
-            +
-          </button>
-        </div>
-        {razones.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-            {razones.map(r => (
-              <span key={r} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 100, fontSize: 11, fontWeight: 600, background: 'var(--accent-light)', color: 'var(--accent2)', border: '1.5px solid var(--accent2)' }}>
-                {r}
-                <button onClick={() => update('razon_no_respuesta_extra', razones.filter(x => x !== r))}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Razones de no-respuesta — seleccionables */}
+      <RazonesSelector
+        organizacionId={organizacionId}
+        seleccionadas={config.razones_seleccionadas || []}
+        onChangeSel={ids => update('razones_seleccionadas', ids)}
+        onAgregarPersonalizada={label => {/* handled inside */}}
+      />
 
     </div>
   )
@@ -548,6 +615,7 @@ export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved 
   const [loading,      setLoading]      = useState(true)
   const [saving,       setSaving]       = useState(false)
   const [error,        setError]        = useState('')
+  const [zonaModificada, setZonaModificada] = useState(false)
 
   // Cargar config existente
   useEffect(() => {
@@ -568,23 +636,36 @@ export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved 
   }, [encuestaId])
 
   async function handleSave() {
-    setSaving(true); setError('')
-    try {
-      const { error: err } = await supabase
-        .from('encuestas')
-        .update({
-          config_muestreo: config,
-          area_geojson: zonaGeoJSON,
-          geofencing_activo: !!zonaGeoJSON,
-        })
-        .eq('id', encuestaId)
-      if (err) throw err
-      onSaved()
-    } catch (err) {
-      setError(err.message)
-    }
-    setSaving(false)
+  const razonesSeleccionadas = config.razones_seleccionadas || []
+  if (razonesSeleccionadas.length < 2) {
+    setError('Seleccioná al menos 2 razones de no-respuesta')
+    return
   }
+  setSaving(true); setError('')
+  try {
+    // Primero guardar config_muestreo (liviano)
+    const { error: e1 } = await supabase
+      .from('encuestas')
+      .update({ config_muestreo: config })
+      .eq('id', encuestaId)
+    if (e1) throw e1
+
+    // Solo guardar area_geojson si fue modificada
+    if (zonaModificada) {
+      const { error: e2 } = await supabase
+        .from('encuestas')
+        .update({ area_geojson: zonaGeoJSON, geofencing_activo: !!zonaGeoJSON })
+        .eq('id', encuestaId)
+      if (e2) throw e2
+      setZonaModificada(false)
+    }
+
+    onSaved()
+  } catch (err) {
+    setError(err.message)
+  }
+  setSaving(false)
+}
 
   const tieneZona     = !!(zonaGeoJSON?.features?.find(f => f.properties?.tipo === 'zona'))
   const nManzSel      = manzanasSel.length
@@ -617,7 +698,7 @@ export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved 
           <button onClick={onClose} style={{ padding: '6px 14px', background: 'none', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 13, fontFamily: 'DM Sans' }}>
             Cancelar
           </button>
-          <button onClick={handleSave} disabled={saving || (!tieneZona && !esTelefonica)}
+          <button onClick={handleSave} disabled={saving || !tieneZona}
             style={{ padding: '6px 18px', background: (!tieneZona || saving) ? 'var(--surface2)' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', cursor: (!tieneZona || saving) ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'DM Sans', opacity: (!tieneZona || saving) ? .6 : 1 }}>
             {saving ? 'Guardando...' : '✅ Guardar'}
           </button>
@@ -630,28 +711,17 @@ export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved 
         {/* MAPA */}
         <div style={{ padding: 16, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-            {esTelefonica ? 'Sin área geográfica' : esCallejera ? 'Zona de operación' : 'Zona de encuesta + manzanas'}
+            Zona de encuesta + manzanas
           </div>
-          {esTelefonica ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface)', borderRadius: 'var(--r2)', border: '1px dashed var(--border2)' }}>
-              <div style={{ textAlign: 'center', color: 'var(--ink3)' }}>
-                <div style={{ fontSize: 40, marginBottom: 10 }}>📞</div>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>Encuesta telefónica</div>
-                <div style={{ fontSize: 12, marginTop: 4 }}>No requiere zona geográfica ni manzanas.</div>
-              </div>
-            </div>
-          ) : (
-            <div style={{ flex: 1, minHeight: 0 }}>
-              <MapaZona
-                encuestaId={encuestaId}
-                zonaActual={zonaGeoJSON}
-                manzanasSeleccionadas={manzanasSel}
-                onZonaChange={setZonaGeoJSON}
-                onManzanasChange={setManzanasSel}
-                soloZona={esCallejera}
-              />
-            </div>
-          )}
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <MapaZona
+              encuestaId={encuestaId}
+              zonaActual={zonaGeoJSON}
+              manzanasSeleccionadas={manzanasSel}
+              onZonaChange={(v) => { setZonaGeoJSON(v); setZonaModificada(true) }}
+              onManzanasChange={setManzanasSel}
+            />
+          </div>
         </div>
 
         {/* CONFIG */}
@@ -660,7 +730,7 @@ export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved 
             Configuración de muestreo
           </div>
           <div style={{ flex: 1, minHeight: 0 }}>
-            <PanelConfig config={config} onChange={setConfig} />
+            <PanelConfig config={config} onChange={setConfig} organizacionId={encuesta?.organizacion_id} />
           </div>
         </div>
 

@@ -1,13 +1,16 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 import { supabase } from '../../lib/supabase'
 
-const RAZONES_NO_RESPUESTA = [
-  'No hay nadie en casa',
-  'No quiere participar',
-  'No cumple el perfil buscado',
-  'Barrera de idioma',
-  'Motivo de salud',
-]
+// ── Evalúa condicionales ──
+function evaluarCondicionales(pregunta, respuesta) {
+  const cond = pregunta?.condicionales
+  if (!cond?.reglas?.length) return null
+  const logica = cond.logica || 'OR'
+  const matches = cond.reglas.map(r => r.respuesta && String(respuesta) === String(r.respuesta))
+  const aplica = logica === 'AND' ? matches.every(Boolean) : matches.some(Boolean)
+  if (!aplica) return null
+  return cond.reglas[matches.findIndex(Boolean)] || null
+}
 
 const PreguntaScreen = memo(function PreguntaScreen({
   pregunta, total, indice, respuesta, onChange, onAnterior, onSiguiente, esPrimera, esUltima
@@ -16,7 +19,6 @@ const PreguntaScreen = memo(function PreguntaScreen({
     [...(pregunta.opciones_pregunta || [])].sort((a, b) => a.orden - b.orden),
     [pregunta.opciones_pregunta]
   )
-
   const puedeAvanzar = !pregunta.requerida ||
     (respuesta !== null && respuesta !== undefined && respuesta !== '')
 
@@ -30,29 +32,21 @@ const PreguntaScreen = memo(function PreguntaScreen({
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px 20px 0' }}>
-      {/* Header pregunta */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
           {pregunta.es_base ? '📌 Pregunta base' : `Pregunta ${indice} de ${total}`}
           {!pregunta.requerida && <span style={{ marginLeft: 8, color: '#bbb' }}>· Opcional</span>}
         </div>
-        <div style={{ fontSize: 17, fontWeight: 700, color: '#111', lineHeight: 1.4 }}>
-          {pregunta.texto}
-        </div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: '#111', lineHeight: 1.4 }}>{pregunta.texto}</div>
       </div>
 
-      {/* Input */}
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 8 }}>
         {pregunta.tipo === 'si_no' && ['Sí', 'No'].map(op => (
           <button key={op} onClick={() => onChange(op)} style={btnOpcion(respuesta === op)}>{op}</button>
         ))}
-
         {pregunta.tipo === 'opcion_multiple' && opciones.map(op => (
-          <button key={op.id} onClick={() => onChange(op.texto)} style={btnOpcion(respuesta === op.texto)}>
-            {op.texto}
-          </button>
+          <button key={op.id} onClick={() => onChange(op.texto)} style={btnOpcion(respuesta === op.texto)}>{op.texto}</button>
         ))}
-
         {pregunta.tipo === 'escala' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
@@ -66,37 +60,20 @@ const PreguntaScreen = memo(function PreguntaScreen({
                 }}>{n}</button>
               ))}
             </div>
-            {respuesta && (
-              <div style={{ textAlign: 'center', fontSize: 13, color: '#1a472a', fontWeight: 600 }}>
-                Seleccionaste: {respuesta}
-              </div>
-            )}
+            {respuesta && <div style={{ textAlign: 'center', fontSize: 13, color: '#1a472a', fontWeight: 600 }}>Seleccionaste: {respuesta}</div>}
           </div>
         )}
-
         {pregunta.tipo === 'texto_libre' && (
-          <textarea
-            value={respuesta || ''}
-            onChange={e => onChange(e.target.value)}
-            placeholder="Escribí tu respuesta..."
-            rows={4}
-            style={{
-              width: '100%', padding: '12px', border: '2px solid #e5e7eb',
-              borderRadius: 12, fontSize: 15, fontFamily: 'DM Sans',
-              resize: 'none', boxSizing: 'border-box', outline: 'none',
-            }}
+          <textarea value={respuesta || ''} onChange={e => onChange(e.target.value)}
+            placeholder="Escribí tu respuesta..." rows={4}
+            style={{ width: '100%', padding: '12px', border: '2px solid #e5e7eb', borderRadius: 12, fontSize: 15, fontFamily: 'DM Sans', resize: 'none', boxSizing: 'border-box', outline: 'none' }}
           />
         )}
       </div>
 
-      {/* Navegación */}
       <div style={{ display: 'flex', gap: 10, padding: '16px 0 20px' }}>
         {!esPrimera && (
-          <button onClick={onAnterior} style={{
-            flex: 1, padding: '13px', background: 'none',
-            border: '1.5px solid #e5e7eb', borderRadius: 12,
-            fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans', color: '#666',
-          }}>← Anterior</button>
+          <button onClick={onAnterior} style={{ flex: 1, padding: '13px', background: 'none', border: '1.5px solid #e5e7eb', borderRadius: 12, fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans', color: '#666' }}>← Anterior</button>
         )}
         <button onClick={onSiguiente} disabled={!puedeAvanzar} style={{
           flex: 2, padding: '13px',
@@ -113,14 +90,16 @@ const PreguntaScreen = memo(function PreguntaScreen({
 })
 
 export default function SimuladorEncuesta({ encuestaId, orgId, onClose }) {
-  const [encuesta,   setEncuesta]   = useState(null)
-  const [preguntas,  setPreguntas]  = useState([])
-  const [pantalla,   setPantalla]   = useState('inicio')
-  const [paso,       setPaso]       = useState(0)
-  const [respuestas, setRespuestas] = useState({})
-  const [razonNR,    setRazonNR]    = useState('')
-  const [noResponde, setNoResponde] = useState(false)
-  const [loading,    setLoading]    = useState(true)
+  const [encuesta,         setEncuesta]         = useState(null)
+  const [preguntas,        setPreguntas]        = useState([])
+  const [razonesNR,        setRazonesNR]        = useState([])
+  const [pantalla,         setPantalla]         = useState('inicio')
+  const [paso,             setPaso]             = useState(0)
+  const [respuestas,       setRespuestas]       = useState({})
+  const [razonNR,          setRazonNR]          = useState('')
+  const [noResponde,       setNoResponde]       = useState(false)
+  const [loading,          setLoading]          = useState(true)
+  const [preguntasOcultas, setPreguntasOcultas] = useState(new Set())
 
   useEffect(() => {
     let mounted = true
@@ -135,36 +114,51 @@ export default function SimuladorEncuesta({ encuestaId, orgId, onClose }) {
         setEncuesta(data.encuesta)
         setPreguntas(data.preguntas || [])
       }
-      setLoading(false)
+
+      // Cargar razones seleccionadas para esta encuesta
+      if (orgId && data?.encuesta?.config_muestreo?.razones_seleccionadas?.length) {
+        const ids = data.encuesta.config_muestreo.razones_seleccionadas
+        const razonRes = await supabase
+          .from('razones_no_respuesta')
+          .select('id, label')
+          .in('id', ids)
+          .eq('activa', true)
+        if (mounted && razonRes.data) {
+          // Mantener el orden de selección
+          const map = Object.fromEntries(razonRes.data.map(r => [r.id, r.label]))
+          setRazonesNR(ids.map(id => map[id]).filter(Boolean))
+        }
+      } else if (orgId) {
+        // Fallback: todas las razones de la org si no hay selección
+        const razonRes = await supabase
+          .from('razones_no_respuesta')
+          .select('id, label')
+          .or(`organizacion_id.eq.${orgId},organizacion_id.is.null`)
+          .eq('activa', true)
+          .order('orden')
+        if (mounted && razonRes.data) setRazonesNR(razonRes.data.map(r => r.label))
+      }
+
+      if (mounted) setLoading(false)
     }
     load()
     return () => { mounted = false }
-  }, [encuestaId])
+  }, [encuestaId, orgId])
 
-  // Todas las preguntas en orden — la de "participa" va primero
-  // Las demás siguen en el flujo normal
   const preguntasEncuesta = useMemo(() =>
     preguntas.filter(p => p.clave_base !== 'participa'),
     [preguntas]
   )
-
   const preguntaParticipa = useMemo(() =>
     preguntas.find(p => p.clave_base === 'participa'),
     [preguntas]
   )
-
   const preguntaActual = preguntasEncuesta[paso]
 
-  const razonesNR = useMemo(() => [
-    ...RAZONES_NO_RESPUESTA,
-    ...(encuesta?.config_muestreo?.razon_no_respuesta_extra || []),
-  ], [encuesta])
-
-  // Contar solo preguntas no-base para el contador visible
-  // Total visible = todas las preguntas que responde (base + cliente)
-  const totalNoBase = preguntasEncuesta.length
-
-  // Índice visible (solo cuenta preguntas no-base)
+  const totalNoBase = useMemo(() =>
+    preguntasEncuesta.filter(p => !p.es_base).length,
+    [preguntasEncuesta]
+  )
   const indiceVisible = useMemo(() => {
     if (!preguntaActual) return null
     return preguntasEncuesta.findIndex(p => p.id === preguntaActual.id) + 1
@@ -175,63 +169,52 @@ export default function SimuladorEncuesta({ encuestaId, orgId, onClose }) {
   }, [preguntaActual])
 
   const handleSiguiente = useCallback(() => {
-    if (paso < preguntasEncuesta.length - 1) {
-      setPaso(p => p + 1)
-    } else {
-      setPantalla('fin')
-    }
-  }, [paso, preguntasEncuesta.length])
+    const respuesta = respuestas[preguntaActual?.id]
+    const resultado = evaluarCondicionales(preguntaActual, respuesta)
 
-  const handleAnterior = useCallback(() => {
-    setPaso(p => Math.max(p - 1, 0))
-  }, [])
+    if (resultado) {
+      if (resultado.accion === 'finalizar') { setPantalla('fin'); return }
+      if (resultado.accion === 'saltar' && resultado.destino_id) {
+        const idx = preguntasEncuesta.findIndex(p => p.id === resultado.destino_id)
+        if (idx >= 0) { setPaso(idx); return }
+      }
+      if (resultado.accion === 'ocultar' && resultado.destino_id) {
+        setPreguntasOcultas(prev => new Set([...prev, resultado.destino_id]))
+      }
+    }
+
+    let siguiente = paso + 1
+    while (siguiente < preguntasEncuesta.length && preguntasOcultas.has(preguntasEncuesta[siguiente]?.id)) {
+      siguiente++
+    }
+    if (siguiente < preguntasEncuesta.length) setPaso(siguiente)
+    else setPantalla('fin')
+  }, [paso, preguntasEncuesta, preguntaActual, respuestas, preguntasOcultas])
+
+  const handleAnterior = useCallback(() => setPaso(p => Math.max(p - 1, 0)), [])
 
   const handleIniciar = useCallback(() => {
-    // Si hay pregunta de participación, verificarla primero
-    if (preguntaParticipa) {
-      // Mostrar la pregunta de participa como pantalla especial
-      setPantalla('participa')
-    } else {
-      setPantalla('encuesta')
-    }
+    preguntaParticipa ? setPantalla('participa') : setPantalla('encuesta')
   }, [preguntaParticipa])
 
   const progreso = preguntasEncuesta.length > 0
-    ? ((paso + 1) / preguntasEncuesta.length) * 100
-    : 0
+    ? ((paso + 1) / preguntasEncuesta.length) * 100 : 0
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
-      zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-    }}>
-      {/* Marco celular */}
-      <div style={{
-        width: 375, maxHeight: '88vh', background: '#fff',
-        borderRadius: 36, overflow: 'hidden', display: 'flex', flexDirection: 'column',
-        boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
-      }}>
-        {/* Status bar */}
-        <div style={{
-          background: '#1a472a', padding: '10px 20px 8px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
-        }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ width: 375, maxHeight: '88vh', background: '#fff', borderRadius: 36, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.5)' }}>
+
+        <div style={{ background: '#1a472a', padding: '10px 20px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ color: '#d8f3dc', fontSize: 12, fontWeight: 800, letterSpacing: 1 }}>METR1KA</span>
-          <button onClick={onClose} style={{
-            background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff',
-            borderRadius: 100, padding: '3px 12px', fontSize: 11, cursor: 'pointer',
-            fontFamily: 'DM Sans', fontWeight: 600,
-          }}>✕ Cerrar</button>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 100, padding: '3px 12px', fontSize: 11, cursor: 'pointer', fontFamily: 'DM Sans', fontWeight: 600 }}>✕ Cerrar</button>
         </div>
 
-        {/* Barra progreso */}
         {pantalla === 'encuesta' && (
           <div style={{ height: 3, background: '#e5e7eb', flexShrink: 0 }}>
             <div style={{ height: '100%', background: '#1a472a', width: `${progreso}%`, transition: 'width 0.3s' }} />
           </div>
         )}
 
-        {/* Contenido scrolleable */}
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           {loading ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -244,20 +227,16 @@ export default function SimuladorEncuesta({ encuestaId, orgId, onClose }) {
               <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#d8f3dc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, marginBottom: 20 }}>📋</div>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#1a472a', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Encuesta</div>
               <h2 style={{ fontSize: 19, fontWeight: 800, color: '#111', margin: '0 0 10px', lineHeight: 1.3 }}>{encuesta?.nombre}</h2>
-              {encuesta?.descripcion && <p style={{ fontSize: 13, color: '#666', margin: '0 0 32px', lineHeight: 1.6 }}>{encuesta.descripcion}</p>}
+              {encuesta?.descripcion && <p style={{ fontSize: 13, color: '#666', margin: '0 0 24px', lineHeight: 1.6 }}>{encuesta.descripcion}</p>}
               <div style={{ fontSize: 12, color: '#888', marginBottom: 24 }}>
                 {preguntasEncuesta.length} preguntas · ~{Math.ceil(preguntasEncuesta.length * 0.5)} min
               </div>
-              <button onClick={handleIniciar} style={{
-                width: '100%', padding: '15px', background: '#1a472a', color: '#fff',
-                border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700,
-                cursor: 'pointer', fontFamily: 'DM Sans', marginBottom: 10,
-              }}>Comenzar encuesta</button>
-              <button onClick={onClose} style={{
-                width: '100%', padding: '13px', background: 'none', color: '#888',
-                border: '1.5px solid #e5e7eb', borderRadius: 14, fontSize: 14,
-                cursor: 'pointer', fontFamily: 'DM Sans',
-              }}>Cancelar</button>
+              <button onClick={handleIniciar} style={{ width: '100%', padding: '15px', background: '#1a472a', color: '#fff', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', marginBottom: 10 }}>
+                Comenzar encuesta
+              </button>
+              <button onClick={onClose} style={{ width: '100%', padding: '13px', background: 'none', color: '#888', border: '1.5px solid #e5e7eb', borderRadius: 14, fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                Cancelar
+              </button>
             </div>
 
           ) : pantalla === 'participa' ? (
@@ -270,8 +249,18 @@ export default function SimuladorEncuesta({ encuestaId, orgId, onClose }) {
                 {['Sí', 'No'].map(op => (
                   <button key={op} onClick={() => {
                     setRespuestas(r => ({ ...r, [preguntaParticipa.id]: op }))
-                    if (op === 'No') setPantalla('no_responde')
-                    else { setPaso(0); setPantalla('encuesta') }
+                    if (op === 'No') {
+                      // Siempre mostrar razones cuando no quiere participar
+                      setPantalla('no_responde')
+                    } else {
+                      // Solo evaluar condicionales si respondió Sí
+                      const resultado = evaluarCondicionales(preguntaParticipa, op)
+                      if (resultado?.accion === 'saltar' && resultado.destino_id) {
+                        const idx = preguntasEncuesta.findIndex(p => p.id === resultado.destino_id)
+                        if (idx >= 0) { setPaso(idx); setPantalla('encuesta'); return }
+                      }
+                      setPaso(0); setPantalla('encuesta')
+                    }
                   }} style={{
                     padding: '16px', borderRadius: 12, fontSize: 15, fontWeight: 600,
                     fontFamily: 'DM Sans', cursor: 'pointer',
@@ -298,13 +287,8 @@ export default function SimuladorEncuesta({ encuestaId, orgId, onClose }) {
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingBottom: 8 }}>
-                <button onClick={() => setPantalla('participa')} style={{
-                  flex: 1, padding: '12px', background: 'none',
-                  border: '1.5px solid #e5e7eb', borderRadius: 12,
-                  fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans', color: '#666',
-                }}>Volver</button>
-                <button onClick={() => { setNoResponde(true); setPantalla('fin') }}
-                  disabled={!razonNR} style={{
+                <button onClick={() => setPantalla('participa')} style={{ flex: 1, padding: '12px', background: 'none', border: '1.5px solid #e5e7eb', borderRadius: 12, fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans', color: '#666' }}>Volver</button>
+                <button onClick={() => { setNoResponde(true); setPantalla('fin') }} disabled={!razonNR} style={{
                   flex: 2, padding: '12px',
                   background: razonNR ? '#c0392b' : '#e5e7eb',
                   color: razonNR ? '#fff' : '#aaa',
@@ -338,21 +322,18 @@ export default function SimuladorEncuesta({ encuestaId, orgId, onClose }) {
               <p style={{ fontSize: 14, color: '#666', margin: '0 0 32px', lineHeight: 1.6 }}>
                 {noResponde ? 'La razón de no respuesta fue registrada.' : 'La encuesta fue completada exitosamente.'}
               </p>
-              <button onClick={() => { setPaso(0); setRespuestas({}); setRazonNR(''); setNoResponde(false); setPantalla('inicio') }}
+              <button onClick={() => { setPaso(0); setRespuestas({}); setRazonNR(''); setNoResponde(false); setPreguntasOcultas(new Set()); setPantalla('inicio') }}
                 style={{ width: '100%', padding: '13px', background: 'none', border: '1.5px solid #e5e7eb', borderRadius: 14, fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans', color: '#666', marginBottom: 10 }}>
                 🔄 Reiniciar simulación
               </button>
-              <button onClick={onClose} style={{
-                width: '100%', padding: '14px', background: '#1a472a', color: '#fff',
-                border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700,
-                cursor: 'pointer', fontFamily: 'DM Sans',
-              }}>Cerrar simulador</button>
+              <button onClick={onClose} style={{ width: '100%', padding: '14px', background: '#1a472a', color: '#fff', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                Cerrar simulador
+              </button>
             </div>
 
           ) : null}
         </div>
 
-        {/* Home indicator */}
         <div style={{ background: '#fff', padding: '8px 0', display: 'flex', justifyContent: 'center', flexShrink: 0, borderTop: '1px solid #f0f0f0' }}>
           <div style={{ width: 120, height: 4, background: '#e5e7eb', borderRadius: 4 }} />
         </div>
