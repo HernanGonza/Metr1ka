@@ -1,16 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Spinner } from '../../components/ui'
 import { puntoInicioAleatorio } from './MapaManzanas'
-
-// ── Razones fijas del sistema ──
-const RAZONES_SISTEMA = [
-  { key: 'no_hay_nadie',     label: 'No hay nadie en casa'        },
-  { key: 'no_quiere',        label: 'No quiere participar'        },
-  { key: 'no_cumple_perfil', label: 'No cumple el perfil buscado' },
-  { key: 'barrera_idioma',   label: 'Barrera de idioma'           },
-  { key: 'enfermedad',       label: 'Motivo de salud'             },
-]
 
 const CONFIG_DEFAULT = {
   intervalo_salto:          2,
@@ -21,7 +12,6 @@ const CONFIG_DEFAULT = {
   razon_no_respuesta_extra: [],
 }
 
-// ── Lazy load Leaflet + Geoman ──
 async function initMapLibs() {
   const L = (await import('leaflet')).default
   await import('leaflet/dist/leaflet.css')
@@ -30,7 +20,6 @@ async function initMapLibs() {
   return L
 }
 
-// ── Fetch desde Catastro via proxy ──
 async function fetchCatastro(bounds, typeName) {
   const { south, west, north, east } = bounds
   const { data, error } = await supabase.functions.invoke('catastro-proxy', {
@@ -42,38 +31,26 @@ async function fetchCatastro(bounds, typeName) {
   return data.features || []
 }
 
-// ── Fetch manzanas desde Catastro ──
 async function fetchManzanasCatastro(bounds) {
   const features = await fetchCatastro(bounds, 'mapa:manzanas')
   if (!features.length) throw new Error('No se encontraron manzanas en esta zona')
-  // Verificar que realmente son manzanas (no parcelas)
-  // Las manzanas tienen propiedad 'etiqueta' con 'Mz.' o similar
-  // Si el proxy devuelve parcelas por error, las manzanas son mucho más grandes
   console.log('[catastro] Primer feature recibido:', JSON.stringify(features[0]?.properties))
   return features
 }
 
-// ── Fetch parcelas desde Catastro (silencioso, solo para guardar) ──
 async function fetchParcelasCatastro(bounds) {
-  try {
-    return await fetchCatastro(bounds, 'mapa:parcela_urbana')
-  } catch { return [] }
+  try { return await fetchCatastro(bounds, 'mapa:parcela_urbana') }
+  catch { return [] }
 }
 
-// ── Filtrar con Turf si disponible, o por centroide ──
-// ── Extraer anillo exterior independientemente del tipo de geometría ──
-// Catastro Misiones devuelve MultiPolygon con estructura:
-//   coordinates[poligono][anillo][punto] = [lng, lat]
-// Polygon estándar: coordinates[anillo][punto]
 function getExteriorRing(geom) {
   if (!geom) return null
-  const g = geom.geometry || geom  // acepta Feature o Geometry
+  const g = geom.geometry || geom
   if (g.type === 'Polygon')      return g.coordinates?.[0] || null
   if (g.type === 'MultiPolygon') return g.coordinates?.[0]?.[0] || null
   return null
 }
 
-// Centroide del primer anillo exterior
 function getCentroid(f) {
   const ring = getExteriorRing(f)
   if (!ring?.length) return null
@@ -85,7 +62,6 @@ function getCentroid(f) {
   ]
 }
 
-// Ray casting: ¿está [px, py] dentro del ring?
 function pointInRing(px, py, ring) {
   let inside = false
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -99,19 +75,14 @@ function pointInRing(px, py, ring) {
 }
 
 function filtrarDentroDeZona(features, zonaGeoJSON) {
-  // zonaGeoJSON es lo que devuelve Geoman .toGeoJSON() — Feature con Polygon
-  // Si es FeatureCollection tomar el primero
   const zonaFeat = zonaGeoJSON?.type === 'FeatureCollection'
     ? zonaGeoJSON.features?.[0]
     : zonaGeoJSON
   const zonaRing = getExteriorRing(zonaFeat)
-
   if (!zonaRing || zonaRing.length < 3) {
-    // Sin anillo válido: devolver todas (bbox ya limitó el área)
     console.warn('[filtrar] Sin anillo de zona válido, devolviendo todas')
     return features
   }
-
   return features.filter(f => {
     try {
       const c = getCentroid(f)
@@ -122,15 +93,18 @@ function filtrarDentroDeZona(features, zonaGeoJSON) {
 }
 
 // ════════════════════════════════════════════════
-// MAPA EMBEBIDO (zona + manzanas, sin modal)
+// MAPA EMBEBIDO
 // ════════════════════════════════════════════════
-function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange, onManzanasChange }) {
-  const mapRef    = useRef(null)
-  const mapInst   = useRef(null)
-  const Lref      = useRef(null)
-  const zonaRef   = useRef(null)
+const MapaZona = forwardRef(function MapaZona(
+  { encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange, onManzanasChange },
+  ref
+) {
+  const mapRef     = useRef(null)
+  const mapInst    = useRef(null)
+  const Lref       = useRef(null)
+  const zonaRef    = useRef(null)
   const manzGrpRef = useRef(null)
-  const selRef    = useRef(new Set(manzanasSeleccionadas?.map(f => f.properties?.gid || f.id) || []))
+  const selRef     = useRef(new Set(manzanasSeleccionadas?.map(f => f.properties?.gid || f.id) || []))
 
   const [listo,    setListo]    = useState(false)
   const [modo,     setModo]     = useState('idle')
@@ -139,7 +113,25 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
   const [nManz,    setNManz]    = useState(0)
   const [nSel,     setNSel]     = useState(selRef.current.size)
 
-  // Init map
+  // Exponer getZonaActual al padre via ref
+  useImperativeHandle(ref, () => ({
+    getZonaActual: () => {
+      if (!zonaRef.current) return null
+      const zonaFeat = zonaRef.current.toGeoJSON?.()
+      if (!zonaFeat) return null
+      const manzanas = []
+      if (manzGrpRef.current) {
+        manzGrpRef.current.eachLayer(l => { if (l.feature) manzanas.push(l.feature) })
+      }
+      const features = []
+      features.push({ ...zonaFeat, properties: { ...zonaFeat.properties, tipo: 'zona' } })
+      manzanas.forEach(f => {
+        features.push({ ...f, properties: { ...f.properties, tipo: 'manzana', seleccionada: selRef.current.has(f.properties?.gid || f.id) } })
+      })
+      return { type: 'FeatureCollection', features }
+    }
+  }))
+
   useEffect(() => {
     let mounted = true
     async function setup() {
@@ -162,7 +154,6 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
         removalMode: true, rotateMode: true,
       })
 
-      // Cargar zona + manzanas guardadas
       if (zonaActual?.features) {
         const zonaFeat = zonaActual.features.find(f => f.properties?.tipo === 'zona')
         const manzFeat = zonaActual.features.filter(f => f.properties?.tipo === 'manzana')
@@ -190,7 +181,6 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
         zonaRef.current = e.layer
         selRef.current = new Set(); setNSel(0); setNManz(0)
         setModo('idle')
-        // Auto-fetch manzanas al cerrar el polígono
         await cargarManzanasAuto(L, map, e.layer)
       })
       map.on('pm:drawend',      () => { if (mounted) setModo('idle') })
@@ -212,6 +202,7 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
     if (manzGrpRef.current) { map.removeLayer(manzGrpRef.current); manzGrpRef.current = null }
     const grp = L.geoJSON(features, {
       renderer: L.canvas(),
+      pmIgnore: true,
       style: f => estiloManzana(selSet.has(f.properties?.gid || f.id)),
       onEachFeature: (feature, layer) => {
         const id = feature.properties?.gid || feature.id
@@ -238,7 +229,6 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
     setLoading(true); setErrorMap('')
     try {
       const bounds = zonaLayer.getBounds()
-      // Expandir bbox 15% para capturar manzanas del borde de la zona
       const latPad = (bounds.getNorth() - bounds.getSouth()) * 0.15
       const lngPad = (bounds.getEast()  - bounds.getWest())  * 0.15
       const bbox = {
@@ -248,24 +238,15 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
         east:  bounds.getEast()  + lngPad,
       }
       const zonaGeoJSON = zonaLayer.toGeoJSON()
-      console.log('[MuestreoConfig] bbox para catastro:', bbox)
-
-      // Fetch manzanas y parcelas en paralelo
       const [todasManzanas, parcelas] = await Promise.all([
         fetchManzanasCatastro(bbox),
         fetchParcelasCatastro(bbox),
       ])
-
-      console.log('[MuestreoConfig] Manzanas del catastro:', todasManzanas.length)
       const manzanas = filtrarDentroDeZona(todasManzanas, zonaGeoJSON)
-      console.log('[MuestreoConfig] Manzanas dentro de zona:', manzanas.length)
       if (!manzanas.length) { setErrorMap(`No se encontraron manzanas en la zona dibujada (el catastro devolvió ${todasManzanas.length})`); setLoading(false); return }
-
       selRef.current = new Set(); setNSel(0)
       setNManz(manzanas.length)
       renderManzanas(L, map, manzanas, new Set())
-
-      // Emitir zona + manzanas vacías + parcelas (guardadas en background)
       emitirCambioCompleto(zonaGeoJSON, manzanas, new Set(), parcelas)
     } catch (err) {
       setErrorMap(err.message)
@@ -310,7 +291,6 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
     if (!mapInst.current || !zonaRef.current) return
     if (modo === 'editando') { cancelarEdicion(); return }
     if (modo === 'dibujando') mapInst.current.pm.disableDraw('Polygon')
-    // Enable drag on zona layer
     if (zonaRef.current.pm?.enable) {
       zonaRef.current.pm.enable({ allowSelfIntersection: false })
     } else if (zonaRef.current.eachLayer) {
@@ -345,7 +325,6 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 'var(--r2)', overflow: 'hidden', border: '1px solid var(--border2)' }}>
-      {/* Toolbar del mapa */}
       <div style={{ padding: '8px 12px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
         <button onClick={activarDibujar} style={btnT(modo === 'dibujando')}>
           🖊️ {modo === 'dibujando' ? 'Dibujando...' : tieneZona ? 'Redibujar zona' : 'Dibujar zona'}
@@ -368,7 +347,6 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
         )}
       </div>
 
-      {/* Modo activo banner */}
       {modo !== 'idle' && (
         <div style={{ padding: '5px 12px', background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 600, textAlign: 'center', flexShrink: 0 }}>
           {modo === 'dibujando' && '🖊️ Clic para agregar puntos · Doble clic para cerrar · Las manzanas se cargan automáticamente'}
@@ -376,7 +354,6 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
         </div>
       )}
 
-      {/* Mapa */}
       <div style={{ flex: 1, position: 'relative' }}>
         {(!listo || loading) && (
           <div style={{ position: 'absolute', inset: 0, zIndex: 5, background: 'rgba(242,241,238,.9)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
@@ -387,7 +364,6 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
         <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
       </div>
 
-      {/* Leyenda + error */}
       <div style={{ padding: '6px 12px', background: '#fff', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, minHeight: 32 }}>
         {nManz > 0 && (
           <>
@@ -404,14 +380,10 @@ function MapaZona({ encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange,
       </div>
     </div>
   )
-}
+})
 
 // ════════════════════════════════════════════════
-// PANEL DE CONFIGURACIÓN (derecha)
-// ════════════════════════════════════════════════
-
-// ════════════════════════════════════════════════
-// SELECTOR DE RAZONES DE NO RESPUESTA
+// SELECTOR DE RAZONES
 // ════════════════════════════════════════════════
 function RazonesSelector({ organizacionId, seleccionadas, onChangeSel }) {
   const [razones,    setRazones]    = useState([])
@@ -429,11 +401,8 @@ function RazonesSelector({ organizacionId, seleccionadas, onChangeSel }) {
   }, [organizacionId])
 
   function toggle(id) {
-    if (seleccionadas.includes(id)) {
-      onChangeSel(seleccionadas.filter(x => x !== id))
-    } else {
-      onChangeSel([...seleccionadas, id])
-    }
+    if (seleccionadas.includes(id)) onChangeSel(seleccionadas.filter(x => x !== id))
+    else onChangeSel([...seleccionadas, id])
   }
 
   async function agregarPersonalizada() {
@@ -441,16 +410,10 @@ function RazonesSelector({ organizacionId, seleccionadas, onChangeSel }) {
     if (!label || !organizacionId) return
     setSaving(true)
     const { data } = await supabase.from('razones_no_respuesta').insert({
-      organizacion_id: organizacionId,
-      label,
-      orden: razones.length + 1,
+      organizacion_id: organizacionId, label, orden: razones.length + 1,
     }).select().single()
-    if (data) {
-      setRazones(prev => [...prev, data])
-      onChangeSel([...seleccionadas, data.id])
-    }
-    setNuevaRazon('')
-    setSaving(false)
+    if (data) { setRazones(prev => [...prev, data]); onChangeSel([...seleccionadas, data.id]) }
+    setNuevaRazon(''); setSaving(false)
   }
 
   const nSel = seleccionadas.length
@@ -467,7 +430,6 @@ function RazonesSelector({ organizacionId, seleccionadas, onChangeSel }) {
       <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: -6 }}>
         Seleccioná las que van a aparecer en la app cuando el encuestador registre una no-respuesta.
       </div>
-
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {razones.map(r => {
           const sel = seleccionadas.includes(r.id)
@@ -477,20 +439,12 @@ function RazonesSelector({ organizacionId, seleccionadas, onChangeSel }) {
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', cursor: 'pointer',
               border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border2)'}`,
-              background: sel ? 'var(--accent-light)' : '#fff',
-              transition: 'all .15s',
+              background: sel ? 'var(--accent-light)' : '#fff', transition: 'all .15s',
             }}>
-              <div style={{
-                width: 16, height: 16, borderRadius: 4, flexShrink: 0,
-                border: `2px solid ${sel ? 'var(--accent)' : 'var(--border2)'}`,
-                background: sel ? 'var(--accent)' : '#fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
+              <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `2px solid ${sel ? 'var(--accent)' : 'var(--border2)'}`, background: sel ? 'var(--accent)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {sel && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
               </div>
-              <span style={{ flex: 1, fontSize: 12, color: sel ? 'var(--accent2)' : 'var(--ink2)', fontWeight: sel ? 600 : 400 }}>
-                {r.label}
-              </span>
+              <span style={{ flex: 1, fontSize: 12, color: sel ? 'var(--accent2)' : 'var(--ink2)', fontWeight: sel ? 600 : 400 }}>{r.label}</span>
               {!esSistema && (
                 <button onClick={async e => {
                   e.stopPropagation()
@@ -503,7 +457,6 @@ function RazonesSelector({ organizacionId, seleccionadas, onChangeSel }) {
           )
         })}
       </div>
-
       <div style={{ display: 'flex', gap: 6 }}>
         <input value={nuevaRazon} onChange={e => setNuevaRazon(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && agregarPersonalizada()}
@@ -516,26 +469,23 @@ function RazonesSelector({ organizacionId, seleccionadas, onChangeSel }) {
   )
 }
 
+// ════════════════════════════════════════════════
+// PANEL CONFIG
+// ════════════════════════════════════════════════
 function PanelConfig({ config, onChange, organizacionId }) {
   const k = config.intervalo_salto || 2
-
   function update(key, val) { onChange({ ...config, [key]: val }) }
-
-  const secStyle = { background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }
+  const secStyle   = { background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }
   const labelStyle = { fontSize: 13, fontWeight: 700, color: 'var(--ink)' }
-  const descStyle  = { fontSize: 11, color: 'var(--ink3)', marginTop: -6 }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', overflowY: 'auto', paddingRight: 2 }}>
-
-      {/* Intervalo de salto */}
       <div style={secStyle}>
         <div style={labelStyle}>Intervalo de salto (k = {k})</div>
-        <div style={descStyle}>Casas a saltar entre encuestas.</div>
+        <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: -6 }}>Casas a saltar entre encuestas.</div>
         <input type="range" min={1} max={10} value={k}
           onChange={e => update('intervalo_salto', parseInt(e.target.value))}
           style={{ accentColor: 'var(--accent)' }} />
-        {/* Ejemplo visual compacto */}
         <div style={{ display: 'flex', gap: 4 }}>
           {Array.from({ length: Math.min(k + 3, 8) }, (_, i) => {
             const enc = i === 0 || i === k + 1
@@ -548,7 +498,6 @@ function PanelConfig({ config, onChange, organizacionId }) {
         </div>
       </div>
 
-      {/* Cuota + Max intentos */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div style={secStyle}>
           <div style={labelStyle}>Cuota / manzana</div>
@@ -574,7 +523,6 @@ function PanelConfig({ config, onChange, organizacionId }) {
         </div>
       </div>
 
-      {/* Tipo de reemplazo */}
       <div style={secStyle}>
         <div style={labelStyle}>Tipo de reemplazo</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -591,33 +539,27 @@ function PanelConfig({ config, onChange, organizacionId }) {
         </div>
       </div>
 
-      {/* Razones de no-respuesta — seleccionables */}
       <RazonesSelector
         organizacionId={organizacionId}
         seleccionadas={config.razones_seleccionadas || []}
         onChangeSel={ids => update('razones_seleccionadas', ids)}
-        onAgregarPersonalizada={label => {/* handled inside */}}
       />
-
     </div>
   )
 }
 
 // ════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
-// Recibe: encuestaId, encuesta, onClose, onSaved
-// Ya no recibe equipo ni encuestaEquipoId
 // ════════════════════════════════════════════════
 export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved }) {
-  const [config,       setConfig]       = useState(CONFIG_DEFAULT)
-  const [zonaGeoJSON,  setZonaGeoJSON]  = useState(encuesta?.area_geojson || null)
-  const [manzanasSel,  setManzanasSel]  = useState([])
-  const [loading,      setLoading]      = useState(true)
-  const [saving,       setSaving]       = useState(false)
-  const [error,        setError]        = useState('')
-  const [zonaModificada, setZonaModificada] = useState(false)
+  const [config,      setConfig]      = useState(CONFIG_DEFAULT)
+  const [zonaGeoJSON, setZonaGeoJSON] = useState(encuesta?.area_geojson || null)
+  const [manzanasSel, setManzanasSel] = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [saving,      setSaving]      = useState(false)
+  const [error,       setError]       = useState('')
+  const mapaRef = useRef(null)
 
-  // Cargar config existente
   useEffect(() => {
     async function load() {
       setLoading(true)
@@ -636,40 +578,35 @@ export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved 
   }, [encuestaId])
 
   async function handleSave() {
-  const razonesSeleccionadas = config.razones_seleccionadas || []
-  if (razonesSeleccionadas.length < 2) {
-    setError('Seleccioná al menos 2 razones de no-respuesta')
-    return
-  }
-  setSaving(true); setError('')
-  try {
-    // Primero guardar config_muestreo (liviano)
-    const { error: e1 } = await supabase
-      .from('encuestas')
-      .update({ config_muestreo: config })
-      .eq('id', encuestaId)
-    if (e1) throw e1
-
-    // Solo guardar area_geojson si fue modificada
-    if (zonaModificada) {
-      const { error: e2 } = await supabase
-        .from('encuestas')
-        .update({ area_geojson: zonaGeoJSON, geofencing_activo: !!zonaGeoJSON })
-        .eq('id', encuestaId)
-      if (e2) throw e2
-      setZonaModificada(false)
+    const razonesSeleccionadas = config.razones_seleccionadas || []
+    if (razonesSeleccionadas.length < 2) {
+      setError('Seleccioná al menos 2 razones de no-respuesta')
+      return
     }
+    setSaving(true); setError('')
+    try {
+      // Leer zona actualizada directamente del mapa (captura ediciones de vértices)
+      const zonaActualizada = mapaRef.current?.getZonaActual() || zonaGeoJSON
 
-    onSaved()
-  } catch (err) {
-    setError(err.message)
+      const { error: e1 } = await supabase
+        .from('encuestas')
+        .update({
+          config_muestreo:   config,
+          area_geojson:      zonaActualizada,
+          geofencing_activo: !!zonaActualizada,
+        })
+        .eq('id', encuestaId)
+      if (e1) throw e1
+      onSaved()
+    } catch (err) {
+      setError(err.message)
+    }
+    setSaving(false)
   }
-  setSaving(false)
-}
 
-  const tieneZona     = !!(zonaGeoJSON?.features?.find(f => f.properties?.tipo === 'zona'))
-  const nManzSel      = manzanasSel.length
-  const nManzTotal    = zonaGeoJSON?.features?.filter(f => f.properties?.tipo === 'manzana').length || 0
+  const tieneZona  = !!(zonaGeoJSON?.features?.find(f => f.properties?.tipo === 'zona'))
+  const nManzSel   = manzanasSel.length
+  const nManzTotal = zonaGeoJSON?.features?.filter(f => f.properties?.tipo === 'manzana').length || 0
 
   if (loading) return (
     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -679,8 +616,6 @@ export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved 
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-
-      {/* Barra de estado */}
       <div style={{ padding: '8px 22px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', gap: 16, alignItems: 'center', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: tieneZona ? '#22c55e' : '#f59e0b' }} />
@@ -705,26 +640,23 @@ export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved 
         </div>
       </div>
 
-      {/* Layout 2 columnas: mapa izquierda, config derecha */}
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 340px', minHeight: 0, gap: 0 }}>
-
-        {/* MAPA */}
         <div style={{ padding: 16, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
             Zona de encuesta + manzanas
           </div>
           <div style={{ flex: 1, minHeight: 0 }}>
             <MapaZona
+              ref={mapaRef}
               encuestaId={encuestaId}
               zonaActual={zonaGeoJSON}
               manzanasSeleccionadas={manzanasSel}
-              onZonaChange={(v) => { setZonaGeoJSON(v); setZonaModificada(true) }}
+              onZonaChange={setZonaGeoJSON}
               onManzanasChange={setManzanasSel}
             />
           </div>
         </div>
 
-        {/* CONFIG */}
         <div style={{ padding: '16px 16px 16px 0', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
             Configuración de muestreo
@@ -733,7 +665,6 @@ export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved 
             <PanelConfig config={config} onChange={setConfig} organizacionId={encuesta?.organizacion_id} />
           </div>
         </div>
-
       </div>
     </div>
   )

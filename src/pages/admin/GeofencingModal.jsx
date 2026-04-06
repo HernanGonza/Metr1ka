@@ -223,47 +223,58 @@ export default function GeofencingModal({
   // ───────────────────────────── CONTROLES GEOMAN ─────────────────────────────
   const activarDibujar = () => { const map = mapInst.current; if (!map) return; cancelarModo(); setModo('dibujando'); map.pm.enableDraw('Polygon', { snappable: true, allowSelfIntersection: false }) }
   const activarEditar = () => {
-    const map = mapInst.current
-    if (!map || !zonaLayer.current) return
-    cancelarModo()
-    setModo('editando')
-    const enableLayer = (l) => { if (l.pm?.enable) l.pm.enable({ allowSelfIntersection: false }) }
-    if (typeof zonaLayer.current.eachLayer === 'function') {
-      zonaLayer.current.eachLayer(enableLayer)
-    } else {
-      enableLayer(zonaLayer.current)
-    }
+  const map = mapInst.current
+  if (!map || !zonaLayer.current) return
+  cancelarModo()
+  setModo('editando')
+  const enableLayer = (l) => {
+    try { if (l?.pm?.enable) l.pm.enable({ allowSelfIntersection: false }) } catch (e) {}
   }
+  if (typeof zonaLayer.current.eachLayer === 'function') {
+    zonaLayer.current.eachLayer(enableLayer)
+  } else {
+    enableLayer(zonaLayer.current)
+  }
+}
 
   const activarMover = () => {
-    const map = mapInst.current
-    if (!map || !zonaLayer.current) return
-    cancelarModo()
-    setModo('moviendo')
-    const enableDrag = (l) => { if (l.pm?.enableLayerDrag) l.pm.enableLayerDrag() }
-    if (typeof zonaLayer.current.eachLayer === 'function') {
-      zonaLayer.current.eachLayer(enableDrag)
-    } else {
-      enableDrag(zonaLayer.current)
-    }
+  const map = mapInst.current
+  if (!map || !zonaLayer.current) return
+  cancelarModo()
+  setModo('moviendo')
+  const enableDrag = (l) => {
+    try { if (l?.pm?.enableLayerDrag) l.pm.enableLayerDrag() } catch (e) {}
   }
+  if (typeof zonaLayer.current.eachLayer === 'function') {
+    zonaLayer.current.eachLayer(enableDrag)
+  } else {
+    enableDrag(zonaLayer.current)
+  }
+}
   const cancelarModo = () => {
-    const map = mapInst.current
-    if (!map) return
-    setModo('idle')
-    map.pm.disableDraw()
-    if (zonaLayer.current) {
-      const disableLayer = (l) => {
-        if (l.pm?.disable) l.pm.disable()
-        if (l.pm?.disableLayerDrag) l.pm.disableLayerDrag()
-      }
-      if (typeof zonaLayer.current.eachLayer === 'function') {
-        zonaLayer.current.eachLayer(disableLayer)
-      } else {
-        disableLayer(zonaLayer.current)
-      }
+  const map = mapInst.current
+  if (!map) return
+  setModo('idle')
+  map.pm.disableDraw()
+  if (zonaLayer.current) {
+    const disableLayer = (l) => {
+      try {
+        if (l?.pm?.disable) l.pm.disable()
+        if (l?.pm?.disableLayerDrag) l.pm.disableLayerDrag()
+      } catch (e) {}
+    }
+    if (typeof zonaLayer.current.eachLayer === 'function') {
+      zonaLayer.current.eachLayer(disableLayer)
+    } else {
+      disableLayer(zonaLayer.current)
     }
   }
+  // Solo deshabilitar el modo que estaba activo
+  try {
+    if (modo === 'editando') map.pm.disableGlobalEditMode()
+    if (modo === 'moviendo') map.pm.disableGlobalDragMode()
+  } catch (e) {}
+}
   const borrarZona = () => {
     const map = mapInst.current; if (!map) return
     if (zonaLayer.current) { map.removeLayer(zonaLayer.current); zonaLayer.current = null }
