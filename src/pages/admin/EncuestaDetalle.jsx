@@ -9,7 +9,7 @@ import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement,
   ArcElement, PointElement, LineElement, Tooltip, Legend, Filler
 } from 'chart.js'
-import { cacheGet, cacheSet } from '../../lib/cache'
+import { cacheGet, cacheSet, cacheClear } from '../../lib/cache'
 import styles from './Page.module.css'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Tooltip, Legend, Filler)
@@ -52,54 +52,62 @@ function PreguntaChart({ pregunta, filas, paletaIdx }) {
   const [tipoGrafico, setTipoGrafico] = useState(DEFAULT_TIPO[tipo] || 'bar')
 
   const datos = useMemo(() => {
-    if (tipo === 'texto_libre') return null
-    const conteo = {}
-    if (tipo === 'si_no') {
-      conteo['Sí'] = filas.filter(f => f.valor_booleano === true).reduce((s, f) => s + Number(f.cantidad), 0)
-      conteo['No'] = filas.filter(f => f.valor_booleano === false).reduce((s, f) => s + Number(f.cantidad), 0)
-    } else if (tipo === 'escala') {
-      for (let i = 1; i <= 10; i++) {
-        const fila = filas.find(f => Number(f.valor_numero) === i)
-        conteo[String(i)] = fila ? Number(fila.cantidad) : 0
-      }
-    } else {
-      opciones.forEach(op => {
-        const fila = filas.find(f => String(f.opcion_id) === String(op.id))
-        conteo[op.texto] = fila ? Number(fila.cantidad) : 0
-      })
-    }
-    const labels = Object.keys(conteo)
-    const values = Object.values(conteo)
-    const total  = values.reduce((a, b) => a + b, 0)
-    if (total === 0) return null
+  if (tipo === 'texto_libre') return null
+  const conteo = {}
+  
+  if (tipo === 'si_no') {
+    conteo['Sí'] = filas.filter(f => f.valor_booleano === true).reduce((s, f) => s + Number(f.cantidad), 0)
+    conteo['No'] = filas.filter(f => f.valor_booleano === false).reduce((s, f) => s + Number(f.cantidad), 0)
+  } else if (tipo === 'escala') {
+    const valores = [...new Set(filas.map(f => Number(f.valor_numero)))].sort((a,b) => a-b)
+    valores.forEach(v => {
+      const fila = filas.find(f => Number(f.valor_numero) === v)
+      conteo[String(v)] = fila ? Number(fila.cantidad) : 0
+    })
+  } else if (tipo === 'opcion_multiple' || tipo === 'opcion_simple') {
+    console.log('filas:', filas)
+  opciones.forEach(op => {
+  const fila = filas.find(f => f.valor_texto === op.texto)
+  conteo[op.texto] = fila ? Number(fila.cantidad) : 0
+  console.log(`opción ${op.texto} fila encontrada:`, fila)
+})
 
-    const isPie  = tipoGrafico === 'pie' || tipoGrafico === 'doughnut'
-    const isLine = tipoGrafico === 'line'
-    const isBar  = tipoGrafico === 'bar'
+} else {
+  return null // tipo no soportado
+}
 
-    return {
-      labels,
-      datasets: [{
-        label: pregunta.texto,
-        data: values,
-        backgroundColor: isPie
-          ? paleta.slice(0, labels.length)
-          : isLine
-            ? `${paleta[0]}33`
-            : paleta.slice(0, labels.length),
-        borderColor: isLine ? paleta[0] : isPie ? '#fff' : undefined,
-        borderWidth: isPie ? 2 : isLine ? 2.5 : 0,
-        borderRadius: isBar ? 6 : 0,
-        borderSkipped: false,
-        fill: isLine,
-        tension: 0.4,
-        pointBackgroundColor: isLine ? paleta[0] : undefined,
-        pointRadius: isLine ? 5 : undefined,
-        pointHoverRadius: isLine ? 7 : undefined,
-      }],
-      total,
-    }
-  }, [filas, opciones, tipo, tipoGrafico, paleta])
+  const labels = Object.keys(conteo)
+  const values = Object.values(conteo)
+  const total  = values.reduce((a, b) => a + b, 0)
+  if (total === 0) return null
+
+  const isPie  = tipoGrafico === 'pie' || tipoGrafico === 'doughnut'
+  const isLine = tipoGrafico === 'line'
+  const isBar  = tipoGrafico === 'bar'
+
+  return {
+    labels,
+    datasets: [{
+      label: pregunta.texto,
+      data: values,
+      backgroundColor: isPie
+        ? paleta.slice(0, labels.length)
+        : isLine
+          ? `${paleta[0]}33`
+          : paleta.slice(0, labels.length),
+      borderColor: isLine ? paleta[0] : isPie ? '#fff' : undefined,
+      borderWidth: isPie ? 2 : isLine ? 2.5 : 0,
+      borderRadius: isBar ? 6 : 0,
+      borderSkipped: false,
+      fill: isLine,
+      tension: 0.4,
+      pointBackgroundColor: isLine ? paleta[0] : undefined,
+      pointRadius: isLine ? 5 : undefined,
+      pointHoverRadius: isLine ? 7 : undefined,
+    }],
+    total,
+  }
+}, [filas, opciones, tipo, tipoGrafico, paleta, pregunta.texto])
 
   const chartOptions = useMemo(() => {
     const isPie  = tipoGrafico === 'pie' || tipoGrafico === 'doughnut'
@@ -495,7 +503,14 @@ export default function EncuestaDetalle() {
         title={encuesta.nombre}
         back={{ label: 'Encuestas', onClick: () => navigate('/encuestas') }}
         badge={{ label: cfg.label, color: cfg.color, bg: cfg.bg }}
-        action={encuesta.estado_produccion === 'publicada' ? { label: '↻ Actualizar', onClick: () => { cacheSet(`enc_base:${id}`, null, 0); fetchBase() } } : null}
+        action={encuesta.estado_produccion === 'publicada' ? {
+  label: '↻ Actualizar',
+  onClick: () => {
+    cacheClear(`enc_base:${id}`)
+    cacheClear(`enc_resp:${id}`)
+    fetchBase()
+  }
+} : null}
       />
       <div className={styles.content}>
         {error && <div style={{ padding: '10px 16px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 'var(--r)', fontSize: 13, color: '#c0392b', marginBottom: 12 }}>Error: {error}</div>}
