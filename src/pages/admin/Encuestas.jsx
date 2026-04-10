@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { Topbar } from '../../components/layout'
 import { Spinner } from '../../components/ui'
 import MuestreoConfig, { ManzanasEquipoModal } from './MuestreoConfig'
+import GeofencingModal from './GeofencingModal'
 import SimuladorEncuesta from './SimuladorEncuesta'
 import styles from './Page.module.css'
 
@@ -162,79 +163,6 @@ function RequestModal({ organizacionId, onClose, onSaved }) {
   )
 }
 
-// ── Modal: asignar encuesta a equipos ──
-function AssignModal({ encuesta, equipos, asignados, onClose, onSaved }) {
-  const { perfil }              = useAuth()
-  const [selected, setSelected] = useState(new Set(asignados))
-  const [saving, setSaving]     = useState(false)
-  const [error, setError]       = useState('')
-
-  function toggle(id) {
-    setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
-  }
-
-  async function handleSave() {
-    setSaving(true); setError('')
-    try {
-      for (const equipoId of selected) {
-        if (!asignados.includes(equipoId)) {
-          const { error: err } = await supabase.from('encuestas_equipo').insert({
-            encuesta_id: encuesta.id, equipo_id: equipoId, asignado_por: perfil?.id,
-          })
-          if (err && !err.message?.includes('duplicate')) throw err
-        }
-      }
-      for (const equipoId of asignados) {
-        if (!selected.has(equipoId)) {
-          await supabase.from('encuestas_equipo').delete().eq('encuesta_id', encuesta.id).eq('equipo_id', equipoId)
-        }
-      }
-      onSaved(); onClose()
-    } catch (err) {
-      setError(err.message || 'Error al guardar asignaciones')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className={styles.modal}>
-      <div className={styles.modalContent} style={{ maxWidth: 520 }}>
-        <div className={styles.modalHeader}>
-          <h3>Asignar equipos</h3>
-          <button className={styles.closeBtn} onClick={onClose} disabled={saving}>×</button>
-        </div>
-        <div className={styles.modalBody}>
-          <p style={{ fontSize: 13, color: 'var(--ink2)', margin: '0 0 12px' }}>
-            Seleccioná los equipos para <strong>"{encuesta.nombre}"</strong>:
-          </p>
-          {equipos.length === 0 ? (
-            <p style={{ color: 'var(--ink3)', fontSize: 14, textAlign: 'center', padding: '16px 0' }}>No tenés equipos creados todavía.</p>
-          ) : (
-            <div className={styles.equiposList}>
-              {equipos.map(eq => (
-                <div key={eq.id} className={`${styles.equipoItem} ${selected.has(eq.id) ? styles.equipoItemSelected : ''}`}
-                  onClick={() => !saving && toggle(eq.id)}
-                  style={{ cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>
-                  <input type="checkbox" checked={selected.has(eq.id)} onChange={() => toggle(eq.id)} readOnly disabled={saving} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{eq.nombre}</div>
-                    {asignados.includes(eq.id) && <div style={{ fontSize: 11, color: 'var(--accent2)', marginTop: 2 }}>Ya asignado</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {error && <div className={styles.error}>{error}</div>}
-          <div className={styles.modalActions}>
-            <button type="button" onClick={onClose} disabled={saving}>Cancelar</button>
-            <button type="button" onClick={handleSave} disabled={saving || equipos.length === 0}>{saving ? 'Guardando...' : 'Guardar asignación'}</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ── Modal grande para MuestreoConfig ──
 function MuestreoModal({ encuesta, onClose, onSaved }) {
@@ -255,6 +183,116 @@ function MuestreoModal({ encuesta, onClose, onSaved }) {
 }
 
 // ── Tarjeta de encuesta ──
+// ── Modal: gestionar zonas de una encuesta ──
+function ZonasModal({ encuesta, equipos, onClose, onSaved }) {
+  const { perfil } = useAuth()
+  const [zonas,   setZonas]   = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving,  setSaving]  = useState(false)
+  const [error,   setError]   = useState('')
+
+  async function fetchZonas() {
+    const { data } = await supabase
+      .from('encuesta_zonas')
+      .select('id, nombre, equipo_id, geofencing_activo, orden')
+      .eq('encuesta_id', encuesta.id)
+      .order('orden')
+    setZonas(data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchZonas() }, [encuesta.id])
+
+  async function agregarZona() {
+    setSaving(true)
+    const { error: err } = await supabase.from('encuesta_zonas').insert({
+      encuesta_id: encuesta.id,
+      nombre: `Zona ${zonas.length + 1}`,
+      orden: zonas.length + 1,
+    })
+    if (!err) fetchZonas()
+    setSaving(false)
+  }
+
+  async function actualizarZona(id, campo, valor) {
+    setZonas(prev => prev.map(z => z.id === id ? { ...z, [campo]: valor } : z))
+    await supabase.from('encuesta_zonas').update({ [campo]: valor }).eq('id', id)
+  }
+
+  async function eliminarZona(id) {
+    if (!window.confirm('¿Eliminar esta zona? También se eliminarán sus manzanas y parcelas.')) return
+    const { error: err } = await supabase.from('encuesta_zonas').delete().eq('id', id)
+    if (!err) fetchZonas()
+  }
+
+  const inp = { padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: '#fff', outline: 'none' }
+
+  return (
+    <div className={styles.modal}>
+      <div className={styles.modalContent} style={{ maxWidth: 600 }}>
+        <div className={styles.modalHeader}>
+          <h3>Zonas de "{encuesta.nombre}"</h3>
+          <button className={styles.closeBtn} onClick={onClose}>×</button>
+        </div>
+        <div className={styles.modalBody}>
+          <p style={{ fontSize: 13, color: 'var(--ink3)', margin: '0 0 14px' }}>
+            Cada zona es un área geográfica donde se toma la encuesta. Asigná un equipo a cada zona. 
+            Desde el botón 📍 de cada zona podés definir sus manzanas.
+          </p>
+          {loading ? <Spinner center /> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {zonas.map(zona => (
+                <div key={zona.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px', background: 'var(--surface)', borderRadius: 'var(--r)', border: '1px solid var(--border)' }}>
+                  <input
+                    value={zona.nombre}
+                    onChange={e => actualizarZona(zona.id, 'nombre', e.target.value)}
+                    style={{ ...inp, flex: 1 }}
+                    placeholder="Nombre de la zona"
+                  />
+                  <select
+                    value={zona.equipo_id || ''}
+                    onChange={e => actualizarZona(zona.id, 'equipo_id', e.target.value || null)}
+                    style={{ ...inp, minWidth: 160 }}
+                  >
+                    <option value="">Sin equipo</option>
+                    {equipos.map(eq => <option key={eq.id} value={eq.id}>{eq.nombre}</option>)}
+                  </select>
+                  <label title="Activar geofencing para esta zona" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--ink3)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    <input type="checkbox" checked={zona.geofencing_activo}
+                      onChange={e => actualizarZona(zona.id, 'geofencing_activo', e.target.checked)}
+                      style={{ accentColor: 'var(--accent)' }} />
+                    Geofencing
+                  </label>
+                  <button onClick={() => eliminarZona(zona.id)}
+                    style={{ padding: '6px 10px', background: 'none', color: 'var(--danger)', border: '1.5px solid var(--danger)', borderRadius: 'var(--r)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans', flexShrink: 0 }}>
+                    ×
+                  </button>
+                </div>
+              ))}
+              {zonas.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--ink3)', fontSize: 13 }}>
+                  Sin zonas. Agregá al menos una para configurar el muestreo.
+                </div>
+              )}
+            </div>
+          )}
+          {error && <div className={styles.error}>{error}</div>}
+          <div className={styles.modalActions} style={{ marginTop: 16 }}>
+            <button type="button" onClick={agregarZona} disabled={saving}
+              style={{ padding: '8px 16px', background: 'var(--accent-light)', color: 'var(--accent2)', border: '1.5px solid var(--accent2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+              + Agregar zona
+            </button>
+            <div style={{ flex: 1 }} />
+            <button type="button" onClick={onClose}>Cancelar</button>
+            <button type="button" onClick={() => { onSaved(); onClose() }}>Listo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
 // Botón con tooltip nativo (title=)
 function Btn({ onClick, bg, color, border, icon, label, tooltip, full }) {
   return (
@@ -285,13 +323,14 @@ function Btn({ onClick, bg, color, border, icon, label, tooltip, full }) {
   )
 }
 
-function EncuestaCard({ encuesta, equipos, onApprove, onAssign, onMuestreo, onManzanasEquipo, onSimular, onView, mostrarOrg, orgNombre }) {
+function EncuestaCard({ encuesta, equipos, onApprove, onAssign, onMuestreo, onManzanasZona, onSimular, onView, mostrarOrg, orgNombre, onZonas }) {
   const cfg = ESTADO_CONFIG[encuesta.estado_produccion] || ESTADO_CONFIG.pendiente
   const tipo = TIPO_CONFIG[encuesta.tipo_encuesta]
   const esPublicada  = encuesta.estado_produccion === 'publicada'
   const paraRevisar  = encuesta.estado_produccion === 'para_revisar'
   const enProduccion = ['pendiente', 'en_proceso'].includes(encuesta.estado_produccion)
-  const equiposAsignados = encuesta.encuestas_equipo?.length || 0
+  const equiposAsignados = encuesta.encuesta_zonas?.filter(z => z.equipo_id)?.length || 0
+  const cantZonas = encuesta.encuesta_zonas?.length || 0
   const esDomiciliaria = !['telefonica','online'].includes(encuesta.tipo_encuesta)
 
   return (
@@ -322,9 +361,9 @@ function EncuestaCard({ encuesta, equipos, onApprove, onAssign, onMuestreo, onMa
       <div className={styles.encuestaMeta}>
         {mostrarOrg && orgNombre && <span style={{ fontWeight: 600, color: 'var(--accent2)', marginRight: 8 }}>🏢 {orgNombre}</span>}
         Solicitada: {new Date(encuesta.creado_en).toLocaleDateString('es-AR')}
-        {equiposAsignados > 0 && (
+        {cantZonas > 0 && (
           <span style={{ marginLeft: 10, padding: '1px 7px', borderRadius: 100, fontSize: 11, background: 'var(--accent-light)', color: 'var(--accent2)', fontWeight: 600 }}>
-            {equiposAsignados} equipo{equiposAsignados !== 1 ? 's' : ''}
+            {cantZonas} zona{cantZonas !== 1 ? 's' : ''}{equiposAsignados > 0 ? ` · ${equiposAsignados} equipos` : ''}
           </span>
         )}
       </div>
@@ -342,8 +381,8 @@ function EncuestaCard({ encuesta, equipos, onApprove, onAssign, onMuestreo, onMa
             {/* Fila 1: gestión general */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <Btn onClick={onAssign}
-                icon="👥" label={equiposAsignados > 0 ? `Equipos (${equiposAsignados})` : 'Asignar equipos'}
-                tooltip="Asignar o quitar equipos de encuestadores a esta encuesta" />
+                icon="🗺️" label={cantZonas > 0 ? `Zonas (${cantZonas})` : 'Configurar zonas'}
+                tooltip="Definir las zonas geográficas de la encuesta y asignar un equipo a cada zona" />
               <Btn onClick={onSimular}
                 bg="#f3e8ff" color="#7c3aed" border="#c4b5fd"
                 icon="📱" label="Simular"
@@ -359,21 +398,26 @@ function EncuestaCard({ encuesta, equipos, onApprove, onAssign, onMuestreo, onMa
             </div>
 
             {/* Fila 2: manzanas por equipo (solo domiciliarias con equipos asignados) */}
-            {esDomiciliaria && equiposAsignados > 0 && (
+            {esDomiciliaria && cantZonas > 0 && (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
                   Manzanas por equipo
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {(encuesta.encuestas_equipo || []).map(ee => {
-                    const eq = equipos.find(e => e.id === ee.equipo_id)
-                    if (!eq) return null
+                  {(encuesta.encuesta_zonas || []).map(zona => {
+                    const eq = zona.equipo_id ? equipos.find(e => e.id === zona.equipo_id) : null
                     return (
                       <Btn
-                        key={ee.id}
-                        onClick={() => onManzanasEquipo({ encuestasEquipoId: ee.id, equipoNombre: eq.nombre, encuesta })}
-                        icon="📍" label={eq.nombre}
-                        tooltip={`Definir qué manzanas y parcelas le corresponden al ${eq.nombre} en esta encuesta`}
+                        key={zona.id}
+                        onClick={() => onManzanasZona({
+                          encuestaZonaId: zona.id,
+                          equipoNombre: eq?.nombre || zona.nombre,
+                          zonaEncuesta: zona.area_geojson
+                            ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: null, properties: { tipo: 'zona' }, ...zona }] }
+                            : null,
+                        })}
+                        icon="📍" label={`${zona.nombre}${eq ? ` (${eq.nombre})` : ''}`}
+                        tooltip={`Definir manzanas y parcelas para la zona "${zona.nombre}"${eq ? ` — ${eq.nombre}` : ''}`}
                       />
                     )
                   })}
@@ -400,10 +444,10 @@ export default function Encuestas() {
   const [organizaciones, setOrganizaciones] = useState([])
   const [loading,        setLoading]        = useState(true)
   const [showRequest,    setShowRequest]    = useState(false)
-  const [assigning,      setAssigning]      = useState(null)
   const [muestreoData,   setMuestreoData]   = useState(null)
   const [simulando,      setSimulando]      = useState(null)
-  const [manzanasEquipo, setManzanasEquipo] = useState(null) // { encuestasEquipoId, equipoNombre, encuesta }
+  const [manzanasZona,   setManzanasZona]   = useState(null) // { encuestaZonaId, equipoNombre, zonaEncuesta }
+  const [zonasModal,     setZonasModal]     = useState(null) // encuesta
   const [filtro,         setFiltro]         = useState('todas')
   const [filtroOrg,      setFiltroOrg]      = useState('')
   const [filtroTipo,     setFiltroTipo]     = useState('')
@@ -416,7 +460,7 @@ export default function Encuestas() {
     setLoading(true)
     try {
       let encQ = supabase.from('encuestas')
-        .select('*, area_geojson, config_muestreo, encuestas_equipo(equipo_id, id)')
+        .select('*, area_geojson, config_muestreo, encuesta_zonas(id, nombre, equipo_id, area_geojson, geofencing_activo, orden)')
         .order('creado_en', { ascending: false })
       if (!esSuperadmin) encQ = encQ.eq('organizacion_id', perfil.organizacion_id)
 
@@ -478,15 +522,7 @@ export default function Encuestas() {
           onSaved={() => { setShowRequest(false); fetchData() }}
         />
       )}
-      {assigning && (
-        <AssignModal
-          encuesta={assigning.encuesta}
-          equipos={equipos}
-          asignados={assigning.asignados}
-          onClose={() => setAssigning(null)}
-          onSaved={() => { setAssigning(null); fetchData() }}
-        />
-      )}
+
       {simulando && (
         <SimuladorEncuesta encuestaId={simulando} orgId={perfil?.organizacion_id} onClose={() => setSimulando(null)} />
       )}
@@ -497,14 +533,21 @@ export default function Encuestas() {
           onSaved={() => { setMuestreoData(null); fetchData() }}
         />
       )}
-      {manzanasEquipo && (
+      {zonasModal && (
+        <ZonasModal
+          encuesta={zonasModal}
+          equipos={equipos}
+          onClose={() => setZonasModal(null)}
+          onSaved={() => { setZonasModal(null); fetchData() }}
+        />
+      )}
+      {manzanasZona && (
         <ManzanasEquipoModal
-          encuestasEquipoId={manzanasEquipo.encuestasEquipoId}
-          encuestaId={manzanasEquipo.encuesta?.id}
-          equipoNombre={manzanasEquipo.equipoNombre}
-          zonaEncuesta={manzanasEquipo.encuesta?.area_geojson || null}
-          onClose={() => setManzanasEquipo(null)}
-          onSaved={() => { setManzanasEquipo(null); fetchData() }}
+          encuestaZonaId={manzanasZona.encuestaZonaId}
+          equipoNombre={manzanasZona.equipoNombre}
+          zonaEncuesta={manzanasZona.zonaEncuesta}
+          onClose={() => setManzanasZona(null)}
+          onSaved={() => { setManzanasZona(null); fetchData() }}
         />
       )}
 
@@ -587,9 +630,9 @@ export default function Encuestas() {
                 mostrarOrg={esSuperadmin}
                 orgNombre={esSuperadmin ? organizaciones.find(o => o.id === enc.organizacion_id)?.nombre : null}
                 onApprove={() => handleApprove(enc.id)}
-                onAssign={() => setAssigning({ encuesta: enc, asignados: (enc.encuestas_equipo || []).map(e => e.equipo_id) })}
+                onAssign={() => setZonasModal(enc)}
                 onMuestreo={() => setMuestreoData(enc)}
-                onManzanasEquipo={setManzanasEquipo}
+                onManzanasZona={setManzanasZona}
                 onSimular={() => setSimulando(enc.id)}
                 onView={() => navigate(`/encuestas/${enc.id}`)}
               />

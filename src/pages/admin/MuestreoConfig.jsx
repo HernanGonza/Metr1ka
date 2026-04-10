@@ -660,57 +660,53 @@ function PanelConfig({ config, onChange, organizacionId }) {
 // ════════════════════════════════════════════════
 // MODAL DE MANZANAS POR EQUIPO
 // ════════════════════════════════════════════════
-export function ManzanasEquipoModal({ encuestasEquipoId, encuestaId, equipoNombre, zonaEncuesta, onClose, onSaved }) {
+export function ManzanasEquipoModal({ encuestaZonaId, equipoNombre, zonaEncuesta, onClose, onSaved }) {
   const [zonaGeoJSON, setZonaGeoJSON] = useState(zonaEncuesta || null)
   const [manzanasSel, setManzanasSel] = useState([])
   const [saving,      setSaving]      = useState(false)
   const [error,       setError]       = useState('')
   const mapaRef = useRef(null)
 
-  // Cargar zona+manzanas desde equipo_encuesta_zonas (tabla dedicada por equipo)
+  // Cargar zona+manzanas guardadas desde encuesta_zonas
   useEffect(() => {
     async function load() {
-      if (!encuestasEquipoId) return
+      if (!encuestaZonaId) return
       try {
         const { data } = await supabase
-          .from('equipo_encuesta_zonas')
+          .from('encuesta_zonas')
           .select('area_geojson')
-          .eq('encuestas_equipo_id', encuestasEquipoId)
+          .eq('id', encuestaZonaId)
           .single()
 
         if (data?.area_geojson?.features?.length) {
           setZonaGeoJSON(data.area_geojson)
         } else if (zonaEncuesta?.features) {
-          // Primera vez: mostrar solo la zona grande como referencia visual
-          const soloZona = zonaEncuesta.features.filter(f => f.properties?.tipo === 'zona')
-          setZonaGeoJSON(soloZona.length
-            ? { type: 'FeatureCollection', features: soloZona }
-            : zonaEncuesta
-          )
+          // Primera vez: mostrar referencia visual de la zona de geofencing del equipo
+          setZonaGeoJSON({
+            type: 'FeatureCollection',
+            features: zonaEncuesta.features.filter(f => f.properties?.tipo === 'zona'),
+          })
         }
       } catch {}
     }
     load()
-  }, [encuestasEquipoId])
+  }, [encuestaZonaId])
 
   async function handleSave() {
-    if (!encuestasEquipoId) {
-      setError('Sin equipo asignado — no se pueden guardar manzanas'); return
+    if (!encuestaZonaId) {
+      setError('Sin zona asignada'); return
     }
     setSaving(true); setError('')
     try {
-      // Leer zona actualizada del mapa (estado más reciente, incluyendo drag)
       const zonaActualizada = mapaRef.current?.getZonaActual() || zonaGeoJSON
-
       const manzSelFeatures = (zonaActualizada?.features || [])
         .filter(f => f.properties?.tipo === 'manzana' && f.properties?.seleccionada === true)
-
       const parcelasAll = (zonaActualizada?.features || [])
         .filter(f => f.properties?.tipo === 'parcela')
 
-      // 1. Guardar manzanas+parcelas en sus tablas (RPC hace DELETE previo + INSERT)
+      // 1. Guardar manzanas+parcelas
       const { data: rpcResult, error: e } = await supabase.rpc('guardar_manzanas_y_parcelas', {
-        p_encuestas_equipo_id: encuestasEquipoId,
+        p_encuesta_zona_id: encuestaZonaId,
         p_manzanas: manzSelFeatures.map(f => ({
           gid:          f.properties?.gid ?? f.properties?.id ?? null,
           area_geojson: JSON.stringify(f),
@@ -723,20 +719,20 @@ export function ManzanasEquipoModal({ encuestasEquipoId, encuestaId, equipoNombr
         })),
       })
       if (e) throw e
-      console.log('[manzanas equipo]', rpcResult)
+      console.log('[guardar_manzanas_y_parcelas]', rpcResult)
 
-      // 2. Persistir zona + manzanas en equipo_encuesta_zonas (tabla dedicada, una fila por equipo)
+      // 2. Persistir zona+manzanas en encuesta_zonas.area_geojson
       const featuresAGuardar = (zonaActualizada?.features || [])
         .filter(f => f.properties?.tipo === 'zona' || f.properties?.tipo === 'manzana')
       const { error: e2 } = await supabase
-        .from('equipo_encuesta_zonas')
-        .upsert({
-          encuestas_equipo_id: encuestasEquipoId,
+        .from('encuesta_zonas')
+        .update({
           area_geojson: featuresAGuardar.length > 0
             ? { type: 'FeatureCollection', features: featuresAGuardar }
-            : { type: 'FeatureCollection', features: [] },
-          actualizado_en: new Date().toISOString(),
-        }, { onConflict: 'encuestas_equipo_id' })
+            : null,
+          geofencing_activo: featuresAGuardar.some(f => f.properties?.tipo === 'zona'),
+        })
+        .eq('id', encuestaZonaId)
       if (e2) throw e2
 
       onSaved()
@@ -753,19 +749,18 @@ export function ManzanasEquipoModal({ encuestasEquipoId, encuestaId, equipoNombr
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: '#fff', borderRadius: 'var(--r2)', width: '100%', maxWidth: 900, height: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,.3)' }}>
-        {/* Header */}
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div>
             <h3 style={{ fontFamily: 'Syne', fontSize: 15, fontWeight: 700, margin: 0 }}>📍 Manzanas — {equipoNombre}</h3>
             <p style={{ fontSize: 11, color: 'var(--ink3)', margin: '2px 0 0' }}>
-              Seleccioná las manzanas que va a cubrir este equipo. Las parcelas se asignan automáticamente.
+              Seleccioná las manzanas de esta zona. Las parcelas se asignan automáticamente.
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {error && <span style={{ fontSize: 12, color: 'var(--danger)', fontWeight: 500 }}>⚠ {error}</span>}
             {nManzSel > 0 && (
               <span style={{ fontSize: 12, color: 'var(--accent2)', fontWeight: 600, background: 'var(--accent-light)', padding: '3px 10px', borderRadius: 100 }}>
-                {nManzSel} manzana{nManzSel !== 1 ? 's' : ''} seleccionada{nManzSel !== 1 ? 's' : ''}
+                {nManzSel} manzana{nManzSel !== 1 ? 's' : ''}
               </span>
             )}
             <button onClick={onClose} style={{ padding: '6px 14px', background: 'none', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 13, fontFamily: 'DM Sans' }}>
@@ -778,8 +773,6 @@ export function ManzanasEquipoModal({ encuestasEquipoId, encuestaId, equipoNombr
             <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ink3)', lineHeight: 1, padding: '0 4px' }}>×</button>
           </div>
         </div>
-
-        {/* Mapa */}
         <div style={{ flex: 1, minHeight: 0 }}>
           <MapaZona
             ref={mapaRef}
@@ -795,9 +788,7 @@ export function ManzanasEquipoModal({ encuestasEquipoId, encuestaId, equipoNombr
   )
 }
 
-// ════════════════════════════════════════════════
-// COMPONENTE PRINCIPAL — solo config global
-// ════════════════════════════════════════════════
+
 export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved }) {
   const [config,  setConfig]  = useState(CONFIG_DEFAULT)
   const [loading, setLoading] = useState(true)
