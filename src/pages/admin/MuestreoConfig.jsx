@@ -9,6 +9,7 @@ const CONFIG_DEFAULT = {
   max_intentos:             2,
   sentido_recorrido:        'horario',
   cuota_por_manzana:        10,
+  casas_por_lado:           10,  // estimado de casas por lado de manzana para calcular navegación
   razon_no_respuesta_extra: [],
 }
 
@@ -192,6 +193,24 @@ const MapaZona = forwardRef(function MapaZona(
           setNSel(idsSel.size)
           renderManzanas(L, map, manzFeat, idsSel)
           setNManz(manzFeat.length)
+
+          // Cargar parcelas en background para que estén disponibles al guardar
+          // (no las persistimos en area_geojson, hay que re-fetchearlas del catastro)
+          if (zonaFeat) {
+            const zonaLayer = zonaRef.current
+            try {
+              const bounds = L.geoJSON(zonaFeat).getBounds()
+              const latPad = (bounds.getNorth() - bounds.getSouth()) * 0.15
+              const lngPad = (bounds.getEast()  - bounds.getWest())  * 0.15
+              const bbox = {
+                south: bounds.getSouth() - latPad, west: bounds.getWest() - lngPad,
+                north: bounds.getNorth() + latPad, east: bounds.getEast() + lngPad,
+              }
+              fetchParcelasCatastro(bbox).then(parcelas => {
+                if (mounted) parcelaRef.current = parcelas
+              }).catch(() => {})
+            } catch {}
+          }
         }
       }
 
@@ -604,9 +623,10 @@ function PanelConfig({ config, onChange, organizacionId }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
         <div style={secStyle}>
           <div style={labelStyle}>Cuota / manzana</div>
+          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: -6 }}>Encuestas a tomar por manzana.</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input type="range" min={1} max={50} value={config.cuota_por_manzana || 10}
               onChange={e => update('cuota_por_manzana', parseInt(e.target.value))}
@@ -617,7 +637,20 @@ function PanelConfig({ config, onChange, organizacionId }) {
           </div>
         </div>
         <div style={secStyle}>
+          <div style={labelStyle}>Casas por lado</div>
+          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: -6 }}>Estimado para calcular el recorrido.</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input type="range" min={2} max={30} value={config.casas_por_lado || 10}
+              onChange={e => update('casas_por_lado', parseInt(e.target.value))}
+              style={{ flex: 1, accentColor: 'var(--accent)' }} />
+            <span style={{ fontFamily: 'Syne', fontSize: 20, fontWeight: 800, color: 'var(--accent)', minWidth: 28, textAlign: 'center' }}>
+              {config.casas_por_lado || 10}
+            </span>
+          </div>
+        </div>
+        <div style={secStyle}>
           <div style={labelStyle}>Máx. intentos</div>
+          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: -6 }}>Visitas por parcela antes de reemplazar.</div>
           <div style={{ display: 'flex', gap: 6 }}>
             {[1, 2, 3].map(n => (
               <button key={n} onClick={() => update('max_intentos', n)}
