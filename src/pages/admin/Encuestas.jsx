@@ -4,8 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { Topbar } from '../../components/layout'
 import { Spinner } from '../../components/ui'
-import MuestreoConfig, { ManzanasEquipoModal } from './MuestreoConfig'
-import GeofencingModal from './GeofencingModal'
+import { ZonasYMuestreoModal } from './MuestreoConfig'
 import SimuladorEncuesta from './SimuladorEncuesta'
 import styles from './Page.module.css'
 
@@ -183,163 +182,36 @@ function MuestreoModal({ encuesta, onClose, onSaved }) {
 }
 
 // ── Tarjeta de encuesta ──
-// ── Modal: gestionar zonas de una encuesta ──
-function ZonasModal({ encuesta, equipos, onClose, onSaved }) {
-  const { perfil } = useAuth()
-  const [zonas,   setZonas]   = useState([])
-  const [loading, setLoading] = useState(true)
-  const [saving,  setSaving]  = useState(false)
-  const [error,   setError]   = useState('')
 
-  async function fetchZonas() {
-    const { data } = await supabase
-      .from('encuesta_zonas')
-      .select('id, nombre, equipo_id, geofencing_activo, orden')
-      .eq('encuesta_id', encuesta.id)
-      .order('orden')
-    setZonas(data || [])
-    setLoading(false)
-  }
 
-  useEffect(() => { fetchZonas() }, [encuesta.id])
-
-  async function agregarZona() {
-    setSaving(true)
-    const { error: err } = await supabase.from('encuesta_zonas').insert({
-      encuesta_id: encuesta.id,
-      nombre: `Zona ${zonas.length + 1}`,
-      orden: zonas.length + 1,
-    })
-    if (!err) fetchZonas()
-    setSaving(false)
-  }
-
-  async function actualizarZona(id, campo, valor) {
-    setZonas(prev => prev.map(z => z.id === id ? { ...z, [campo]: valor } : z))
-    await supabase.from('encuesta_zonas').update({ [campo]: valor }).eq('id', id)
-  }
-
-  async function eliminarZona(id) {
-    if (!window.confirm('¿Eliminar esta zona? También se eliminarán sus manzanas y parcelas.')) return
-    const { error: err } = await supabase.from('encuesta_zonas').delete().eq('id', id)
-    if (!err) fetchZonas()
-  }
-
-  const inp = { padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: '#fff', outline: 'none' }
-
+// Boton con tooltip nativo
+function Btn({ onClick, bg, color, border, icon, label, tooltip }) {
   return (
-    <div className={styles.modal}>
-      <div className={styles.modalContent} style={{ maxWidth: 600 }}>
-        <div className={styles.modalHeader}>
-          <h3>Zonas de "{encuesta.nombre}"</h3>
-          <button className={styles.closeBtn} onClick={onClose}>×</button>
-        </div>
-        <div className={styles.modalBody}>
-          <p style={{ fontSize: 13, color: 'var(--ink3)', margin: '0 0 14px' }}>
-            Cada zona es un área geográfica donde se toma la encuesta. Asigná un equipo a cada zona. 
-            Desde el botón 📍 de cada zona podés definir sus manzanas.
-          </p>
-          {loading ? <Spinner center /> : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {zonas.map(zona => (
-                <div key={zona.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px', background: 'var(--surface)', borderRadius: 'var(--r)', border: '1px solid var(--border)' }}>
-                  <input
-                    value={zona.nombre}
-                    onChange={e => actualizarZona(zona.id, 'nombre', e.target.value)}
-                    style={{ ...inp, flex: 1 }}
-                    placeholder="Nombre de la zona"
-                  />
-                  <select
-                    value={zona.equipo_id || ''}
-                    onChange={e => actualizarZona(zona.id, 'equipo_id', e.target.value || null)}
-                    style={{ ...inp, minWidth: 160 }}
-                  >
-                    <option value="">Sin equipo</option>
-                    {equipos.map(eq => <option key={eq.id} value={eq.id}>{eq.nombre}</option>)}
-                  </select>
-                  <label title="Activar geofencing para esta zona" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--ink3)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    <input type="checkbox" checked={zona.geofencing_activo}
-                      onChange={e => actualizarZona(zona.id, 'geofencing_activo', e.target.checked)}
-                      style={{ accentColor: 'var(--accent)' }} />
-                    Geofencing
-                  </label>
-                  <button onClick={() => eliminarZona(zona.id)}
-                    style={{ padding: '6px 10px', background: 'none', color: 'var(--danger)', border: '1.5px solid var(--danger)', borderRadius: 'var(--r)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans', flexShrink: 0 }}>
-                    ×
-                  </button>
-                </div>
-              ))}
-              {zonas.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--ink3)', fontSize: 13 }}>
-                  Sin zonas. Agregá al menos una para configurar el muestreo.
-                </div>
-              )}
-            </div>
-          )}
-          {error && <div className={styles.error}>{error}</div>}
-          <div className={styles.modalActions} style={{ marginTop: 16 }}>
-            <button type="button" onClick={agregarZona} disabled={saving}
-              style={{ padding: '8px 16px', background: 'var(--accent-light)', color: 'var(--accent2)', border: '1.5px solid var(--accent2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
-              + Agregar zona
-            </button>
-            <div style={{ flex: 1 }} />
-            <button type="button" onClick={onClose}>Cancelar</button>
-            <button type="button" onClick={() => { onSaved(); onClose() }}>Listo</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-
-// Botón con tooltip nativo (title=)
-function Btn({ onClick, bg, color, border, icon, label, tooltip, full }) {
-  return (
-    <button
-      onClick={onClick}
-      title={tooltip}
-      style={{
-        padding: '9px 14px',
-        background: bg || 'var(--surface)',
-        color: color || 'var(--ink2)',
-        border: `1.5px solid ${border || 'var(--border2)'}`,
-        borderRadius: 'var(--r)',
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: 'pointer',
-        fontFamily: 'DM Sans',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        whiteSpace: 'nowrap',
-        flex: full ? 1 : undefined,
-        justifyContent: full ? 'center' : undefined,
-      }}
-    >
+    <button onClick={onClick} title={tooltip}
+      style={{ padding: '9px 14px', background: bg || 'var(--surface)', color: color || 'var(--ink2)',
+        border: `1.5px solid ${border || 'var(--border2)'}`, borderRadius: 'var(--r)', fontSize: 13,
+        fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans',
+        display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
       {icon && <span style={{ fontSize: 15 }}>{icon}</span>}
       {label}
     </button>
   )
 }
 
-function EncuestaCard({ encuesta, equipos, onApprove, onAssign, onMuestreo, onManzanasZona, onSimular, onView, mostrarOrg, orgNombre, onZonas }) {
+function EncuestaCard({ encuesta, equipos, onApprove, onZonas, onSimular, onView, mostrarOrg, orgNombre }) {
   const cfg = ESTADO_CONFIG[encuesta.estado_produccion] || ESTADO_CONFIG.pendiente
   const tipo = TIPO_CONFIG[encuesta.tipo_encuesta]
-  const esPublicada  = encuesta.estado_produccion === 'publicada'
-  const paraRevisar  = encuesta.estado_produccion === 'para_revisar'
-  const enProduccion = ['pendiente', 'en_proceso'].includes(encuesta.estado_produccion)
+  const esPublicada    = encuesta.estado_produccion === 'publicada'
+  const paraRevisar    = encuesta.estado_produccion === 'para_revisar'
+  const enProduccion   = ['pendiente', 'en_proceso'].includes(encuesta.estado_produccion)
+  const cantZonas      = encuesta.encuesta_zonas?.length || 0
   const equiposAsignados = encuesta.encuesta_zonas?.filter(z => z.equipo_id)?.length || 0
-  const cantZonas = encuesta.encuesta_zonas?.length || 0
   const esDomiciliaria = !['telefonica','online'].includes(encuesta.tipo_encuesta)
 
   return (
-    <div
-      className={`${styles.encuestaCard} ${esPublicada ? styles.encuestaCardPublicada : ''}`}
-      onClick={onView}
-      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 0 }}
-    >
-      {/* Header */}
+    <div className={`${styles.encuestaCard} ${esPublicada ? styles.encuestaCardPublicada : ''}`}
+      onClick={onView} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column' }}>
+
       <div className={styles.encuestaHeader}>
         <h4 style={{ fontSize: 15, lineHeight: 1.3 }}>{encuesta.nombre}</h4>
         <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -354,10 +226,8 @@ function EncuestaCard({ encuesta, equipos, onApprove, onAssign, onMuestreo, onMa
         </div>
       </div>
 
-      {/* Descripción */}
       {encuesta.descripcion && <p className={styles.encuestaDesc}>{encuesta.descripcion}</p>}
 
-      {/* Meta */}
       <div className={styles.encuestaMeta}>
         {mostrarOrg && orgNombre && <span style={{ fontWeight: 600, color: 'var(--accent2)', marginRight: 8 }}>🏢 {orgNombre}</span>}
         Solicitada: {new Date(encuesta.creado_en).toLocaleDateString('es-AR')}
@@ -368,74 +238,41 @@ function EncuestaCard({ encuesta, equipos, onApprove, onAssign, onMuestreo, onMa
         )}
       </div>
 
-      {/* Acciones principales */}
-      <div style={{ padding: '10px 0 0', borderTop: '1px solid var(--border)', marginTop: 8 }} onClick={e => e.stopPropagation()}>
+      <div style={{ paddingTop: 10, borderTop: '1px solid var(--border)', marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}
+        onClick={e => e.stopPropagation()}>
+
         {paraRevisar && (
           <Btn onClick={onApprove} bg="var(--accent)" color="#fff" border="var(--accent)"
-            icon="✓" label="Aprobar y publicar"
-            tooltip="Aprobar esta encuesta y publicarla para que los encuestadores puedan usarla" full />
+            icon="checkmark" label="Aprobar y publicar"
+            tooltip="Aprobar esta encuesta y publicarla para los encuestadores" />
         )}
 
         {esPublicada && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {/* Fila 1: gestión general */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <Btn onClick={onAssign}
-                icon="🗺️" label={cantZonas > 0 ? `Zonas (${cantZonas})` : 'Configurar zonas'}
-                tooltip="Definir las zonas geográficas de la encuesta y asignar un equipo a cada zona" />
-              <Btn onClick={onSimular}
-                bg="#f3e8ff" color="#7c3aed" border="#c4b5fd"
-                icon="📱" label="Simular"
-                tooltip="Previsualizá cómo se ve la encuesta en la app móvil del encuestador" />
-              {esDomiciliaria && (
-                <Btn onClick={onMuestreo}
-                  bg={encuesta.config_muestreo ? 'var(--accent-light)' : 'var(--accent)'}
-                  color={encuesta.config_muestreo ? 'var(--accent2)' : '#fff'}
-                  border={encuesta.config_muestreo ? 'var(--accent2)' : 'var(--accent)'}
-                  icon="⚙️" label={encuesta.config_muestreo ? 'Muestreo ✓' : 'Configurar muestreo'}
-                  tooltip="Configurá el intervalo de salto, intentos máximos y razones de no-respuesta para esta encuesta" />
-              )}
-            </div>
-
-            {/* Fila 2: manzanas por equipo (solo domiciliarias con equipos asignados) */}
-            {esDomiciliaria && cantZonas > 0 && (
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
-                  Manzanas por equipo
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {(encuesta.encuesta_zonas || []).map(zona => {
-                    const eq = zona.equipo_id ? equipos.find(e => e.id === zona.equipo_id) : null
-                    return (
-                      <Btn
-                        key={zona.id}
-                        onClick={() => onManzanasZona({
-                          encuestaZonaId: zona.id,
-                          equipoNombre: eq?.nombre || zona.nombre,
-                          zonaEncuesta: zona.area_geojson
-                            ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: null, properties: { tipo: 'zona' }, ...zona }] }
-                            : null,
-                        })}
-                        icon="📍" label={`${zona.nombre}${eq ? ` (${eq.nombre})` : ''}`}
-                        tooltip={`Definir manzanas y parcelas para la zona "${zona.nombre}"${eq ? ` — ${eq.nombre}` : ''}`}
-                      />
-                    )
-                  })}
-                </div>
-              </div>
+          <>
+            {esDomiciliaria && (
+              <Btn onClick={onZonas}
+                bg={cantZonas > 0 ? 'var(--accent-light)' : 'var(--accent)'}
+                color={cantZonas > 0 ? 'var(--accent2)' : '#fff'}
+                border={cantZonas > 0 ? 'var(--accent2)' : 'var(--accent)'}
+                icon="map"
+                label={cantZonas > 0 ? `Zonas (${cantZonas})` : 'Definir zonas'}
+                tooltip="Definir zonas geograficas, seleccionar manzanas y asignar equipos" />
             )}
-          </div>
+            <Btn onClick={onSimular}
+              bg="#f3e8ff" color="#7c3aed" border="#c4b5fd"
+              icon="phone" label="Simular"
+              tooltip="Previsualizá la encuesta en la app movil" />
+          </>
         )}
 
         {enProduccion && (
-          <span className={styles.encuestaNote}>Nuestro equipo está trabajando en tu encuesta.</span>
+          <span className={styles.encuestaNote}>Nuestro equipo esta trabajando en tu encuesta.</span>
         )}
       </div>
     </div>
   )
 }
 
-// ── Página principal ──
 export default function Encuestas() {
   const { perfil }    = useAuth()
   const navigate      = useNavigate()
@@ -444,14 +281,12 @@ export default function Encuestas() {
   const [organizaciones, setOrganizaciones] = useState([])
   const [loading,        setLoading]        = useState(true)
   const [showRequest,    setShowRequest]    = useState(false)
-  const [muestreoData,   setMuestreoData]   = useState(null)
-  const [simulando,      setSimulando]      = useState(null)
-  const [manzanasZona,   setManzanasZona]   = useState(null) // { encuestaZonaId, equipoNombre, zonaEncuesta }
-  const [zonasModal,     setZonasModal]     = useState(null) // encuesta
   const [filtro,         setFiltro]         = useState('todas')
   const [filtroOrg,      setFiltroOrg]      = useState('')
   const [filtroTipo,     setFiltroTipo]     = useState('')
   const [busqueda,       setBusqueda]       = useState('')
+  const [simulando,      setSimulando]      = useState(null)
+  const [zonasModal,     setZonasModal]     = useState(null)
 
   const esSuperadmin = perfil?.rol === 'superadmin'
 
@@ -526,28 +361,12 @@ export default function Encuestas() {
       {simulando && (
         <SimuladorEncuesta encuestaId={simulando} orgId={perfil?.organizacion_id} onClose={() => setSimulando(null)} />
       )}
-      {muestreoData && (
-        <MuestreoModal
-          encuesta={muestreoData}
-          onClose={() => setMuestreoData(null)}
-          onSaved={() => { setMuestreoData(null); fetchData() }}
-        />
-      )}
       {zonasModal && (
-        <ZonasModal
+        <ZonasYMuestreoModal
           encuesta={zonasModal}
           equipos={equipos}
           onClose={() => setZonasModal(null)}
           onSaved={() => { setZonasModal(null); fetchData() }}
-        />
-      )}
-      {manzanasZona && (
-        <ManzanasEquipoModal
-          encuestaZonaId={manzanasZona.encuestaZonaId}
-          equipoNombre={manzanasZona.equipoNombre}
-          zonaEncuesta={manzanasZona.zonaEncuesta}
-          onClose={() => setManzanasZona(null)}
-          onSaved={() => { setManzanasZona(null); fetchData() }}
         />
       )}
 
@@ -630,9 +449,7 @@ export default function Encuestas() {
                 mostrarOrg={esSuperadmin}
                 orgNombre={esSuperadmin ? organizaciones.find(o => o.id === enc.organizacion_id)?.nombre : null}
                 onApprove={() => handleApprove(enc.id)}
-                onAssign={() => setZonasModal(enc)}
-                onMuestreo={() => setMuestreoData(enc)}
-                onManzanasZona={setManzanasZona}
+                onZonas={() => setZonasModal(enc)}
                 onSimular={() => setSimulando(enc.id)}
                 onView={() => navigate(`/encuestas/${enc.id}`)}
               />

@@ -660,80 +660,170 @@ function PanelConfig({ config, onChange, organizacionId }) {
 // ════════════════════════════════════════════════
 // MODAL DE MANZANAS POR EQUIPO
 // ════════════════════════════════════════════════
-export function ManzanasEquipoModal({ encuestaZonaId, equipoNombre, zonaEncuesta, onClose, onSaved }) {
-  const [zonaGeoJSON, setZonaGeoJSON] = useState(zonaEncuesta || null)
-  const [manzanasSel, setManzanasSel] = useState([])
-  const [saving,      setSaving]      = useState(false)
-  const [error,       setError]       = useState('')
-  const mapaRef = useRef(null)
+// ════════════════════════════════════════════════
+// MODAL UNIFICADO: ZONAS + MUESTREO + DRAG&DROP
+// ════════════════════════════════════════════════
+export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
+  const COLORES_ZONA = ['#1a472a', '#7c3aed', '#b45309', '#1e40af', '#9f1239', '#065f46']
 
-  // Cargar zona+manzanas guardadas desde encuesta_zonas
+  // ── Estado zonas ──
+  const [zonas,         setZonas]         = useState([])  // [{ id, nombre, equipo_id, area_geojson, geofencing_activo }]
+  const [zonaActiva,    setZonaActiva]    = useState(null) // id de la zona activa en el mapa
+  const [loadingZonas,  setLoadingZonas]  = useState(true)
+
+  // ── Estado muestreo ──
+  const [config,        setConfig]        = useState(CONFIG_DEFAULT)
+
+  // ── Drag & drop ──
+  const [dragging,      setDragging]      = useState(null) // equipo_id que se está arrastrando
+
+  // ── UI ──
+  const [saving,        setSaving]        = useState(false)
+  const [error,         setError]         = useState('')
+  const [tab,           setTab]           = useState('zonas') // 'zonas' | 'muestreo'
+
+  // Ref del mapa de la zona activa
+  const mapaRef = useRef(null)
+  // Snapshot GeoJSON de cada zona { [zona_id]: geojson }
+  const zonasDataRef = useRef({})
+
+  // ── Carga inicial ──
   useEffect(() => {
     async function load() {
-      if (!encuestaZonaId) return
+      setLoadingZonas(true)
       try {
-        const { data } = await supabase
-          .from('encuesta_zonas')
-          .select('area_geojson')
-          .eq('id', encuestaZonaId)
-          .single()
-
-        if (data?.area_geojson?.features?.length) {
-          setZonaGeoJSON(data.area_geojson)
-        } else if (zonaEncuesta?.features) {
-          // Primera vez: mostrar referencia visual de la zona de geofencing del equipo
-          setZonaGeoJSON({
-            type: 'FeatureCollection',
-            features: zonaEncuesta.features.filter(f => f.properties?.tipo === 'zona'),
-          })
-        }
+        const [{ data: enc }, { data: zs }] = await Promise.all([
+          supabase.from('encuestas').select('config_muestreo').eq('id', encuesta.id).single(),
+          supabase.from('encuesta_zonas').select('*').eq('encuesta_id', encuesta.id).order('orden'),
+        ])
+        if (enc?.config_muestreo) setConfig(c => ({ ...c, ...enc.config_muestreo }))
+        const lista = zs || []
+        setZonas(lista)
+        // Precarga snapshots de cada zona
+        lista.forEach(z => { if (z.area_geojson) zonasDataRef.current[z.id] = z.area_geojson })
+        if (lista.length > 0) setZonaActiva(lista[0].id)
       } catch {}
+      setLoadingZonas(false)
     }
     load()
-  }, [encuestaZonaId])
+  }, [encuesta.id])
 
+  // ── Sincronizar mapa cuando cambia la zona activa ──
+  // (el MapaZona se desmonta/remonta por key, así que tiene el estado correcto)
+
+  // ── Guardar snapshot del mapa antes de cambiar de zona ──
+  function guardarSnapshotActual() {
+    if (mapaRef.current && zonaActiva) {
+      const data = mapaRef.current.getZonaActual()
+      if (data) zonasDataRef.current[zonaActiva] = data
+    }
+  }
+
+  function cambiarZonaActiva(id) {
+    guardarSnapshotActual()
+    setZonaActiva(id)
+  }
+
+  async function agregarZona() {
+    const orden = zonas.length + 1
+    const { data, error: err } = await supabase
+      .from('encuesta_zonas')
+      .insert({ encuesta_id: encuesta.id, nombre: `Zona ${orden}`, orden })
+      .select()
+      .single()
+    if (err || !data) return
+    guardarSnapshotActual()
+    setZonas(prev => [...prev, data])
+    setZonaActiva(data.id)
+  }
+
+  async function renombrarZona(id, nombre) {
+    setZonas(prev => prev.map(z => z.id === id ? { ...z, nombre } : z))
+    await supabase.from('encuesta_zonas').update({ nombre }).eq('id', id)
+  }
+
+  async function eliminarZona(id) {
+    if (!window.confirm('Eliminar esta zona? Se borran sus manzanas y parcelas.')) return
+    await supabase.from('encuesta_zonas').delete().eq('id', id)
+    delete zonasDataRef.current[id]
+    const restantes = zonas.filter(z => z.id !== id)
+    setZonas(restantes)
+    setZonaActiva(restantes.length > 0 ? restantes[0].id : null)
+  }
+
+  // ── Drag & drop equipos ──
+  function onDragStart(equipoId) { setDragging(equipoId) }
+  function onDragEnd()           { setDragging(null) }
+
+  function onDropEnZona(zonaId) {
+    if (!dragging) return
+    setZonas(prev => prev.map(z => z.id === zonaId ? { ...z, equipo_id: dragging } : z))
+    supabase.from('encuesta_zonas').update({ equipo_id: dragging }).eq('id', zonaId)
+    setDragging(null)
+  }
+
+  function quitarEquipoDeZona(zonaId) {
+    setZonas(prev => prev.map(z => z.id === zonaId ? { ...z, equipo_id: null } : z))
+    supabase.from('encuesta_zonas').update({ equipo_id: null }).eq('id', zonaId)
+  }
+
+  // ── Guardar todo ──
   async function handleSave() {
-    if (!encuestaZonaId) {
-      setError('Sin zona asignada'); return
+    // Validar muestreo
+    if ((config.razones_seleccionadas || []).length < 2) {
+      setTab('muestreo')
+      setError('Selecciona al menos 2 razones de no-respuesta')
+      return
     }
     setSaving(true); setError('')
     try {
-      const zonaActualizada = mapaRef.current?.getZonaActual() || zonaGeoJSON
-      const manzSelFeatures = (zonaActualizada?.features || [])
-        .filter(f => f.properties?.tipo === 'manzana' && f.properties?.seleccionada === true)
-      const parcelasAll = (zonaActualizada?.features || [])
-        .filter(f => f.properties?.tipo === 'parcela')
+      // 1. Guardar snapshot de la zona activa
+      guardarSnapshotActual()
 
-      // 1. Guardar manzanas+parcelas
-      const { data: rpcResult, error: e } = await supabase.rpc('guardar_manzanas_y_parcelas', {
-        p_encuesta_zona_id: encuestaZonaId,
-        p_manzanas: manzSelFeatures.map(f => ({
-          gid:          f.properties?.gid ?? f.properties?.id ?? null,
-          area_geojson: JSON.stringify(f),
-        })),
-        p_parcelas: parcelasAll.map(f => ({
-          gid:          f.properties?.gid ?? f.properties?.id ?? null,
-          cca:          f.properties?.cca ?? null,
-          direccion:    f.properties?.direccion ?? f.properties?.etiqueta ?? null,
-          area_geojson: JSON.stringify(f),
-        })),
-      })
-      if (e) throw e
-      console.log('[guardar_manzanas_y_parcelas]', rpcResult)
+      // 2. Para cada zona, guardar area_geojson y manzanas+parcelas
+      for (const zona of zonas) {
+        const geojson = zonasDataRef.current[zona.id]
+        if (!geojson) continue
 
-      // 2. Persistir zona+manzanas en encuesta_zonas.area_geojson
-      const featuresAGuardar = (zonaActualizada?.features || [])
-        .filter(f => f.properties?.tipo === 'zona' || f.properties?.tipo === 'manzana')
-      const { error: e2 } = await supabase
-        .from('encuesta_zonas')
-        .update({
-          area_geojson: featuresAGuardar.length > 0
-            ? { type: 'FeatureCollection', features: featuresAGuardar }
-            : null,
-          geofencing_activo: featuresAGuardar.some(f => f.properties?.tipo === 'zona'),
+        const manzSel = (geojson.features || [])
+          .filter(f => f.properties?.tipo === 'manzana' && f.properties?.seleccionada === true)
+        const parcelas = (geojson.features || [])
+          .filter(f => f.properties?.tipo === 'parcela')
+
+        // Guardar manzanas+parcelas en tablas
+        const { error: e1 } = await supabase.rpc('guardar_manzanas_y_parcelas', {
+          p_encuesta_zona_id: zona.id,
+          p_manzanas: manzSel.map(f => ({
+            gid: f.properties?.gid ?? f.properties?.id ?? null,
+            area_geojson: JSON.stringify(f),
+          })),
+          p_parcelas: parcelas.map(f => ({
+            gid: f.properties?.gid ?? f.properties?.id ?? null,
+            cca: f.properties?.cca ?? null,
+            direccion: f.properties?.direccion ?? f.properties?.etiqueta ?? null,
+            area_geojson: JSON.stringify(f),
+          })),
         })
-        .eq('id', encuestaZonaId)
-      if (e2) throw e2
+        if (e1) throw e1
+
+        // Guardar geojson (zona + manzanas seleccionadas) en encuesta_zonas
+        const featsPersistir = (geojson.features || [])
+          .filter(f => f.properties?.tipo === 'zona' || f.properties?.tipo === 'manzana')
+        const { error: e2 } = await supabase.from('encuesta_zonas').update({
+          area_geojson: featsPersistir.length > 0
+            ? { type: 'FeatureCollection', features: featsPersistir }
+            : null,
+          geofencing_activo: featsPersistir.some(f => f.properties?.tipo === 'zona'),
+        }).eq('id', zona.id)
+        if (e2) throw e2
+      }
+
+      // 3. Guardar config_muestreo en encuesta
+      const { error: e3 } = await supabase
+        .from('encuestas')
+        .update({ config_muestreo: config })
+        .eq('id', encuesta.id)
+      if (e3) throw e3
 
       onSaved()
       onClose()
@@ -743,117 +833,198 @@ export function ManzanasEquipoModal({ encuestaZonaId, equipoNombre, zonaEncuesta
     setSaving(false)
   }
 
-  const nManzSel = (zonaGeoJSON?.features || [])
-    .filter(f => f.properties?.tipo === 'manzana' && f.properties?.seleccionada === true).length
+  // ── Estilos helpers ──
+  const COLOR_ZONA = (idx) => COLORES_ZONA[idx % COLORES_ZONA.length]
 
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#fff', borderRadius: 'var(--r2)', width: '100%', maxWidth: 900, height: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,.3)' }}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div>
-            <h3 style={{ fontFamily: 'Syne', fontSize: 15, fontWeight: 700, margin: 0 }}>📍 Manzanas — {equipoNombre}</h3>
-            <p style={{ fontSize: 11, color: 'var(--ink3)', margin: '2px 0 0' }}>
-              Seleccioná las manzanas de esta zona. Las parcelas se asignan automáticamente.
-            </p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {error && <span style={{ fontSize: 12, color: 'var(--danger)', fontWeight: 500 }}>⚠ {error}</span>}
-            {nManzSel > 0 && (
-              <span style={{ fontSize: 12, color: 'var(--accent2)', fontWeight: 600, background: 'var(--accent-light)', padding: '3px 10px', borderRadius: 100 }}>
-                {nManzSel} manzana{nManzSel !== 1 ? 's' : ''}
-              </span>
-            )}
-            <button onClick={onClose} style={{ padding: '6px 14px', background: 'none', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 13, fontFamily: 'DM Sans' }}>
-              Cancelar
-            </button>
-            <button onClick={handleSave} disabled={saving}
-              style={{ padding: '6px 18px', background: saving ? 'var(--surface2)' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', cursor: saving ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'DM Sans', opacity: saving ? .6 : 1 }}>
-              {saving ? 'Guardando...' : '✅ Guardar manzanas'}
-            </button>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ink3)', lineHeight: 1, padding: '0 4px' }}>×</button>
-          </div>
-        </div>
-        <div style={{ flex: 1, minHeight: 0 }}>
-          <MapaZona
-            ref={mapaRef}
-            encuestaId={null}
-            zonaActual={zonaGeoJSON}
-            manzanasSeleccionadas={[]}
-            onZonaChange={setZonaGeoJSON}
-            onManzanasChange={setManzanasSel}
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
+  const zonaActivaObj = zonas.find(z => z.id === zonaActiva)
+  const zonaActivaIdx = zonas.findIndex(z => z.id === zonaActiva)
 
+  const tabBtn = (key, label) => ({
+    padding: '6px 18px', cursor: 'pointer', fontFamily: 'DM Sans', fontSize: 13, fontWeight: 600,
+    border: 'none', background: 'none', borderBottom: `2.5px solid ${tab === key ? 'var(--accent)' : 'transparent'}`,
+    color: tab === key ? 'var(--accent)' : 'var(--ink3)', transition: 'all .15s',
+  })
 
-export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved }) {
-  const [config,  setConfig]  = useState(CONFIG_DEFAULT)
-  const [loading, setLoading] = useState(true)
-  const [saving,  setSaving]  = useState(false)
-  const [error,   setError]   = useState('')
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true)
-      try {
-        const { data } = await supabase
-          .from('encuestas')
-          .select('config_muestreo')
-          .eq('id', encuestaId)
-          .single()
-        if (data?.config_muestreo) setConfig(prev => ({ ...prev, ...data.config_muestreo }))
-      } catch {}
-      setLoading(false)
-    }
-    load()
-  }, [encuestaId])
-
-  async function handleSave() {
-    const razonesSeleccionadas = config.razones_seleccionadas || []
-    if (razonesSeleccionadas.length < 2) {
-      setError('Seleccioná al menos 2 razones de no-respuesta')
-      return
-    }
-    setSaving(true); setError('')
-    try {
-      const { error: e } = await supabase
-        .from('encuestas')
-        .update({ config_muestreo: config })
-        .eq('id', encuestaId)
-      if (e) throw e
-      onSaved()
-    } catch (err) {
-      setError(err.message)
-    }
-    setSaving(false)
-  }
-
-  if (loading) return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+  if (loadingZonas) return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <Spinner center size="lg" />
     </div>
   )
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      {/* Topbar */}
-      <div style={{ padding: '8px 22px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
-        {error && <span style={{ fontSize: 12, color: 'var(--danger)', fontWeight: 500, marginRight: 'auto' }}>⚠ {error}</span>}
-        <button onClick={onClose} style={{ padding: '6px 14px', background: 'none', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 13, fontFamily: 'DM Sans' }}>
-          Cancelar
-        </button>
-        <button onClick={handleSave} disabled={saving}
-          style={{ padding: '6px 18px', background: saving ? 'var(--surface2)' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', cursor: saving ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'DM Sans', opacity: saving ? .6 : 1 }}>
-          {saving ? 'Guardando...' : '✅ Guardar'}
-        </button>
-      </div>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', zIndex: 500, display: 'flex', alignItems: 'stretch', justifyContent: 'center', padding: 12 }}>
+      <div style={{ background: '#fff', borderRadius: 'var(--r2)', width: '100%', maxWidth: 1200, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,.3)' }}>
 
-      {/* Contenido: solo PanelConfig */}
-      <div style={{ flex: 1, padding: '20px 24px', overflowY: 'auto' }}>
-        <PanelConfig config={config} onChange={setConfig} organizacionId={encuesta?.organizacion_id} />
+        {/* Header */}
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, background: 'var(--surface)' }}>
+          <div style={{ flex: 1 }}>
+            <h3 style={{ fontFamily: 'Syne', fontSize: 15, fontWeight: 700, margin: 0 }}>
+              {encuesta.nombre}
+            </h3>
+            <p style={{ fontSize: 11, color: 'var(--ink3)', margin: '2px 0 0' }}>
+              Definir zonas, manzanas y configuracion de muestreo
+            </p>
+          </div>
+          {error && <span style={{ fontSize: 12, color: 'var(--danger)', fontWeight: 500 }}>Error: {error}</span>}
+          <button onClick={onClose}
+            style={{ padding: '6px 14px', background: 'none', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 13, fontFamily: 'DM Sans' }}>
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            style={{ padding: '6px 20px', background: saving ? 'var(--surface2)' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', cursor: saving ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'DM Sans', opacity: saving ? .6 : 1 }}>
+            {saving ? 'Guardando...' : 'Guardar todo'}
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', paddingLeft: 20, flexShrink: 0, background: 'var(--surface)' }}>
+          <button style={tabBtn('zonas', 'Zonas')} onClick={() => setTab('zonas')}>Zonas y manzanas</button>
+          <button style={tabBtn('muestreo', 'Muestreo')} onClick={() => setTab('muestreo')}>Configuracion de muestreo</button>
+        </div>
+
+        {/* Cuerpo */}
+        <div style={{ flex: 1, minHeight: 0, display: tab === 'zonas' ? 'flex' : 'block', overflow: tab === 'zonas' ? 'hidden' : 'auto' }}>
+
+          {/* ────────── TAB ZONAS ────────── */}
+          {tab === 'zonas' && (
+            <>
+              {/* Sidebar izquierdo: lista de zonas + drag&drop equipos */}
+              <div style={{ width: 280, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflowY: 'auto', background: 'var(--surface)' }}>
+
+                {/* Lista de zonas */}
+                <div style={{ padding: '12px 12px 6px', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                      Zonas ({zonas.length})
+                    </span>
+                    <button onClick={agregarZona}
+                      title="Agregar nueva zona"
+                      style={{ padding: '3px 10px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                      + Zona
+                    </button>
+                  </div>
+                  {zonas.map((zona, idx) => {
+                    const eq = equipos.find(e => e.id === zona.equipo_id)
+                    const activa = zona.id === zonaActiva
+                    return (
+                      <div key={zona.id}
+                        onClick={() => cambiarZonaActiva(zona.id)}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={() => onDropEnZona(zona.id)}
+                        style={{
+                          padding: '8px 10px', borderRadius: 'var(--r)', marginBottom: 4, cursor: 'pointer',
+                          background: activa ? 'var(--accent-light)' : dragging ? '#f0fdf4' : '#fff',
+                          border: `2px solid ${activa ? 'var(--accent2)' : dragging ? '#86efac' : 'var(--border)'}`,
+                          transition: 'all .1s',
+                        }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: COLOR_ZONA(idx), flexShrink: 0 }} />
+                          <input
+                            value={zona.nombre}
+                            onChange={e => renombrarZona(zona.id, e.target.value)}
+                            onClick={ev => ev.stopPropagation()}
+                            style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 13, fontWeight: 600, fontFamily: 'DM Sans', outline: 'none', color: 'var(--ink)', minWidth: 0 }}
+                          />
+                          <button onClick={ev => { ev.stopPropagation(); eliminarZona(zona.id) }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--ink3)', padding: '0 2px', lineHeight: 1 }}>
+                            x
+                          </button>
+                        </div>
+                        {eq ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}>
+                            <span style={{ fontSize: 11, color: 'var(--accent2)', fontWeight: 600, background: 'var(--accent-light)', padding: '1px 7px', borderRadius: 100, flex: 1 }}>
+                              {eq.nombre}
+                            </span>
+                            <button onClick={ev => { ev.stopPropagation(); quitarEquipoDeZona(zona.id) }}
+                              title="Quitar equipo de esta zona"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--ink3)', padding: '1px 3px', lineHeight: 1 }}>
+                              x
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: 5, fontSize: 11, color: dragging ? '#16a34a' : 'var(--ink3)', fontStyle: 'italic' }}>
+                            {dragging ? 'Solta aqui para asignar' : 'Sin equipo asignado'}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {zonas.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 12, color: 'var(--ink3)' }}>
+                      Agregar una zona para comenzar
+                    </div>
+                  )}
+                </div>
+
+                {/* Panel drag & drop de equipos */}
+                <div style={{ padding: '12px', flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>
+                    Equipos disponibles
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 8 }}>
+                    Arrastra un equipo a una zona para asignarlo
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {equipos.map(eq => (
+                      <div key={eq.id}
+                        draggable
+                        onDragStart={() => onDragStart(eq.id)}
+                        onDragEnd={onDragEnd}
+                        style={{
+                          padding: '7px 10px', borderRadius: 'var(--r)', border: '1.5px solid var(--border2)',
+                          background: dragging === eq.id ? 'var(--accent-light)' : '#fff',
+                          cursor: 'grab', fontSize: 13, fontWeight: 600, fontFamily: 'DM Sans',
+                          color: dragging === eq.id ? 'var(--accent)' : 'var(--ink)',
+                          transition: 'all .1s', userSelect: 'none',
+                          display: 'flex', alignItems: 'center', gap: 6,
+                        }}>
+                        <span style={{ fontSize: 14 }}>{dragging === eq.id ? '✋' : '☰'}</span>
+                        {eq.nombre}
+                      </div>
+                    ))}
+                    {equipos.length === 0 && (
+                      <div style={{ fontSize: 12, color: 'var(--ink3)', fontStyle: 'italic' }}>
+                        Sin equipos. Crea equipos primero.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Mapa de la zona activa */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                {zonaActiva ? (
+                  <MapaZona
+                    key={zonaActiva}
+                    ref={mapaRef}
+                    encuestaId={encuesta.id}
+                    zonaActual={zonasDataRef.current[zonaActiva] || null}
+                    manzanasSeleccionadas={[]}
+                    onZonaChange={geojson => { if (geojson) zonasDataRef.current[zonaActiva] = geojson }}
+                    onManzanasChange={() => {}}
+                    colorZona={COLOR_ZONA(zonaActivaIdx)}
+                  />
+                ) : (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, color: 'var(--ink3)' }}>
+                    <div style={{ fontSize: 40 }}>🗺️</div>
+                    <p style={{ fontSize: 14, fontWeight: 600 }}>Agrega una zona para comenzar</p>
+                    <button onClick={agregarZona}
+                      style={{ padding: '8px 20px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'DM Sans' }}>
+                      + Agregar primera zona
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ────────── TAB MUESTREO ────────── */}
+          {tab === 'muestreo' && (
+            <div style={{ padding: '20px 28px', maxWidth: 720 }}>
+              <PanelConfig config={config} onChange={setConfig} organizacionId={encuesta?.organizacion_id} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
