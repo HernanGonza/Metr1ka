@@ -140,10 +140,7 @@ const MapaZona = forwardRef(function MapaZona(
           }
         })
       })
-      // Incluir parcelas en memoria para que handleSave las tenga disponibles
-      parcelaRef.current.forEach(f => {
-        features.push({ ...f, properties: { ...f.properties, tipo: 'parcela' } })
-      })
+      // Parcelas no se incluyen — las maneja guardar-parcelas edge function
       return { type: 'FeatureCollection', features }
     }
   }))
@@ -194,23 +191,7 @@ const MapaZona = forwardRef(function MapaZona(
           renderManzanas(L, map, manzFeat, idsSel)
           setNManz(manzFeat.length)
 
-          // Cargar parcelas en background para que estén disponibles al guardar
-          // (no las persistimos en area_geojson, hay que re-fetchearlas del catastro)
-          if (zonaFeat) {
-            const zonaLayer = zonaRef.current
-            try {
-              const bounds = L.geoJSON(zonaFeat).getBounds()
-              const latPad = (bounds.getNorth() - bounds.getSouth()) * 0.15
-              const lngPad = (bounds.getEast()  - bounds.getWest())  * 0.15
-              const bbox = {
-                south: bounds.getSouth() - latPad, west: bounds.getWest() - lngPad,
-                north: bounds.getNorth() + latPad, east: bounds.getEast() + lngPad,
-              }
-              fetchParcelasCatastro(bbox).then(parcelas => {
-                if (mounted) parcelaRef.current = parcelas
-              }).catch(() => {})
-            } catch {}
-          }
+          // Las parcelas se guardan por la edge function guardar-parcelas, no hace falta fetchear aquí
         }
       }
 
@@ -294,18 +275,16 @@ const MapaZona = forwardRef(function MapaZona(
         east:  bounds.getEast()  + lngPad,
       }
       const zonaGeoJSON = zonaLayer.toGeoJSON()
-      const [todasManzanas, parcelas] = await Promise.all([
-        fetchManzanasCatastro(bbox),
-        fetchParcelasCatastro(bbox),
-      ])
+      // Solo traemos manzanas — las parcelas las guarda la edge function guardar-parcelas
+      const todasManzanas = await fetchManzanasCatastro(bbox)
       const manzanas = filtrarDentroDeZona(todasManzanas, zonaGeoJSON)
       if (!manzanas.length) { setErrorMap(`No se encontraron manzanas en la zona (el catastro devolvió ${todasManzanas.length})`); setLoading(false); return }
       manzFeatRef.current = manzanas
-      parcelaRef.current  = parcelas
+      parcelaRef.current  = []
       selRef.current = new Set(); setNSel(0)
       setNManz(manzanas.length)
       renderManzanas(L, map, manzanas, new Set())
-      emitirCambioCompleto(zonaGeoJSON, manzanas, new Set(), parcelas)
+      emitirCambioCompleto(zonaGeoJSON, manzanas, new Set())
     } catch (err) {
       setErrorMap(err.message)
     }
@@ -314,19 +293,17 @@ const MapaZona = forwardRef(function MapaZona(
 
   function emitirCambio(manzanasFeatures, sel) {
     const zonaFeat = zonaRef.current?.toGeoJSON?.()
-    emitirCambioCompleto(zonaFeat, manzanasFeatures, sel, parcelaRef.current)
+    emitirCambioCompleto(zonaFeat, manzanasFeatures, sel)
   }
 
-  function emitirCambioCompleto(zonaFeat, manzanas, sel, parcelas) {
+  function emitirCambioCompleto(zonaFeat, manzanas, sel) {
     const features = []
     if (zonaFeat) features.push({ ...zonaFeat, properties: { ...zonaFeat.properties, tipo: 'zona' } })
     manzanas.forEach(f => {
       const canonId = f.properties?.gid ?? f.properties?.id
       features.push({ ...f, properties: { ...f.properties, tipo: 'manzana', seleccionada: sel.has(canonId) } })
     })
-    parcelas.forEach(f => {
-      features.push({ ...f, properties: { ...f.properties, tipo: 'parcela' } })
-    })
+    // Las parcelas NO se incluyen en el geojson local — las fetchea y guarda guardar-parcelas edge function
     const geojson = { type: 'FeatureCollection', features }
     onZonaChange(geojson)
     onManzanasChange(manzanas.filter(f => sel.has(f.properties?.gid ?? f.properties?.id)))
@@ -820,22 +797,15 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
 
         const manzSel = (geojson.features || [])
           .filter(f => f.properties?.tipo === 'manzana' && f.properties?.seleccionada === true)
-        const parcelas = (geojson.features || [])
-          .filter(f => f.properties?.tipo === 'parcela')
 
-        // Guardar manzanas+parcelas en tablas
+        // 1. Guardar manzanas (sin parcelas — las maneja guardar-parcelas edge function)
         const { error: e1 } = await supabase.rpc('guardar_manzanas_y_parcelas', {
           p_encuesta_zona_id: zona.id,
           p_manzanas: manzSel.map(f => ({
             gid: f.properties?.gid ?? f.properties?.id ?? null,
             area_geojson: JSON.stringify(f),
           })),
-          p_parcelas: parcelas.map(f => ({
-            gid: f.properties?.gid ?? f.properties?.id ?? null,
-            cca: f.properties?.cca ?? null,
-            direccion: f.properties?.direccion ?? f.properties?.etiqueta ?? null,
-            area_geojson: JSON.stringify(f),
-          })),
+          p_parcelas: [],  // siempre vacío — parcelas se guardan por edge function
         })
         if (e1) throw e1
 
@@ -851,9 +821,18 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
           equipo_id: zonaEstado?.equipo_id ?? null,
         }).eq('id', zona.id)
         if (e2) throw e2
+
+        // 3. Disparar guardar-parcelas en background (edge function fetchea WFS + hace spatial join)
+        // No await — es lento, lo hacemos async y no bloqueamos al usuario
+        supabase.functions.invoke('guardar-parcelas', {
+          body: { encuesta_zona_id: zona.id }
+        }).then(({ data, error }) => {
+          if (error) console.error('[guardar-parcelas]', zona.id, error)
+          else console.log('[guardar-parcelas]', zona.id, data)
+        })
       }
 
-      // 3. Guardar equipo_id de zonas que no tenían geojson (solo equipo asignado)
+      // 4. Guardar equipo_id de zonas que no tenían geojson (solo equipo asignado)
       for (const zona of zonas) {
         if (!zonasDataRef.current[zona.id]) {
           // Sin geojson — solo actualizar equipo_id si cambió
@@ -864,7 +843,7 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
         }
       }
 
-      // 4. Guardar config_muestreo en encuesta
+      // 5. Guardar config_muestreo en encuesta
       const { error: e3 } = await supabase
         .from('encuestas')
         .update({ config_muestreo: config })
