@@ -99,12 +99,15 @@ const MapaZona = forwardRef(function MapaZona(
   { encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange, onManzanasChange },
   ref
 ) {
-  const mapRef     = useRef(null)
-  const mapInst    = useRef(null)
-  const Lref       = useRef(null)
-  const zonaRef    = useRef(null)
-  const manzGrpRef = useRef(null)
-  const selRef     = useRef(new Set(manzanasSeleccionadas?.map(f => f.properties?.gid || f.id) || []))
+  const mapRef       = useRef(null)
+  const mapInst      = useRef(null)
+  const Lref         = useRef(null)
+  const zonaRef      = useRef(null)
+  const manzGrpRef   = useRef(null)
+  const manzFeatRef  = useRef([])       // features del catastro en memoria
+  const parcelaRef   = useRef([])       // parcelas del catastro en memoria
+  const dragTimerRef = useRef(null)     // debounce post-drag
+  const selRef       = useRef(new Set(manzanasSeleccionadas?.map(f => f.properties?.gid || f.id) || []))
 
   const [listo,    setListo]    = useState(false)
   const [modo,     setModo]     = useState('idle')
@@ -126,7 +129,6 @@ const MapaZona = forwardRef(function MapaZona(
       const features = []
       features.push({ ...zonaFeat, properties: { ...zonaFeat.properties, tipo: 'zona' } })
       manzanas.forEach(f => {
-        // ID canónico: siempre properties.gid, nunca f.id (puede ser undefined en Leaflet)
         const canonId = f.properties?.gid ?? f.properties?.id
         features.push({
           ...f,
@@ -136,6 +138,10 @@ const MapaZona = forwardRef(function MapaZona(
             seleccionada: canonId !== undefined ? selRef.current.has(canonId) : false,
           }
         })
+      })
+      // Incluir parcelas en memoria para que handleSave las tenga disponibles
+      parcelaRef.current.forEach(f => {
+        features.push({ ...f, properties: { ...f.properties, tipo: 'parcela' } })
       })
       return { type: 'FeatureCollection', features }
     }
@@ -172,15 +178,16 @@ const MapaZona = forwardRef(function MapaZona(
           }).addTo(map)
           zonaRef.current = zl.getLayers()[0]
           map.fitBounds(zl.getBounds(), { padding: [30, 30] })
+          _activarDragEnZona(zonaRef.current, L, map)
         }
         if (manzFeat.length > 0) {
-          // Solo las que tienen seleccionada:true en el GeoJSON guardado
           const idsSel = new Set(
             manzFeat
               .filter(f => f.properties?.seleccionada === true)
               .map(f => f.properties?.gid ?? f.properties?.id)
               .filter(id => id !== undefined)
           )
+          manzFeatRef.current = manzFeat
           selRef.current = idsSel
           setNSel(idsSel.size)
           renderManzanas(L, map, manzFeat, idsSel)
@@ -195,6 +202,8 @@ const MapaZona = forwardRef(function MapaZona(
         e.layer.setStyle({ color: '#1a472a', fillColor: '#1a472a', fillOpacity: 0.08, weight: 2, dashArray: '8,5' })
         zonaRef.current = e.layer
         selRef.current = new Set(); setNSel(0); setNManz(0)
+        manzFeatRef.current = []; parcelaRef.current = []
+        _activarDragEnZona(e.layer, L, map)
         setModo('idle')
         await cargarManzanasAuto(L, map, e.layer)
       })
@@ -208,10 +217,23 @@ const MapaZona = forwardRef(function MapaZona(
     setup()
     return () => {
       mounted = false
+      if (dragTimerRef.current) clearTimeout(dragTimerRef.current)
       if (mapInst.current) { mapInst.current.off(); mapInst.current.remove(); mapInst.current = null }
       zonaRef.current = null; manzGrpRef.current = null
     }
   }, [])
+
+  // Activa drag en la capa zona y recarga manzanas 800ms después de soltar
+  function _activarDragEnZona(layer, L, map) {
+    if (!layer?.pm) return
+    layer.pm.enableLayerDrag()
+    layer.on('pm:dragend', () => {
+      if (dragTimerRef.current) clearTimeout(dragTimerRef.current)
+      dragTimerRef.current = setTimeout(() => {
+        cargarManzanasAuto(L || Lref.current, map || mapInst.current, layer)
+      }, 800)
+    })
+  }
 
   function renderManzanas(L, map, features, selSet) {
     if (manzGrpRef.current) { map.removeLayer(manzGrpRef.current); manzGrpRef.current = null }
@@ -258,7 +280,9 @@ const MapaZona = forwardRef(function MapaZona(
         fetchParcelasCatastro(bbox),
       ])
       const manzanas = filtrarDentroDeZona(todasManzanas, zonaGeoJSON)
-      if (!manzanas.length) { setErrorMap(`No se encontraron manzanas en la zona dibujada (el catastro devolvió ${todasManzanas.length})`); setLoading(false); return }
+      if (!manzanas.length) { setErrorMap(`No se encontraron manzanas en la zona (el catastro devolvió ${todasManzanas.length})`); setLoading(false); return }
+      manzFeatRef.current = manzanas
+      parcelaRef.current  = parcelas
       selRef.current = new Set(); setNSel(0)
       setNManz(manzanas.length)
       renderManzanas(L, map, manzanas, new Set())
@@ -271,7 +295,7 @@ const MapaZona = forwardRef(function MapaZona(
 
   function emitirCambio(manzanasFeatures, sel) {
     const zonaFeat = zonaRef.current?.toGeoJSON?.()
-    emitirCambioCompleto(zonaFeat, manzanasFeatures, sel, [])
+    emitirCambioCompleto(zonaFeat, manzanasFeatures, sel, parcelaRef.current)
   }
 
   function emitirCambioCompleto(zonaFeat, manzanas, sel, parcelas) {
@@ -294,6 +318,8 @@ const MapaZona = forwardRef(function MapaZona(
       ? { color: '#1a472a', fillColor: '#1a472a', fillOpacity: 0.45, weight: 2.5 }
       : { color: '#64748b', fillColor: '#94a3b8', fillOpacity: 0.15, weight: 1.5 }
   }
+
+  // ── Acciones toolbar ──
 
   function activarDibujar() {
     if (!mapInst.current) return
@@ -323,53 +349,111 @@ const MapaZona = forwardRef(function MapaZona(
     setModo('idle')
   }
 
+  function borrarZona() {
+    if (!mapInst.current) return
+    if (manzGrpRef.current) { mapInst.current.removeLayer(manzGrpRef.current); manzGrpRef.current = null }
+    if (zonaRef.current)    { mapInst.current.removeLayer(zonaRef.current);     zonaRef.current = null }
+    manzFeatRef.current = []; parcelaRef.current = []
+    selRef.current = new Set()
+    setNManz(0); setNSel(0); setModo('idle'); setErrorMap('')
+    onZonaChange(null)
+    onManzanasChange([])
+  }
+
+  function seleccionarTodas() {
+    if (!manzGrpRef.current || !manzFeatRef.current.length) return
+    const todos = new Set(
+      manzFeatRef.current.map(f => f.properties?.gid ?? f.properties?.id).filter(Boolean)
+    )
+    selRef.current = todos
+    setNSel(todos.size)
+    manzGrpRef.current.eachLayer(l => {
+      const lid = l.feature?.properties?.gid ?? l.feature?.properties?.id
+      if (lid !== undefined) l.setStyle(estiloManzana(true))
+    })
+    emitirCambio(manzFeatRef.current, todos)
+  }
+
+  function deseleccionarTodas() {
+    if (!manzGrpRef.current) return
+    selRef.current = new Set()
+    setNSel(0)
+    manzGrpRef.current.eachLayer(l => {
+      const lid = l.feature?.properties?.gid ?? l.feature?.properties?.id
+      if (lid !== undefined) l.setStyle(estiloManzana(false))
+    })
+    emitirCambio(manzFeatRef.current, new Set())
+  }
+
   async function recargarManzanas() {
     if (!zonaRef.current || !mapInst.current) return
     await cargarManzanasAuto(Lref.current, mapInst.current, zonaRef.current)
   }
 
-  const tieneZona = !!zonaRef.current || !!zonaActual?.features?.find(f => f.properties?.tipo === 'zona')
+  const tieneZona  = !!zonaRef.current || !!zonaActual?.features?.find(f => f.properties?.tipo === 'zona')
+  const todasSel   = nManz > 0 && nSel === nManz
 
-  const btnT = (active) => ({
+  const btnT = (active, danger = false) => ({
     padding: '6px 13px', borderRadius: 'var(--r)', cursor: 'pointer',
     fontSize: 12, fontFamily: 'DM Sans', fontWeight: 600,
     display: 'flex', alignItems: 'center', gap: 5, transition: 'all .15s',
-    border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border2)'}`,
-    background: active ? 'var(--accent)' : '#fff',
-    color: active ? '#fff' : 'var(--ink)',
+    border: `1.5px solid ${danger ? '#fca5a5' : active ? 'var(--accent)' : 'var(--border2)'}`,
+    background: danger ? '#fef2f2' : active ? 'var(--accent)' : '#fff',
+    color: danger ? '#c0392b' : active ? '#fff' : 'var(--ink)',
   })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', borderRadius: 'var(--r2)', overflow: 'hidden', border: '1px solid var(--border2)' }}>
-      <div style={{ padding: '8px 12px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
+
+      {/* Toolbar */}
+      <div style={{ padding: '8px 12px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
+
+        {/* Grupo zona */}
         <button onClick={activarDibujar} style={btnT(modo === 'dibujando')}>
-          🖊️ {modo === 'dibujando' ? 'Dibujando...' : tieneZona ? 'Redibujar zona' : 'Dibujar zona'}
+          🖊️ {modo === 'dibujando' ? 'Dibujando...' : tieneZona ? 'Redibujar' : 'Dibujar zona'}
         </button>
         {tieneZona && modo === 'idle' && (
-          <button onClick={activarEditar} style={btnT(false)}>✏️ Editar vértices</button>
+          <button onClick={activarEditar} style={btnT(false)}>✏️ Editar</button>
+        )}
+        {tieneZona && modo === 'idle' && (
+          <button onClick={borrarZona} style={btnT(false, true)}>🗑️ Borrar zona</button>
         )}
         {modo === 'editando' && (
           <>
-            <button onClick={recargarManzanas} disabled={loading} style={{ ...btnT(false), background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' }}>
-              {loading ? '⏳' : '🔄'} Actualizar manzanas
+            <button onClick={recargarManzanas} disabled={loading}
+              style={{ ...btnT(false), background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' }}>
+              {loading ? '⏳' : '🔄'} Recargar manzanas
             </button>
             <button onClick={cancelarEdicion} style={{ ...btnT(false), color: 'var(--ink3)' }}>ESC</button>
           </>
         )}
+
+        {/* Separador */}
+        {nManz > 0 && <div style={{ width: 1, height: 20, background: 'var(--border2)', margin: '0 2px' }} />}
+
+        {/* Grupo selección */}
+        {nManz > 0 && !todasSel && (
+          <button onClick={seleccionarTodas} style={btnT(false)}>☑️ Todas</button>
+        )}
+        {nManz > 0 && nSel > 0 && (
+          <button onClick={deseleccionarTodas} style={btnT(false)}>🔲 Ninguna</button>
+        )}
         {nManz > 0 && (
-          <span style={{ fontSize: 12, color: 'var(--ink3)', fontWeight: 500 }}>
-            {nSel} / {nManz} manzanas seleccionadas
+          <span style={{ fontSize: 12, color: 'var(--ink3)', fontWeight: 600 }}>
+            {nSel}/{nManz}
           </span>
         )}
       </div>
 
+      {/* Banner instrucciones */}
       {modo !== 'idle' && (
         <div style={{ padding: '5px 12px', background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 600, textAlign: 'center', flexShrink: 0 }}>
           {modo === 'dibujando' && '🖊️ Clic para agregar puntos · Doble clic para cerrar · Las manzanas se cargan automáticamente'}
-          {modo === 'editando'  && '🔧 Arrastrá los puntos azules · Al terminar cliqueá "Actualizar manzanas"'}
+          {modo === 'editando'  && '🔧 Arrastrá los puntos azules para editar · Arrastrá la zona para moverla (manzanas se actualizan al soltar)'}
         </div>
       )}
 
+      {/* Mapa */}
       <div style={{ flex: 1, position: 'relative' }}>
         {(!listo || loading) && (
           <div style={{ position: 'absolute', inset: 0, zIndex: 5, background: 'rgba(242,241,238,.9)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
@@ -380,24 +464,30 @@ const MapaZona = forwardRef(function MapaZona(
         <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
       </div>
 
+      {/* Footer leyenda */}
       <div style={{ padding: '6px 12px', background: '#fff', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, minHeight: 32 }}>
-        {nManz > 0 && (
+        {nManz > 0 ? (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--ink3)' }}>
               <div style={{ width: 10, height: 10, background: '#1a472a', borderRadius: 2 }} /> Seleccionada
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--ink3)' }}>
-              <div style={{ width: 10, height: 10, background: '#94a3b8', borderRadius: 2 }} /> Sin seleccionar (clic)
+              <div style={{ width: 10, height: 10, background: '#94a3b8', borderRadius: 2 }} /> Sin seleccionar
             </div>
+            <span style={{ fontSize: 11, color: 'var(--ink3)', marginLeft: 'auto' }}>
+              Arrastrá la zona para moverla · manzanas se actualizan solas
+            </span>
           </>
+        ) : (
+          <span style={{ fontSize: 11, color: 'var(--ink3)' }}>
+            {tieneZona ? 'Dibujá la zona para cargar manzanas' : 'Dibujá el área para cargar las manzanas automáticamente'}
+          </span>
         )}
-        {!tieneZona && !nManz && <span style={{ fontSize: 11, color: 'var(--ink3)' }}>Dibujá el área para cargar las manzanas automáticamente</span>}
         {errorMap && <span style={{ fontSize: 12, color: 'var(--danger)', fontWeight: 500, marginLeft: 'auto' }}>⚠ {errorMap}</span>}
       </div>
     </div>
   )
 })
-
 // ════════════════════════════════════════════════
 // SELECTOR DE RAZONES
 // ════════════════════════════════════════════════
@@ -614,8 +704,12 @@ export function ManzanasEquipoModal({ encuestasEquipoId, equipoNombre, zonaEncue
   }, [encuestasEquipoId])
 
   async function handleSave() {
+    if (!encuestasEquipoId) {
+      setError('Sin equipo asignado — no se pueden guardar manzanas'); return
+    }
     setSaving(true); setError('')
     try {
+      // Leer zona actualizada del mapa (tiene el estado más reciente incluyendo drag)
       const zonaActualizada = mapaRef.current?.getZonaActual() || zonaGeoJSON
 
       const manzSelFeatures = (zonaActualizada?.features || [])
@@ -625,6 +719,8 @@ export function ManzanasEquipoModal({ encuestasEquipoId, equipoNombre, zonaEncue
         setError('Seleccioná al menos una manzana'); setSaving(false); return
       }
 
+      // Las parcelas las tomamos del ref interno del mapa (más confiable que el GeoJSON serializado)
+      // Si el mapa no las tiene, fallback al GeoJSON
       const parcelasAll = (zonaActualizada?.features || [])
         .filter(f => f.properties?.tipo === 'parcela')
 
