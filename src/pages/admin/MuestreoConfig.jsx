@@ -667,36 +667,30 @@ export function ManzanasEquipoModal({ encuestasEquipoId, encuestaId, equipoNombr
   const [error,       setError]       = useState('')
   const mapaRef = useRef(null)
 
-  // Cargar manzanas ya guardadas para este equipo
+  // Cargar zona+manzanas guardadas para este equipo específico desde encuestas_equipo.area_geojson
   useEffect(() => {
     async function load() {
       if (!encuestasEquipoId) return
       try {
-        const { data: manzanas } = await supabase
-          .from('manzanas')
-          .select('id, area_geojson')
-          .eq('encuestas_equipo_id', encuestasEquipoId)
-        if (!manzanas?.length) return
+        const { data: ee } = await supabase
+          .from('encuestas_equipo')
+          .select('area_geojson')
+          .eq('id', encuestasEquipoId)
+          .single()
 
-        // Reconstruir el GeoJSON de la zona con las manzanas ya guardadas marcadas como seleccionadas
-        const featsManzanas = manzanas.map(m => ({
-          ...m.area_geojson,
-          properties: {
-            ...(m.area_geojson?.properties || {}),
-            tipo: 'manzana',
-            seleccionada: true,
-            manzana_db_id: m.id,
+        if (ee?.area_geojson?.features?.length) {
+          // Tiene zona propia guardada → usarla directamente
+          setZonaGeoJSON(ee.area_geojson)
+        } else {
+          // Primer uso: mostrar solo la zona de geofencing de la encuesta como referencia visual
+          // (sin manzanas, para que el admin dibuje/seleccione desde cero para este equipo)
+          if (zonaEncuesta?.features) {
+            const soloZona = {
+              type: 'FeatureCollection',
+              features: zonaEncuesta.features.filter(f => f.properties?.tipo === 'zona'),
+            }
+            setZonaGeoJSON(soloZona.features.length ? soloZona : zonaEncuesta)
           }
-        }))
-
-        // Mergear con la zona de la encuesta si existe
-        if (zonaEncuesta?.features) {
-          const zonaFeat = zonaEncuesta.features.find(f => f.properties?.tipo === 'zona')
-          const otrasFeats = zonaEncuesta.features.filter(f => f.properties?.tipo !== 'manzana')
-          setZonaGeoJSON({
-            type: 'FeatureCollection',
-            features: [...otrasFeats, ...featsManzanas],
-          })
         }
       } catch {}
     }
@@ -719,7 +713,6 @@ export function ManzanasEquipoModal({ encuestasEquipoId, encuestaId, equipoNombr
         .filter(f => f.properties?.tipo === 'parcela')
 
       // 1. Guardar manzanas+parcelas en sus tablas (RPC hace DELETE previo + INSERT)
-      //    Pasar array vacío si no hay manzanas → solo borra las anteriores
       const { data: rpcResult, error: e } = await supabase.rpc('guardar_manzanas_y_parcelas', {
         p_encuestas_equipo_id: encuestasEquipoId,
         p_manzanas: manzSelFeatures.map(f => ({
@@ -736,23 +729,18 @@ export function ManzanasEquipoModal({ encuestasEquipoId, encuestaId, equipoNombr
       if (e) throw e
       console.log('[manzanas equipo]', rpcResult)
 
-      // 2. Persistir zona + manzanas seleccionadas en encuestas.area_geojson
-      //    para que al reabrir el modal se muestre el estado guardado.
-      //    Solo zona y manzanas (sin parcelas, son demasiadas para el JSONB).
-      if (encuestaId) {
-        const featuresAGuardar = (zonaActualizada?.features || [])
-          .filter(f => f.properties?.tipo === 'zona' || f.properties?.tipo === 'manzana')
-        const { error: e2 } = await supabase
-          .from('encuestas')
-          .update({
-            area_geojson: featuresAGuardar.length > 0
-              ? { type: 'FeatureCollection', features: featuresAGuardar }
-              : null,
-            geofencing_activo: featuresAGuardar.some(f => f.properties?.tipo === 'zona'),
-          })
-          .eq('id', encuestaId)
-        if (e2) throw e2
-      }
+      // 2. Persistir zona + manzanas en encuestas_equipo.area_geojson (por equipo, no global)
+      const featuresAGuardar = (zonaActualizada?.features || [])
+        .filter(f => f.properties?.tipo === 'zona' || f.properties?.tipo === 'manzana')
+      const { error: e2 } = await supabase
+        .from('encuestas_equipo')
+        .update({
+          area_geojson: featuresAGuardar.length > 0
+            ? { type: 'FeatureCollection', features: featuresAGuardar }
+            : null,
+        })
+        .eq('id', encuestasEquipoId)
+      if (e2) throw e2
 
       onSaved()
       onClose()
