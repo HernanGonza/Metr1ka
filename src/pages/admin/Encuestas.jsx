@@ -164,22 +164,6 @@ function RequestModal({ organizacionId, onClose, onSaved }) {
 
 
 // ── Modal grande para MuestreoConfig ──
-function MuestreoModal({ encuesta, onClose, onSaved }) {
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#fff', borderRadius: 'var(--r2)', width: '100%', maxWidth: 1100, height: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,.3)' }}>
-        <div style={{ padding: '14px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div>
-            <h3 style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 700, margin: 0 }}>⚙️ Configurar muestreo</h3>
-            <p style={{ fontSize: 12, color: 'var(--ink3)', margin: '2px 0 0' }}>{encuesta.nombre}</p>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--ink3)', lineHeight: 1 }}>×</button>
-        </div>
-        <MuestreoConfig encuestaId={encuesta.id} encuesta={encuesta} onClose={onClose} onSaved={onSaved} />
-      </div>
-    </div>
-  )
-}
 
 // ── Tarjeta de encuesta ──
 
