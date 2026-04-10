@@ -757,14 +757,14 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
 
   function onDropEnZona(zonaId) {
     if (!dragging) return
+    // Solo actualizar estado local — se persiste en handleSave junto con todo lo demás
     setZonas(prev => prev.map(z => z.id === zonaId ? { ...z, equipo_id: dragging } : z))
-    supabase.from('encuesta_zonas').update({ equipo_id: dragging }).eq('id', zonaId)
     setDragging(null)
   }
 
   function quitarEquipoDeZona(zonaId) {
+    // Solo actualizar estado local
     setZonas(prev => prev.map(z => z.id === zonaId ? { ...z, equipo_id: null } : z))
-    supabase.from('encuesta_zonas').update({ equipo_id: null }).eq('id', zonaId)
   }
 
   // ── Guardar todo ──
@@ -806,19 +806,32 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
         })
         if (e1) throw e1
 
-        // Guardar geojson (zona + manzanas seleccionadas) en encuesta_zonas
+        // Guardar geojson (zona + manzanas seleccionadas) + equipo_id en encuesta_zonas
         const featsPersistir = (geojson.features || [])
           .filter(f => f.properties?.tipo === 'zona' || f.properties?.tipo === 'manzana')
+        const zonaEstado = zonas.find(z => z.id === zona.id)
         const { error: e2 } = await supabase.from('encuesta_zonas').update({
           area_geojson: featsPersistir.length > 0
             ? { type: 'FeatureCollection', features: featsPersistir }
             : null,
           geofencing_activo: featsPersistir.some(f => f.properties?.tipo === 'zona'),
+          equipo_id: zonaEstado?.equipo_id ?? null,
         }).eq('id', zona.id)
         if (e2) throw e2
       }
 
-      // 3. Guardar config_muestreo en encuesta
+      // 3. Guardar equipo_id de zonas que no tenían geojson (solo equipo asignado)
+      for (const zona of zonas) {
+        if (!zonasDataRef.current[zona.id]) {
+          // Sin geojson — solo actualizar equipo_id si cambió
+          const { error: eZona } = await supabase.from('encuesta_zonas')
+            .update({ equipo_id: zona.equipo_id ?? null })
+            .eq('id', zona.id)
+          if (eZona) throw eZona
+        }
+      }
+
+      // 4. Guardar config_muestreo en encuesta
       const { error: e3 } = await supabase
         .from('encuestas')
         .update({ config_muestreo: config })
