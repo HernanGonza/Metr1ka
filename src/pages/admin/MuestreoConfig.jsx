@@ -660,7 +660,7 @@ function PanelConfig({ config, onChange, organizacionId }) {
 // ════════════════════════════════════════════════
 // MODAL DE MANZANAS POR EQUIPO
 // ════════════════════════════════════════════════
-export function ManzanasEquipoModal({ encuestasEquipoId, equipoNombre, zonaEncuesta, onClose, onSaved }) {
+export function ManzanasEquipoModal({ encuestasEquipoId, encuestaId, equipoNombre, zonaEncuesta, onClose, onSaved }) {
   const [zonaGeoJSON, setZonaGeoJSON] = useState(zonaEncuesta || null)
   const [manzanasSel, setManzanasSel] = useState([])
   const [saving,      setSaving]      = useState(false)
@@ -709,40 +709,51 @@ export function ManzanasEquipoModal({ encuestasEquipoId, equipoNombre, zonaEncue
     }
     setSaving(true); setError('')
     try {
-      // Leer zona actualizada del mapa (tiene el estado más reciente incluyendo drag)
+      // Leer zona actualizada del mapa (estado más reciente, incluyendo drag)
       const zonaActualizada = mapaRef.current?.getZonaActual() || zonaGeoJSON
 
       const manzSelFeatures = (zonaActualizada?.features || [])
         .filter(f => f.properties?.tipo === 'manzana' && f.properties?.seleccionada === true)
 
-      if (manzSelFeatures.length === 0) {
-        setError('Seleccioná al menos una manzana'); setSaving(false); return
-      }
-
-      // Las parcelas las tomamos del ref interno del mapa (más confiable que el GeoJSON serializado)
-      // Si el mapa no las tiene, fallback al GeoJSON
       const parcelasAll = (zonaActualizada?.features || [])
         .filter(f => f.properties?.tipo === 'parcela')
 
-      const manzanasPayload = manzSelFeatures.map(f => ({
-        gid:          f.properties?.gid ?? f.properties?.id ?? null,
-        area_geojson: JSON.stringify(f),
-      }))
-
-      const parcelasPayload = parcelasAll.map(f => ({
-        gid:          f.properties?.gid ?? f.properties?.id ?? null,
-        cca:          f.properties?.cca ?? null,
-        direccion:    f.properties?.direccion ?? f.properties?.etiqueta ?? null,
-        area_geojson: JSON.stringify(f),
-      }))
-
+      // 1. Guardar manzanas+parcelas en sus tablas (RPC hace DELETE previo + INSERT)
+      //    Pasar array vacío si no hay manzanas → solo borra las anteriores
       const { data: rpcResult, error: e } = await supabase.rpc('guardar_manzanas_y_parcelas', {
         p_encuestas_equipo_id: encuestasEquipoId,
-        p_manzanas:            manzanasPayload,
-        p_parcelas:            parcelasPayload,
+        p_manzanas: manzSelFeatures.map(f => ({
+          gid:          f.properties?.gid ?? f.properties?.id ?? null,
+          area_geojson: JSON.stringify(f),
+        })),
+        p_parcelas: parcelasAll.map(f => ({
+          gid:          f.properties?.gid ?? f.properties?.id ?? null,
+          cca:          f.properties?.cca ?? null,
+          direccion:    f.properties?.direccion ?? f.properties?.etiqueta ?? null,
+          area_geojson: JSON.stringify(f),
+        })),
       })
       if (e) throw e
       console.log('[manzanas equipo]', rpcResult)
+
+      // 2. Persistir zona + manzanas seleccionadas en encuestas.area_geojson
+      //    para que al reabrir el modal se muestre el estado guardado.
+      //    Solo zona y manzanas (sin parcelas, son demasiadas para el JSONB).
+      if (encuestaId) {
+        const featuresAGuardar = (zonaActualizada?.features || [])
+          .filter(f => f.properties?.tipo === 'zona' || f.properties?.tipo === 'manzana')
+        const { error: e2 } = await supabase
+          .from('encuestas')
+          .update({
+            area_geojson: featuresAGuardar.length > 0
+              ? { type: 'FeatureCollection', features: featuresAGuardar }
+              : null,
+            geofencing_activo: featuresAGuardar.some(f => f.properties?.tipo === 'zona'),
+          })
+          .eq('id', encuestaId)
+        if (e2) throw e2
+      }
+
       onSaved()
       onClose()
     } catch (err) {

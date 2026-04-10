@@ -450,6 +450,7 @@ export default function Encuestas() {
       {manzanasEquipo && (
         <ManzanasEquipoModal
           encuestasEquipoId={manzanasEquipo.encuestasEquipoId}
+          encuestaId={manzanasEquipo.encuesta?.id}
           equipoNombre={manzanasEquipo.equipoNombre}
           zonaEncuesta={manzanasEquipo.encuesta?.area_geojson || null}
           onClose={() => setManzanasEquipo(null)}
