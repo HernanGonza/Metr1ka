@@ -1,4 +1,4 @@
-# Encuestas Enfoque — Panel Web
+# Metr1ka
 
 Sistema de encuestas en tiempo real para campañas electorales.
 
