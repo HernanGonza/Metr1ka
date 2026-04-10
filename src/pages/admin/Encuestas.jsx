@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { Topbar } from '../../components/layout'
 import { Spinner } from '../../components/ui'
-import MuestreoConfig from './MuestreoConfig'
+import MuestreoConfig, { ManzanasEquipoModal } from './MuestreoConfig'
 import SimuladorEncuesta from './SimuladorEncuesta'
 import styles from './Page.module.css'
 
@@ -255,7 +255,7 @@ function MuestreoModal({ encuesta, onClose, onSaved }) {
 }
 
 // ── Tarjeta de encuesta ──
-function EncuestaCard({ encuesta, onApprove, onAssign, onMuestreo, onSimular, onView, mostrarOrg, orgNombre }) {
+function EncuestaCard({ encuesta, equipos, onApprove, onAssign, onMuestreo, onManzanasEquipo, onSimular, onView, mostrarOrg, orgNombre }) {
   const cfg = ESTADO_CONFIG[encuesta.estado_produccion] || ESTADO_CONFIG.pendiente
   const tipo = TIPO_CONFIG[encuesta.tipo_encuesta]
   const esPublicada  = encuesta.estado_produccion === 'publicada'
@@ -307,8 +307,8 @@ function EncuestaCard({ encuesta, onApprove, onAssign, onMuestreo, onSimular, on
               📱 Simular
             </button>
             {!['telefonica','online'].includes(encuesta.tipo_encuesta) && (
-              <button onClick={onMuestreo} style={{ padding: '7px 14px', background: encuesta.area_geojson ? 'var(--accent-light)' : 'var(--accent)', color: encuesta.area_geojson ? 'var(--accent2)' : '#fff', border: encuesta.area_geojson ? '1.5px solid var(--accent2)' : 'none', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
-                {encuesta.area_geojson ? '⚙️ Muestreo ✓' : '⚙️ Configurar muestreo'}
+              <button onClick={onMuestreo} style={{ padding: '7px 14px', background: encuesta.config_muestreo ? 'var(--accent-light)' : 'var(--accent)', color: encuesta.config_muestreo ? 'var(--accent2)' : '#fff', border: encuesta.config_muestreo ? '1.5px solid var(--accent2)' : 'none', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                {encuesta.config_muestreo ? '⚙️ Muestreo ✓' : '⚙️ Configurar muestreo'}
               </button>
             )}
           </>
@@ -317,6 +317,26 @@ function EncuestaCard({ encuesta, onApprove, onAssign, onMuestreo, onSimular, on
           <span className={styles.encuestaNote}>Nuestro equipo está trabajando en tu encuesta.</span>
         )}
       </div>
+
+      {/* Botones de manzanas por equipo — solo encuestas domiciliarias publicadas con equipos */}
+      {esPublicada && equiposAsignados > 0 && !['telefonica','online'].includes(encuesta.tipo_encuesta) && (
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }} onClick={e => e.stopPropagation()}>
+          <span style={{ fontSize: 11, color: 'var(--ink3)', fontWeight: 600, alignSelf: 'center', marginRight: 4 }}>Manzanas:</span>
+          {(encuesta.encuestas_equipo || []).map(ee => {
+            const eq = equipos.find(e => e.id === ee.equipo_id)
+            if (!eq) return null
+            return (
+              <button
+                key={ee.id}
+                onClick={() => onManzanasEquipo({ encuestasEquipoId: ee.id, equipoNombre: eq.nombre, encuesta })}
+                style={{ padding: '4px 10px', background: 'var(--surface)', color: 'var(--ink2)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                📍 {eq.nombre}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -333,6 +353,7 @@ export default function Encuestas() {
   const [assigning,      setAssigning]      = useState(null)
   const [muestreoData,   setMuestreoData]   = useState(null)
   const [simulando,      setSimulando]      = useState(null)
+  const [manzanasEquipo, setManzanasEquipo] = useState(null) // { encuestasEquipoId, equipoNombre, encuesta }
   const [filtro,         setFiltro]         = useState('todas')
   const [filtroOrg,      setFiltroOrg]      = useState('')
   const [filtroTipo,     setFiltroTipo]     = useState('')
@@ -345,7 +366,7 @@ export default function Encuestas() {
     setLoading(true)
     try {
       let encQ = supabase.from('encuestas')
-        .select('*, area_geojson, encuestas_equipo(equipo_id, id)')
+        .select('*, area_geojson, config_muestreo, encuestas_equipo(equipo_id, id)')
         .order('creado_en', { ascending: false })
       if (!esSuperadmin) encQ = encQ.eq('organizacion_id', perfil.organizacion_id)
 
@@ -426,6 +447,15 @@ export default function Encuestas() {
           onSaved={() => { setMuestreoData(null); fetchData() }}
         />
       )}
+      {manzanasEquipo && (
+        <ManzanasEquipoModal
+          encuestasEquipoId={manzanasEquipo.encuestasEquipoId}
+          equipoNombre={manzanasEquipo.equipoNombre}
+          zonaEncuesta={manzanasEquipo.encuesta?.area_geojson || null}
+          onClose={() => setManzanasEquipo(null)}
+          onSaved={() => { setManzanasEquipo(null); fetchData() }}
+        />
+      )}
 
       <div className={styles.content}>
 
@@ -502,11 +532,13 @@ export default function Encuestas() {
               <EncuestaCard
                 key={enc.id}
                 encuesta={enc}
+                equipos={equipos}
                 mostrarOrg={esSuperadmin}
                 orgNombre={esSuperadmin ? organizaciones.find(o => o.id === enc.organizacion_id)?.nombre : null}
                 onApprove={() => handleApprove(enc.id)}
                 onAssign={() => setAssigning({ encuesta: enc, asignados: (enc.encuestas_equipo || []).map(e => e.equipo_id) })}
                 onMuestreo={() => setMuestreoData(enc)}
+                onManzanasEquipo={setManzanasEquipo}
                 onSimular={() => setSimulando(enc.id)}
                 onView={() => navigate(`/encuestas/${enc.id}`)}
               />
