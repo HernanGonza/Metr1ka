@@ -667,30 +667,26 @@ export function ManzanasEquipoModal({ encuestasEquipoId, encuestaId, equipoNombr
   const [error,       setError]       = useState('')
   const mapaRef = useRef(null)
 
-  // Cargar zona+manzanas guardadas para este equipo específico desde encuestas_equipo.area_geojson
+  // Cargar zona+manzanas desde equipo_encuesta_zonas (tabla dedicada por equipo)
   useEffect(() => {
     async function load() {
       if (!encuestasEquipoId) return
       try {
-        const { data: ee } = await supabase
-          .from('encuestas_equipo')
+        const { data } = await supabase
+          .from('equipo_encuesta_zonas')
           .select('area_geojson')
-          .eq('id', encuestasEquipoId)
+          .eq('encuestas_equipo_id', encuestasEquipoId)
           .single()
 
-        if (ee?.area_geojson?.features?.length) {
-          // Tiene zona propia guardada → usarla directamente
-          setZonaGeoJSON(ee.area_geojson)
-        } else {
-          // Primer uso: mostrar solo la zona de geofencing de la encuesta como referencia visual
-          // (sin manzanas, para que el admin dibuje/seleccione desde cero para este equipo)
-          if (zonaEncuesta?.features) {
-            const soloZona = {
-              type: 'FeatureCollection',
-              features: zonaEncuesta.features.filter(f => f.properties?.tipo === 'zona'),
-            }
-            setZonaGeoJSON(soloZona.features.length ? soloZona : zonaEncuesta)
-          }
+        if (data?.area_geojson?.features?.length) {
+          setZonaGeoJSON(data.area_geojson)
+        } else if (zonaEncuesta?.features) {
+          // Primera vez: mostrar solo la zona grande como referencia visual
+          const soloZona = zonaEncuesta.features.filter(f => f.properties?.tipo === 'zona')
+          setZonaGeoJSON(soloZona.length
+            ? { type: 'FeatureCollection', features: soloZona }
+            : zonaEncuesta
+          )
         }
       } catch {}
     }
@@ -729,17 +725,18 @@ export function ManzanasEquipoModal({ encuestasEquipoId, encuestaId, equipoNombr
       if (e) throw e
       console.log('[manzanas equipo]', rpcResult)
 
-      // 2. Persistir zona + manzanas en encuestas_equipo.area_geojson (por equipo, no global)
+      // 2. Persistir zona + manzanas en equipo_encuesta_zonas (tabla dedicada, una fila por equipo)
       const featuresAGuardar = (zonaActualizada?.features || [])
         .filter(f => f.properties?.tipo === 'zona' || f.properties?.tipo === 'manzana')
       const { error: e2 } = await supabase
-        .from('encuestas_equipo')
-        .update({
+        .from('equipo_encuesta_zonas')
+        .upsert({
+          encuestas_equipo_id: encuestasEquipoId,
           area_geojson: featuresAGuardar.length > 0
             ? { type: 'FeatureCollection', features: featuresAGuardar }
-            : null,
-        })
-        .eq('id', encuestasEquipoId)
+            : { type: 'FeatureCollection', features: [] },
+          actualizado_en: new Date().toISOString(),
+        }, { onConflict: 'encuestas_equipo_id' })
       if (e2) throw e2
 
       onSaved()

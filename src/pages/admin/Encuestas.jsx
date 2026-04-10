@@ -255,6 +255,36 @@ function MuestreoModal({ encuesta, onClose, onSaved }) {
 }
 
 // ── Tarjeta de encuesta ──
+// Botón con tooltip nativo (title=)
+function Btn({ onClick, bg, color, border, icon, label, tooltip, full }) {
+  return (
+    <button
+      onClick={onClick}
+      title={tooltip}
+      style={{
+        padding: '9px 14px',
+        background: bg || 'var(--surface)',
+        color: color || 'var(--ink2)',
+        border: `1.5px solid ${border || 'var(--border2)'}`,
+        borderRadius: 'var(--r)',
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: 'pointer',
+        fontFamily: 'DM Sans',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        whiteSpace: 'nowrap',
+        flex: full ? 1 : undefined,
+        justifyContent: full ? 'center' : undefined,
+      }}
+    >
+      {icon && <span style={{ fontSize: 15 }}>{icon}</span>}
+      {label}
+    </button>
+  )
+}
+
 function EncuestaCard({ encuesta, equipos, onApprove, onAssign, onMuestreo, onManzanasEquipo, onSimular, onView, mostrarOrg, orgNombre }) {
   const cfg = ESTADO_CONFIG[encuesta.estado_produccion] || ESTADO_CONFIG.pendiente
   const tipo = TIPO_CONFIG[encuesta.tipo_encuesta]
@@ -262,12 +292,18 @@ function EncuestaCard({ encuesta, equipos, onApprove, onAssign, onMuestreo, onMa
   const paraRevisar  = encuesta.estado_produccion === 'para_revisar'
   const enProduccion = ['pendiente', 'en_proceso'].includes(encuesta.estado_produccion)
   const equiposAsignados = encuesta.encuestas_equipo?.length || 0
+  const esDomiciliaria = !['telefonica','online'].includes(encuesta.tipo_encuesta)
 
   return (
-    <div className={`${styles.encuestaCard} ${esPublicada ? styles.encuestaCardPublicada : ''}`} onClick={onView}>
+    <div
+      className={`${styles.encuestaCard} ${esPublicada ? styles.encuestaCardPublicada : ''}`}
+      onClick={onView}
+      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 0 }}
+    >
+      {/* Header */}
       <div className={styles.encuestaHeader}>
-        <h4>{encuesta.nombre}</h4>
-        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+        <h4 style={{ fontSize: 15, lineHeight: 1.3 }}>{encuesta.nombre}</h4>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {tipo && (
             <span style={{ padding: '3px 9px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: tipo.bg, color: tipo.color, whiteSpace: 'nowrap' }}>
               {tipo.icon} {tipo.label}
@@ -278,13 +314,13 @@ function EncuestaCard({ encuesta, equipos, onApprove, onAssign, onMuestreo, onMa
           </span>
         </div>
       </div>
+
+      {/* Descripción */}
       {encuesta.descripcion && <p className={styles.encuestaDesc}>{encuesta.descripcion}</p>}
+
+      {/* Meta */}
       <div className={styles.encuestaMeta}>
-        {mostrarOrg && orgNombre && (
-          <span style={{ fontWeight: 600, color: 'var(--accent2)', marginRight: 8 }}>
-            🏢 {orgNombre}
-          </span>
-        )}
+        {mostrarOrg && orgNombre && <span style={{ fontWeight: 600, color: 'var(--accent2)', marginRight: 8 }}>🏢 {orgNombre}</span>}
         Solicitada: {new Date(encuesta.creado_en).toLocaleDateString('es-AR')}
         {equiposAsignados > 0 && (
           <span style={{ marginLeft: 10, padding: '1px 7px', borderRadius: 100, fontSize: 11, background: 'var(--accent-light)', color: 'var(--accent2)', fontWeight: 600 }}>
@@ -292,51 +328,65 @@ function EncuestaCard({ encuesta, equipos, onApprove, onAssign, onMuestreo, onMa
           </span>
         )}
       </div>
-      <div className={styles.encuestaActions} onClick={e => e.stopPropagation()}>
+
+      {/* Acciones principales */}
+      <div style={{ padding: '10px 0 0', borderTop: '1px solid var(--border)', marginTop: 8 }} onClick={e => e.stopPropagation()}>
         {paraRevisar && (
-          <button onClick={onApprove} style={{ padding: '7px 14px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
-            ✓ Aprobar y publicar
-          </button>
+          <Btn onClick={onApprove} bg="var(--accent)" color="#fff" border="var(--accent)"
+            icon="✓" label="Aprobar y publicar"
+            tooltip="Aprobar esta encuesta y publicarla para que los encuestadores puedan usarla" full />
         )}
+
         {esPublicada && (
-          <>
-            <button onClick={onAssign} style={{ padding: '7px 14px', background: 'var(--surface)', color: 'var(--ink2)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
-              👥 {equiposAsignados > 0 ? `${equiposAsignados} equipo${equiposAsignados !== 1 ? 's' : ''}` : 'Asignar equipos'}
-            </button>
-            <button onClick={onSimular} style={{ padding: '7px 14px', background: '#f3e8ff', color: '#7c3aed', border: '1.5px solid #7c3aed', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
-              📱 Simular
-            </button>
-            {!['telefonica','online'].includes(encuesta.tipo_encuesta) && (
-              <button onClick={onMuestreo} style={{ padding: '7px 14px', background: encuesta.config_muestreo ? 'var(--accent-light)' : 'var(--accent)', color: encuesta.config_muestreo ? 'var(--accent2)' : '#fff', border: encuesta.config_muestreo ? '1.5px solid var(--accent2)' : 'none', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
-                {encuesta.config_muestreo ? '⚙️ Muestreo ✓' : '⚙️ Configurar muestreo'}
-              </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* Fila 1: gestión general */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <Btn onClick={onAssign}
+                icon="👥" label={equiposAsignados > 0 ? `Equipos (${equiposAsignados})` : 'Asignar equipos'}
+                tooltip="Asignar o quitar equipos de encuestadores a esta encuesta" />
+              <Btn onClick={onSimular}
+                bg="#f3e8ff" color="#7c3aed" border="#c4b5fd"
+                icon="📱" label="Simular"
+                tooltip="Previsualizá cómo se ve la encuesta en la app móvil del encuestador" />
+              {esDomiciliaria && (
+                <Btn onClick={onMuestreo}
+                  bg={encuesta.config_muestreo ? 'var(--accent-light)' : 'var(--accent)'}
+                  color={encuesta.config_muestreo ? 'var(--accent2)' : '#fff'}
+                  border={encuesta.config_muestreo ? 'var(--accent2)' : 'var(--accent)'}
+                  icon="⚙️" label={encuesta.config_muestreo ? 'Muestreo ✓' : 'Configurar muestreo'}
+                  tooltip="Configurá el intervalo de salto, intentos máximos y razones de no-respuesta para esta encuesta" />
+              )}
+            </div>
+
+            {/* Fila 2: manzanas por equipo (solo domiciliarias con equipos asignados) */}
+            {esDomiciliaria && equiposAsignados > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
+                  Manzanas por equipo
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {(encuesta.encuestas_equipo || []).map(ee => {
+                    const eq = equipos.find(e => e.id === ee.equipo_id)
+                    if (!eq) return null
+                    return (
+                      <Btn
+                        key={ee.id}
+                        onClick={() => onManzanasEquipo({ encuestasEquipoId: ee.id, equipoNombre: eq.nombre, encuesta })}
+                        icon="📍" label={eq.nombre}
+                        tooltip={`Definir qué manzanas y parcelas le corresponden al ${eq.nombre} en esta encuesta`}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
             )}
-          </>
+          </div>
         )}
+
         {enProduccion && (
           <span className={styles.encuestaNote}>Nuestro equipo está trabajando en tu encuesta.</span>
         )}
       </div>
-
-      {/* Botones de manzanas por equipo — solo encuestas domiciliarias publicadas con equipos */}
-      {esPublicada && equiposAsignados > 0 && !['telefonica','online'].includes(encuesta.tipo_encuesta) && (
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }} onClick={e => e.stopPropagation()}>
-          <span style={{ fontSize: 11, color: 'var(--ink3)', fontWeight: 600, alignSelf: 'center', marginRight: 4 }}>Manzanas:</span>
-          {(encuesta.encuestas_equipo || []).map(ee => {
-            const eq = equipos.find(e => e.id === ee.equipo_id)
-            if (!eq) return null
-            return (
-              <button
-                key={ee.id}
-                onClick={() => onManzanasEquipo({ encuestasEquipoId: ee.id, equipoNombre: eq.nombre, encuesta })}
-                style={{ padding: '4px 10px', background: 'var(--surface)', color: 'var(--ink2)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 4 }}
-              >
-                📍 {eq.nombre}
-              </button>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }
