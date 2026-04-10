@@ -238,14 +238,14 @@ function EncuestaCard({ encuesta, equipos, onApprove, onZonas, onSimular, onView
                 bg={cantZonas > 0 ? 'var(--accent-light)' : 'var(--accent)'}
                 color={cantZonas > 0 ? 'var(--accent2)' : '#fff'}
                 border={cantZonas > 0 ? 'var(--accent2)' : 'var(--accent)'}
-                icon="map"
-                label={cantZonas > 0 ? `Zonas (${cantZonas})` : 'Definir zonas'}
-                tooltip="Definir zonas geograficas, seleccionar manzanas y asignar equipos" />
+                icon="🗺️"
+                label={cantZonas > 0 ? `Zonas y muestreo (${cantZonas})` : 'Configurar zonas y muestreo'}
+                tooltip="Definir zonas geográficas, seleccionar manzanas, asignar equipos y configurar el muestreo" />
             )}
             <Btn onClick={onSimular}
               bg="#f3e8ff" color="#7c3aed" border="#c4b5fd"
-              icon="phone" label="Simular"
-              tooltip="Previsualizá la encuesta en la app movil" />
+              icon="📱" label="Simular encuesta"
+              tooltip="Previsualizá cómo se ve la encuesta en la app móvil del encuestador" />
           </>
         )}
 
