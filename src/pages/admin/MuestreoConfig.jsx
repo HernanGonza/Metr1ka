@@ -126,7 +126,16 @@ const MapaZona = forwardRef(function MapaZona(
       const features = []
       features.push({ ...zonaFeat, properties: { ...zonaFeat.properties, tipo: 'zona' } })
       manzanas.forEach(f => {
-        features.push({ ...f, properties: { ...f.properties, tipo: 'manzana', seleccionada: selRef.current.has(f.properties?.gid || f.id) } })
+        // ID canónico: siempre properties.gid, nunca f.id (puede ser undefined en Leaflet)
+        const canonId = f.properties?.gid ?? f.properties?.id
+        features.push({
+          ...f,
+          properties: {
+            ...f.properties,
+            tipo: 'manzana',
+            seleccionada: canonId !== undefined ? selRef.current.has(canonId) : false,
+          }
+        })
       })
       return { type: 'FeatureCollection', features }
     }
@@ -165,10 +174,16 @@ const MapaZona = forwardRef(function MapaZona(
           map.fitBounds(zl.getBounds(), { padding: [30, 30] })
         }
         if (manzFeat.length > 0) {
-          const ids = new Set(manzFeat.map(f => f.properties?.gid || f.id))
-          selRef.current = ids
-          setNSel(ids.size)
-          renderManzanas(L, map, manzFeat, ids)
+          // Solo las que tienen seleccionada:true en el GeoJSON guardado
+          const idsSel = new Set(
+            manzFeat
+              .filter(f => f.properties?.seleccionada === true)
+              .map(f => f.properties?.gid ?? f.properties?.id)
+              .filter(id => id !== undefined)
+          )
+          selRef.current = idsSel
+          setNSel(idsSel.size)
+          renderManzanas(L, map, manzFeat, idsSel)
           setNManz(manzFeat.length)
         }
       }
@@ -203,9 +218,9 @@ const MapaZona = forwardRef(function MapaZona(
     const grp = L.geoJSON(features, {
       renderer: L.canvas(),
       pmIgnore: true,
-      style: f => estiloManzana(selSet.has(f.properties?.gid || f.id)),
+      style: f => estiloManzana(selSet.has(f.properties?.gid ?? f.properties?.id)),
       onEachFeature: (feature, layer) => {
-        const id = feature.properties?.gid || feature.id
+        const id = feature.properties?.gid ?? feature.properties?.id
         layer.on('click', () => {
           const next = new Set(selRef.current)
           if (next.has(id)) next.delete(id)
@@ -213,7 +228,7 @@ const MapaZona = forwardRef(function MapaZona(
           selRef.current = next
           setNSel(next.size)
           grp.eachLayer(l => {
-            const lid = l.feature?.properties?.gid || l.feature?.id
+            const lid = l.feature?.properties?.gid ?? l.feature?.properties?.id
             if (lid !== undefined) l.setStyle(estiloManzana(next.has(lid)))
           })
           emitirCambio(features, next)
@@ -263,14 +278,15 @@ const MapaZona = forwardRef(function MapaZona(
     const features = []
     if (zonaFeat) features.push({ ...zonaFeat, properties: { ...zonaFeat.properties, tipo: 'zona' } })
     manzanas.forEach(f => {
-      features.push({ ...f, properties: { ...f.properties, tipo: 'manzana', seleccionada: sel.has(f.properties?.gid || f.id) } })
+      const canonId = f.properties?.gid ?? f.properties?.id
+      features.push({ ...f, properties: { ...f.properties, tipo: 'manzana', seleccionada: sel.has(canonId) } })
     })
     parcelas.forEach(f => {
       features.push({ ...f, properties: { ...f.properties, tipo: 'parcela' } })
     })
     const geojson = { type: 'FeatureCollection', features }
     onZonaChange(geojson)
-    onManzanasChange(manzanas.filter(f => sel.has(f.properties?.gid || f.id)))
+    onManzanasChange(manzanas.filter(f => sel.has(f.properties?.gid ?? f.properties?.id)))
   }
 
   function estiloManzana(sel) {
@@ -552,25 +568,35 @@ function PanelConfig({ config, onChange, organizacionId }) {
 // COMPONENTE PRINCIPAL
 // ════════════════════════════════════════════════
 export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved }) {
-  const [config,      setConfig]      = useState(CONFIG_DEFAULT)
-  const [zonaGeoJSON, setZonaGeoJSON] = useState(encuesta?.area_geojson || null)
-  const [manzanasSel, setManzanasSel] = useState([])
-  const [loading,     setLoading]     = useState(true)
-  const [saving,      setSaving]      = useState(false)
-  const [error,       setError]       = useState('')
+  const [config,            setConfig]            = useState(CONFIG_DEFAULT)
+  const [zonaGeoJSON,       setZonaGeoJSON]       = useState(encuesta?.area_geojson || null)
+  const [manzanasSel,       setManzanasSel]       = useState([])
+  const [encuestasEquipoId, setEncuestasEquipoId] = useState(null)
+  const [loading,           setLoading]           = useState(true)
+  const [saving,            setSaving]            = useState(false)
+  const [error,             setError]             = useState('')
   const mapaRef = useRef(null)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       try {
-        const { data } = await supabase
-          .from('encuestas')
-          .select('config_muestreo, area_geojson')
-          .eq('id', encuestaId)
-          .single()
-        if (data?.config_muestreo) setConfig(prev => ({ ...prev, ...data.config_muestreo }))
-        if (data?.area_geojson)    setZonaGeoJSON(data.area_geojson)
+        const [encRes, eeRes] = await Promise.all([
+          supabase
+            .from('encuestas')
+            .select('config_muestreo, area_geojson')
+            .eq('id', encuestaId)
+            .single(),
+          supabase
+            .from('encuestas_equipo')
+            .select('id')
+            .eq('encuesta_id', encuestaId)
+            .limit(1)
+            .single(),
+        ])
+        if (encRes.data?.config_muestreo) setConfig(prev => ({ ...prev, ...encRes.data.config_muestreo }))
+        if (encRes.data?.area_geojson)    setZonaGeoJSON(encRes.data.area_geojson)
+        if (eeRes.data?.id)               setEncuestasEquipoId(eeRes.data.id)
       } catch {}
       setLoading(false)
     }
@@ -585,9 +611,10 @@ export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved 
     }
     setSaving(true); setError('')
     try {
-      // Leer zona actualizada directamente del mapa (captura ediciones de vértices)
+      // Leer zona actualizada del mapa (captura ediciones de vértices)
       const zonaActualizada = mapaRef.current?.getZonaActual() || zonaGeoJSON
 
+      // 1. Guardar config y área en encuestas
       const { error: e1 } = await supabase
         .from('encuestas')
         .update({
@@ -597,6 +624,38 @@ export default function MuestreoConfig({ encuestaId, encuesta, onClose, onSaved 
         })
         .eq('id', encuestaId)
       if (e1) throw e1
+
+      // 2. Si hay equipo asignado y manzanas seleccionadas → persistir en tablas manzanas/parcelas
+      if (encuestasEquipoId && zonaActualizada?.features) {
+        const manzSelFeatures = zonaActualizada.features
+          .filter(f => f.properties?.tipo === 'manzana' && f.properties?.seleccionada === true)
+
+        if (manzSelFeatures.length > 0) {
+          const parcelasAll = zonaActualizada.features
+            .filter(f => f.properties?.tipo === 'parcela')
+
+          const manzanasPayload = manzSelFeatures.map(f => ({
+            gid:          f.properties?.gid ?? f.properties?.id ?? null,
+            area_geojson: JSON.stringify(f),
+          }))
+
+          const parcelasPayload = parcelasAll.map(f => ({
+            gid:          f.properties?.gid ?? f.properties?.id ?? null,
+            cca:          f.properties?.cca ?? null,
+            direccion:    f.properties?.direccion ?? f.properties?.etiqueta ?? null,
+            area_geojson: JSON.stringify(f),
+          }))
+
+          const { data: rpcResult, error: e2 } = await supabase.rpc('guardar_manzanas_y_parcelas', {
+            p_encuestas_equipo_id: encuestasEquipoId,
+            p_manzanas:            manzanasPayload,
+            p_parcelas:            parcelasPayload,
+          })
+          if (e2) throw e2
+          console.log('[guardar_manzanas_y_parcelas]', rpcResult)
+        }
+      }
+
       onSaved()
     } catch (err) {
       setError(err.message)
