@@ -26,22 +26,55 @@ export default function Encuestas() {
 
   async function fetchData() {
     setLoading(true)
-    // Sin join a preguntas(count) — causa timeout por RLS
-    const { data, error } = await supabase
+    
+    // PASO 1: Traer encuestas SIN el join a organizaciones (evita shadowing)
+    const { data: encData, error: err1 } = await supabase
       .from('encuestas')
-      .select('id, nombre, descripcion, estado_produccion, creado_en, organizacion_id, org:organizaciones!organizacion_id(nombre, color_primario)')
+      .select('id, nombre, descripcion, estado_produccion, creado_en, organizacion_id')
       .order('creado_en', { ascending: false })
-    if (error) console.error('fetchData error:', error)
-    setEncuestas(data || [])
+    
+    if (err1) { 
+      console.error('Error al cargar encuestas:', err1)
+      setLoading(false)
+      return 
+    }
+    
+    // PASO 2: Traer organizaciones solo si hay encuestas
+    let organizacionesMap = {}
+    if (encData && encData.length > 0) {
+      const orgIds = [...new Set(encData.map(e => e.organizacion_id).filter(Boolean))]
+      
+      if (orgIds.length > 0) {
+        const { data: orgs } = await supabase
+          .from('organizaciones')
+          .select('id, nombre, color_primario')
+          .in('id', orgIds)
+        
+        if (orgs) {
+          organizacionesMap = Object.fromEntries(orgs.map(o => [o.id, o]))
+        }
+      }
+    }
+    
+    // PASO 3: Unir en memoria
+    const dataEnriquecida = (encData || []).map(enc => ({
+      ...enc,
+      org: organizacionesMap[enc.organizacion_id] || null
+    }))
+    
+    setEncuestas(dataEnriquecida)
     setLoading(false)
   }
 
   useEffect(() => { fetchData() }, [])
 
   async function moveEncuesta(id, nuevoEstado) {
+    // Optimistic update
     setEncuestas(prev => prev.map(e => e.id === id ? { ...e, estado_produccion: nuevoEstado } : e))
     setDraggingId(null)
-    await supabase.from('encuestas').update({ estado_produccion: nuevoEstado }).eq('id', id)
+    
+    // Update en backend (sin await para no bloquear UI)
+    supabase.from('encuestas').update({ estado_produccion: nuevoEstado }).eq('id', id)
   }
 
   function onDragStart(e, enc) { setDraggingId(enc.id); e.dataTransfer.effectAllowed = 'move' }

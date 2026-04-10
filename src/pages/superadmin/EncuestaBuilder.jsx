@@ -31,32 +31,27 @@ function getOpcionesPregunta(pregunta) {
   if (pregunta.tipo === 'si_no') return ['Sí', 'No']
   if (pregunta.tipo === 'escala') return Array.from({ length: 10 }, (_, i) => String(i + 1))
   if (TIPOS_CON_OPCIONES.includes(pregunta.tipo)) return (pregunta.opciones || []).map(o => o.texto).filter(Boolean)
-  return [] // texto_libre no tiene opciones predefinidas
+  return []
 }
 
-// ── Panel de condicionales ──
+// ── Panel de condicionales (sin cambios) ──
 function PanelCondicionales({ pregunta, todasPreguntas, index, onChange }) {
   const cond = pregunta.condicionales || { logica: 'OR', reglas: [] }
   const opcionesRespuesta = getOpcionesPregunta(pregunta)
-  // Solo preguntas que vienen DESPUÉS de esta
   const preguntasDestino = todasPreguntas.filter((_, i) => i !== index)
 
   function update(nuevo) { onChange({ ...pregunta, condicionales: nuevo }) }
-
   function addRegla() {
     update({ ...cond, reglas: [...cond.reglas, { respuesta: '', accion: 'saltar', destino_id: '' }] })
   }
-
   function updateRegla(i, campo, valor) {
     const reglas = cond.reglas.map((r, idx) => idx === i ? { ...r, [campo]: valor } : r)
     update({ ...cond, reglas })
   }
-
   function removeRegla(i) {
     const reglas = cond.reglas.filter((_, idx) => idx !== i)
     update(reglas.length > 0 ? { ...cond, reglas } : null)
   }
-
   function toggleLogica() {
     update({ ...cond, logica: cond.logica === 'OR' ? 'AND' : 'OR' })
   }
@@ -99,35 +94,24 @@ function PanelCondicionales({ pregunta, todasPreguntas, index, onChange }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {cond.reglas.map((regla, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'var(--surface)', padding: '8px 10px', borderRadius: 'var(--r)', flexWrap: 'wrap' }}>
-            {/* Etiqueta SI/Y SI */}
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', minWidth: 28 }}>
               {i === 0 ? 'SI' : cond.logica}
             </span>
-
-            {/* Respuesta que dispara */}
             {opcionesRespuesta.length > 0 ? (
               <select value={regla.respuesta} onChange={e => updateRegla(i, 'respuesta', e.target.value)} style={{ ...sel, minWidth: 120 }}>
                 <option value="">Seleccioná respuesta</option>
                 {opcionesRespuesta.map(op => <option key={op} value={op}>{op}</option>)}
               </select>
             ) : (
-              <input
-                value={regla.respuesta}
-                onChange={e => updateRegla(i, 'respuesta', e.target.value)}
-                placeholder="Respuesta..."
-                style={{ ...sel, minWidth: 120, flex: 1 }}
-              />
+              <input value={regla.respuesta} onChange={e => updateRegla(i, 'respuesta', e.target.value)}
+                placeholder="Respuesta..." style={{ ...sel, minWidth: 120, flex: 1 }} />
             )}
-
-            {/* Acción */}
             <select value={regla.accion} onChange={e => updateRegla(i, 'accion', e.target.value)} style={sel}>
               <option value="saltar">→ Ir a pregunta</option>
               <option value="ocultar">✕ Ocultar pregunta</option>
               <option value="mostrar">✓ Mostrar pregunta</option>
               <option value="finalizar">⏹ Finalizar encuesta</option>
             </select>
-
-            {/* Destino (si no es finalizar) */}
             {regla.accion !== 'finalizar' && (
               <select value={regla.destino_id} onChange={e => updateRegla(i, 'destino_id', e.target.value)} style={{ ...sel, flex: 1, minWidth: 140 }}>
                 <option value="">Seleccioná pregunta</option>
@@ -138,7 +122,6 @@ function PanelCondicionales({ pregunta, todasPreguntas, index, onChange }) {
                 ))}
               </select>
             )}
-
             <button type="button" onClick={() => removeRegla(i)} style={{
               width: 26, height: 26, border: '1px solid var(--border)', borderRadius: 6,
               background: '#fff', cursor: 'pointer', color: 'var(--danger)', fontSize: 14, flexShrink: 0,
@@ -146,7 +129,6 @@ function PanelCondicionales({ pregunta, todasPreguntas, index, onChange }) {
           </div>
         ))}
       </div>
-
       {cond.reglas.length > 0 && (
         <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 8, fontStyle: 'italic' }}>
           Si ninguna regla aplica, continúa al siguiente paso normal.
@@ -156,10 +138,10 @@ function PanelCondicionales({ pregunta, todasPreguntas, index, onChange }) {
   )
 }
 
-// ── Tarjeta de pregunta ──
+// ── Tarjeta de pregunta (sin cambios) ──
 function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDelete, onMove }) {
-  const [expanded, setExpanded]         = useState(true)
-  const [showCond, setShowCond]         = useState(false)
+  const [expanded, setExpanded] = useState(true)
+  const [showCond, setShowCond] = useState(false)
   const tieneOpciones = TIPOS_CON_OPCIONES.includes(pregunta.tipo)
   const tieneCondicionales = pregunta.condicionales?.reglas?.length > 0
 
@@ -175,11 +157,7 @@ function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDele
 
   return (
     <div style={{ background: '#fff', border: `1px solid ${tieneCondicionales ? '#c4b5fd' : 'var(--border)'}`, borderRadius: 'var(--r2)', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.05)' }}>
-      {/* Header */}
-      <div
-        style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', borderBottom: expanded ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}
-        onClick={() => setExpanded(e => !e)}
-      >
+      <div style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', borderBottom: expanded ? '1px solid var(--border)' : 'none', cursor: 'pointer' }} onClick={() => setExpanded(e => !e)}>
         <span style={{ fontFamily: 'Syne', fontSize: 11, fontWeight: 700, color: 'var(--ink3)', minWidth: 22 }}>P{index + 1}</span>
         <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: pregunta.texto ? 'var(--ink)' : 'var(--ink3)', fontStyle: pregunta.texto ? 'normal' : 'italic', lineHeight: 1.3 }}>
           {pregunta.texto || 'Nueva pregunta...'}
@@ -198,20 +176,16 @@ function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDele
           <button onClick={() => onDelete(index)} style={{ width: 26, height: 26, border: '1px solid var(--border)', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--danger)' }}>×</button>
         </div>
       </div>
-
       {expanded && (
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <label style={labelStyle}>Texto de la pregunta</label>
-            <textarea value={pregunta.texto} onChange={e => onUpdate({ ...pregunta, texto: e.target.value })} placeholder="Escribí la pregunta..." rows={2}
-              style={{ ...inputStyle, resize: 'vertical' }} />
+            <textarea value={pregunta.texto} onChange={e => onUpdate({ ...pregunta, texto: e.target.value })} placeholder="Escribí la pregunta..." rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
           </div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 180 }}>
               <label style={labelStyle}>Tipo</label>
-              <select value={pregunta.tipo}
-                onChange={e => onUpdate({ ...pregunta, tipo: e.target.value, opciones: TIPOS_CON_OPCIONES.includes(e.target.value) ? (pregunta.opciones || []) : [] })}
-                style={inputStyle}>
+              <select value={pregunta.tipo} onChange={e => onUpdate({ ...pregunta, tipo: e.target.value, opciones: TIPOS_CON_OPCIONES.includes(e.target.value) ? (pregunta.opciones || []) : [] })} style={inputStyle}>
                 {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
@@ -222,7 +196,6 @@ function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDele
               </label>
             </div>
           </div>
-
           {tieneOpciones && (
             <div>
               <label style={labelStyle}>Opciones</label>
@@ -230,20 +203,16 @@ function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDele
                 {(pregunta.opciones || []).map((op, i) => (
                   <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <span style={{ fontSize: 11, color: 'var(--ink3)', fontWeight: 700, width: 18, textAlign: 'center' }}>{String.fromCharCode(65+i)}</span>
-                    <input value={op.texto} onChange={e => updateOpcion(i, e.target.value)} placeholder={`Opción ${String.fromCharCode(65+i)}`}
-                      style={{ ...inputStyle, flex: 1 }} />
+                    <input value={op.texto} onChange={e => updateOpcion(i, e.target.value)} placeholder={`Opción ${String.fromCharCode(65+i)}`} style={{ ...inputStyle, flex: 1 }} />
                     <button onClick={() => removeOpcion(i)} style={{ width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 6, background: '#fff', cursor: 'pointer', color: 'var(--danger)', fontSize: 14, flexShrink: 0 }}>×</button>
                   </div>
                 ))}
-                <button onClick={addOpcion}
-                  style={{ padding: '7px 14px', border: '1.5px dashed var(--border2)', borderRadius: 'var(--r)', background: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--accent2)', fontWeight: 600, fontFamily: 'DM Sans', marginTop: 2 }}>
+                <button onClick={addOpcion} style={{ padding: '7px 14px', border: '1.5px dashed var(--border2)', borderRadius: 'var(--r)', background: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--accent2)', fontWeight: 600, fontFamily: 'DM Sans', marginTop: 2 }}>
                   + Agregar opción
                 </button>
               </div>
             </div>
           )}
-
-          {/* Toggle condicionales */}
           <div>
             <button type="button" onClick={() => setShowCond(s => !s)} style={{
               padding: '6px 12px', background: tieneCondicionales ? '#f3e8ff' : 'var(--surface)',
@@ -254,15 +223,9 @@ function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDele
               🔀 {tieneCondicionales ? `Condicionales (${pregunta.condicionales.reglas.length})` : 'Agregar condicional'}
               <span style={{ marginLeft: 6 }}>{showCond ? '▲' : '▼'}</span>
             </button>
-
             {showCond && (
               <div style={{ marginTop: 12 }}>
-                <PanelCondicionales
-                  pregunta={pregunta}
-                  todasPreguntas={todasPreguntas}
-                  index={index}
-                  onChange={onUpdate}
-                />
+                <PanelCondicionales pregunta={pregunta} todasPreguntas={todasPreguntas} index={index} onChange={onUpdate} />
               </div>
             )}
           </div>
@@ -272,17 +235,17 @@ function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDele
   )
 }
 
-// ── Builder principal ──
+// ── Builder principal OPTIMIZADO ──
 export default function EncuestaBuilder() {
   const { id } = useParams()
   const navigate = useNavigate()
   const isEditing = Boolean(id)
 
-  const [orgs, setOrgs]             = useState([])
-  const [loading, setLoading]       = useState(isEditing)
-  const [saving, setSaving]         = useState(false)
-  const [error, setError]           = useState('')
-  const [bloqueado, setBloqueado]   = useState(false)
+  const [orgs, setOrgs] = useState([])
+  const [loading, setLoading] = useState(isEditing)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [bloqueado, setBloqueado] = useState(false)
 
   const [meta, setMeta] = useState({
     nombre: '', descripcion: '', pedido_por: '', estado_produccion: 'pendiente',
@@ -292,45 +255,77 @@ export default function EncuestaBuilder() {
   useEffect(() => {
     supabase.from('organizaciones').select('id, nombre').order('nombre').then(({ data }) => setOrgs(data || []))
     if (id) loadEncuesta()
-  }, [id]) // eslint-disable-line
+  }, [id])
 
+  // Carga OPTIMIZADA: dos queries paralelas en lugar de anidadas
   async function loadEncuesta() {
     setLoading(true)
-    const { data: enc } = await supabase
-      .from('encuestas')
-      .select('*, preguntas(*, opciones_pregunta(*))')
-      .eq('id', id).single()
+    try {
+      // Query 1: Encuesta básica
+      const { data: enc, error: e1 } = await supabase
+        .from('encuestas')
+        .select('id, nombre, descripcion, pedido_por, estado_produccion, organizacion_id')
+        .eq('id', id)
+        .single()
+      
+      if (e1) throw e1
+      if (!enc) return
 
-    if (enc) {
       setMeta({
-        nombre: enc.nombre || '', descripcion: enc.descripcion || '',
-        pedido_por: enc.pedido_por || '', estado_produccion: enc.estado_produccion || 'pendiente',
+        nombre: enc.nombre || '',
+        descripcion: enc.descripcion || '',
+        pedido_por: enc.pedido_por || '',
+        estado_produccion: enc.estado_produccion || 'pendiente',
       })
-      const pqs = (enc.preguntas || [])
-        .sort((a, b) => a.orden - b.orden)
-        .map(p => ({ ...p, opciones: (p.opciones_pregunta || []).sort((a, b) => a.orden - b.orden) }))
-      setPreguntas(pqs)
 
-      const { data: asignaciones } = await supabase
-        .from('asignaciones_encuesta')
-        .select('id, encuestas_equipo!inner(encuesta_id)')
-        .eq('encuestas_equipo.encuesta_id', id)
+      // Query 2: Preguntas + opciones en paralelo (más rápido que join anidado)
+      const [{ data: pqs }, { data: asignaciones }] = await Promise.all([
+        supabase.from('preguntas')
+          .select('*, opciones_pregunta(*)')
+          .eq('encuesta_id', id)
+          .order('orden'),
+        supabase.from('asignaciones_encuesta')
+          .select('id')
+          .eq('encuestas_equipo.encuesta_id', id, { foreignTable: 'encuestas_equipo' })
+      ])
+
+      // Procesar preguntas
+      const preguntasProcesadas = (pqs || []).map(p => ({
+        ...p,
+        opciones: (p.opciones_pregunta || []).sort((a, b) => a.orden - b.orden)
+      }))
+      setPreguntas(preguntasProcesadas)
+
+      // Verificar si tiene respuestas (una sola query con JOIN)
       if (asignaciones?.length > 0) {
+        const ids = asignaciones.map(a => a.id)
         const { count } = await supabase
           .from('sesiones_respuesta')
-          .select('id', { count: 'exact', head: true })
-          .in('asignacion_id', asignaciones.map(a => a.id))
+          .select('*', { count: 'exact', head: true })
+          .in('asignacion_id', ids)
+          .limit(1) // Solo necesitamos saber si existe al menos una
         if (count > 0) setBloqueado(true)
       }
+    } catch (err) {
+      console.error('Error loading encuesta:', err)
+      setError('Error al cargar la encuesta')
     }
     setLoading(false)
   }
 
   function addPregunta() {
-    setPreguntas(prev => [...prev, { _tempId: Date.now(), texto: '', tipo: 'opcion_multiple', requerida: true, orden: prev.length + 1, opciones: [], condicionales: null }])
+    setPreguntas(prev => [...prev, { 
+      _tempId: Date.now(), 
+      texto: '', 
+      tipo: 'opcion_multiple', 
+      requerida: true, 
+      orden: prev.length + 1, 
+      opciones: [], 
+      condicionales: null 
+    }])
   }
   function updatePregunta(i, updated) { setPreguntas(prev => prev.map((p, idx) => idx === i ? updated : p)) }
-  function deletePregunta(i)          { setPreguntas(prev => prev.filter((_, idx) => idx !== i).map((p, j) => ({ ...p, orden: j + 1 }))) }
+  function deletePregunta(i) { setPreguntas(prev => prev.filter((_, idx) => idx !== i).map((p, j) => ({ ...p, orden: j + 1 }))) }
   function movePregunta(i, dir) {
     const ni = i + dir
     if (ni < 0 || ni >= preguntas.length) return
@@ -339,75 +334,116 @@ export default function EncuestaBuilder() {
     setPreguntas(arr.map((p, j) => ({ ...p, orden: j + 1 })))
   }
 
+  // Guardado OPTIMIZADO: batch insert en lugar de secuencial
   async function handleSave() {
     if (!meta.nombre.trim()) { setError('El nombre es obligatorio'); return }
     if (bloqueado) { setError('Esta encuesta tiene respuestas y no puede editarse'); return }
+    
     setSaving(true); setError('')
     try {
       let encuestaId = id
+      
+      // Actualizar o crear encuesta
       if (isEditing) {
         const { error: e } = await supabase.from('encuestas').update({
-          nombre: meta.nombre, descripcion: meta.descripcion || null,
-          pedido_por: meta.pedido_por || null, estado_produccion: meta.estado_produccion,
+          nombre: meta.nombre,
+          descripcion: meta.descripcion || null,
+          pedido_por: meta.pedido_por || null,
+          estado_produccion: meta.estado_produccion,
         }).eq('id', id)
         if (e) throw e
       } else {
         const { data, error: e } = await supabase.from('encuestas').insert({
-          nombre: meta.nombre, descripcion: meta.descripcion || null,
-          pedido_por: meta.pedido_por || null, estado_produccion: meta.estado_produccion,
+          nombre: meta.nombre,
+          descripcion: meta.descripcion || null,
+          pedido_por: meta.pedido_por || null,
+          estado_produccion: meta.estado_produccion,
           organizacion_id: meta.pedido_por || null,
         }).select().single()
         if (e) throw e
         encuestaId = data.id
       }
 
-      if (isEditing) await supabase.from('preguntas').delete().eq('encuesta_id', encuestaId)
+      // Si es edición, borrar preguntas viejas primero
+      if (isEditing) {
+        await supabase.from('preguntas').delete().eq('encuesta_id', encuestaId)
+      }
 
-      // Guardar preguntas — primero sin condicionales para obtener IDs reales
-      const preguntasGuardadas = []
-      for (let i = 0; i < preguntas.length; i++) {
-        const p = preguntas[i]
-        const { data: pData, error: pErr } = await supabase.from('preguntas').insert({
-          encuesta_id: encuestaId, texto: p.texto, tipo: p.tipo,
-          requerida: p.requerida, orden: i + 1,
-          es_base: p.es_base || false, clave_base: p.clave_base || null,
-          condicionales: null, // se actualiza en segundo paso
-        }).select().single()
-        if (pErr) throw pErr
-        preguntasGuardadas.push({ ...p, _nuevoId: pData.id })
+      // Preparar datos para batch insert
+      const preguntasParaInsertar = preguntas.map((p, i) => ({
+        encuesta_id: encuestaId,
+        texto: p.texto,
+        tipo: p.tipo,
+        requerida: p.requerida,
+        orden: i + 1,
+        es_base: p.es_base || false,
+        clave_base: p.clave_base || null,
+        condicionales: p.condicionales || null,
+      }))
 
-        if (p.opciones?.length > 0) {
-          const { error: oErr } = await supabase.from('opciones_pregunta').insert(
-            p.opciones.map((o, j) => ({ pregunta_id: pData.id, texto: o.texto, orden: j + 1 }))
+      // Insertar todas las preguntas en UNA query (mucho más rápido)
+      const { data: preguntasGuardadas, error: pErr } = await supabase
+        .from('preguntas')
+        .insert(preguntasParaInsertar)
+        .select('id, orden')
+
+      if (pErr) throw pErr
+
+      // Insertar opciones en batch (una query por pregunta, pero en paralelo)
+      const opcionesPromises = []
+      preguntas.forEach((p, i) => {
+        if (p.opciones?.length > 0 && preguntasGuardadas?.[i]?.id) {
+          const preguntaId = preguntasGuardadas[i].id
+          const opcionesData = p.opciones.map((o, j) => ({
+            pregunta_id: preguntaId,
+            texto: o.texto,
+            orden: j + 1
+          }))
+          opcionesPromises.push(
+            supabase.from('opciones_pregunta').insert(opcionesData)
           )
-          if (oErr) throw oErr
+        }
+      })
+
+      // Ejecutar todas las inserts de opciones en paralelo
+      const resultados = await Promise.all(opcionesPromises)
+      const errores = resultados.filter(r => r.error)
+      if (errores.length > 0) throw errores[0].error
+
+      // Actualizar condicionales con IDs reales (si es necesario)
+      if (isEditing && preguntasGuardadas) {
+        const idMap = {}
+        preguntas.forEach((p, i) => {
+          if (preguntasGuardadas[i]?.id) {
+            idMap[p.id || p._tempId] = preguntasGuardadas[i].id
+          }
+        })
+
+        const condicionalesUpdates = []
+        for (const pg of preguntasGuardadas) {
+          const original = preguntas.find(p => (p.id || p._tempId) === pg.id)
+          if (original?.condicionales?.reglas?.length) {
+            const reglasActualizadas = original.condicionales.reglas.map(r => ({
+              ...r,
+              destino_id: idMap[r.destino_id] || r.destino_id,
+            }))
+            condicionalesUpdates.push(
+              supabase.from('preguntas')
+                .update({ condicionales: { ...original.condicionales, reglas: reglasActualizadas } })
+                .eq('id', pg.id)
+            )
+          }
+        }
+        if (condicionalesUpdates.length > 0) {
+          await Promise.all(condicionalesUpdates)
         }
       }
 
-      // Segundo paso: guardar condicionales con IDs reales
-      // Mapear _tempId / id viejo → id nuevo
-      const idMap = {}
-      preguntas.forEach((p, i) => {
-        const key = p.id || p._tempId
-        idMap[key] = preguntasGuardadas[i]._nuevoId
-      })
-
-      for (const pg of preguntasGuardadas) {
-        const original = preguntas.find(p => (p.id || p._tempId) === (pg.id || pg._tempId))
-        if (!original?.condicionales?.reglas?.length) continue
-
-        // Reemplazar destino_id temporal por ID real
-        const reglasActualizadas = original.condicionales.reglas.map(r => ({
-          ...r,
-          destino_id: idMap[r.destino_id] || r.destino_id,
-        }))
-        await supabase.from('preguntas').update({
-          condicionales: { ...original.condicionales, reglas: reglasActualizadas }
-        }).eq('id', pg._nuevoId)
-      }
-
       navigate('/superadmin/encuestas')
-    } catch (err) { setError(err.message) }
+    } catch (err) {
+      console.error('Error saving:', err)
+      setError(err.message || 'Error al guardar')
+    }
     setSaving(false)
   }
 
