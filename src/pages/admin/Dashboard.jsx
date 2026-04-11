@@ -110,6 +110,20 @@ export default function Dashboard() {
 
   useEffect(() => { if (orgId) fetchAll() }, [orgId])
 
+  // Realtime — actualizar dashboard cuando llega nueva sesión
+  useEffect(() => {
+    if (!orgId) return
+    const channel = supabase
+      .channel(`dashboard-admin-${orgId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'sesiones_respuesta',
+      }, () => fetchAll())
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [orgId])
+
   async function fetchAll() {
     setLoading(true)
     try {

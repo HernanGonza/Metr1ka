@@ -457,6 +457,25 @@ export default function EncuestaDetalle() {
     if (perfil?.organizacion_id && id) fetchBase()
   }, [id, perfil?.organizacion_id])
 
+  // Realtime — recargar cuando llega una sesión o respuesta nueva
+  useEffect(() => {
+    if (!id) return
+    const channel = supabase
+      .channel(`encuesta-detalle-${id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'sesiones_respuesta',
+      }, () => {
+        // Invalidar cache y recargar
+        cacheClear(`enc_base:${id}`)
+        cacheClear(`enc_resp:${id}`)
+        fetchBase()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [id])
+
   const debounceRef = useRef(null)
   useEffect(() => {
     if (!encuesta || encuesta.estado_produccion !== 'publicada') return
