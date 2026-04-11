@@ -54,27 +54,42 @@ function PreguntaChart({ pregunta, filas, paletaIdx }) {
   const datos = useMemo(() => {
   if (tipo === 'texto_libre') return null
   const conteo = {}
-  
+
   if (tipo === 'si_no') {
-    conteo['Sí'] = filas.filter(f => f.valor_booleano === true).reduce((s, f) => s + Number(f.cantidad), 0)
-    conteo['No'] = filas.filter(f => f.valor_booleano === false).reduce((s, f) => s + Number(f.cantidad), 0)
+    // Soportar ambos formatos: valor_texto ('Sí'/'No') y valor_booleano legacy
+    filas.forEach(f => {
+      let key = null
+      if (f.valor_texto === 'Sí' || f.valor_booleano === true)  key = 'Sí'
+      if (f.valor_texto === 'No' || f.valor_booleano === false)  key = 'No'
+      if (key) conteo[key] = (conteo[key] || 0) + Number(f.cantidad)
+    })
+    // Asegurarse de que existen las dos claves aunque sean 0
+    if (!('Sí' in conteo)) conteo['Sí'] = 0
+    if (!('No' in conteo)) conteo['No'] = 0
+
   } else if (tipo === 'escala') {
-    const valores = [...new Set(filas.map(f => Number(f.valor_numero)))].sort((a,b) => a-b)
+    const valores = [...new Set(filas.map(f => Number(f.valor_numero)).filter(v => !isNaN(v) && v > 0))].sort((a,b) => a-b)
     valores.forEach(v => {
       const fila = filas.find(f => Number(f.valor_numero) === v)
       conteo[String(v)] = fila ? Number(fila.cantidad) : 0
     })
-  } else if (tipo === 'opcion_multiple' || tipo === 'opcion_simple') {
-    console.log('filas:', filas)
-  opciones.forEach(op => {
-  const fila = filas.find(f => f.valor_texto === op.texto)
-  conteo[op.texto] = fila ? Number(fila.cantidad) : 0
-  console.log(`opción ${op.texto} fila encontrada:`, fila)
-})
 
-} else {
-  return null // tipo no soportado
-}
+  } else if (tipo === 'opcion_multiple' || tipo === 'opcion_simple') {
+    // Soportar ambos formatos:
+    // - nuevo: valor_texto tiene el texto de la opción directamente
+    // - viejo (migrado): opcion_id + opcion_texto (valor_texto puede ser null)
+    opciones.forEach(op => {
+      const fila = filas.find(f =>
+        f.valor_texto === op.texto ||           // formato nuevo
+        f.opcion_texto === op.texto ||           // formato migrado con opcion_texto
+        f.opcion_id === op.id                    // formato migrado por id
+      )
+      conteo[op.texto] = fila ? Number(fila.cantidad) : 0
+    })
+
+  } else {
+    return null
+  }
 
   const labels = Object.keys(conteo)
   const values = Object.values(conteo)
