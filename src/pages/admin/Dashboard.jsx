@@ -110,9 +110,14 @@ export default function Dashboard() {
 
   useEffect(() => { if (orgId) fetchAll() }, [orgId])
 
-  // Realtime — actualizar dashboard cuando llega nueva sesión
+  // Auto-refresh cada 30s + realtime si está disponible
   useEffect(() => {
     if (!orgId) return
+
+    // Polling como fallback confiable
+    const interval = setInterval(() => fetchAll(), 30000)
+
+    // Realtime como complemento
     const channel = supabase
       .channel(`dashboard-admin-${orgId}`)
       .on('postgres_changes', {
@@ -120,8 +125,14 @@ export default function Dashboard() {
         schema: 'public',
         table: 'sesiones_respuesta',
       }, () => fetchAll())
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+      .subscribe((status) => {
+        console.log('[realtime dashboard]', status)
+      })
+
+    return () => {
+      clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
   }, [orgId])
 
   async function fetchAll() {

@@ -457,9 +457,18 @@ export default function EncuestaDetalle() {
     if (perfil?.organizacion_id && id) fetchBase()
   }, [id, perfil?.organizacion_id])
 
-  // Realtime — recargar cuando llega una sesión o respuesta nueva
+  // Auto-refresh cada 30s + realtime si está disponible
   useEffect(() => {
     if (!id) return
+
+    // Polling confiable
+    const interval = setInterval(() => {
+      cacheClear(`enc_base:${id}`)
+      cacheClear(`enc_resp:${id}`)
+      fetchBase()
+    }, 30000)
+
+    // Realtime como complemento (actualización inmediata)
     const channel = supabase
       .channel(`encuesta-detalle-${id}`)
       .on('postgres_changes', {
@@ -467,13 +476,18 @@ export default function EncuestaDetalle() {
         schema: 'public',
         table: 'sesiones_respuesta',
       }, () => {
-        // Invalidar cache y recargar
         cacheClear(`enc_base:${id}`)
         cacheClear(`enc_resp:${id}`)
         fetchBase()
       })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+      .subscribe((status) => {
+        console.log('[realtime encuesta]', status)
+      })
+
+    return () => {
+      clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
   }, [id])
 
   const debounceRef = useRef(null)
