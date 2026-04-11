@@ -747,6 +747,25 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
     setZonaActiva(data.id)
   }
 
+  const [distribuyendo, setDistribuyendo] = useState(null) // zona_id distribuyendo
+
+  async function redistribuirManzanas(zonaId) {
+    setDistribuyendo(zonaId)
+    const { data, error } = await supabase.rpc('distribuir_manzanas_zona', {
+      p_encuesta_zona_id: zonaId,
+      p_forzar: true,  // redistribuye todo desde cero
+    })
+    setDistribuyendo(null)
+    if (error) { setError(error.message); return }
+    if (data?.error) { setError(data.error); return }
+    setError('')
+    // Mostrar resultado
+    const msg = data?.manzanas_distribuidas > 0
+      ? `${data.manzanas_distribuidas} manzanas distribuidas entre ${data.encuestadores} encuestadores (~${data.promedio_por_enc} c/u)`
+      : data?.mensaje || 'Sin manzanas para distribuir'
+    alert(msg)
+  }
+
   async function renombrarZona(id, nombre) {
     setZonas(prev => prev.map(z => z.id === id ? { ...z, nombre } : z))
     await supabase.from('encuesta_zonas').update({ nombre }).eq('id', id)
@@ -843,7 +862,18 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
         }
       }
 
-      // 5. Guardar config_muestreo en encuesta
+      // 5. Distribuir manzanas entre encuestadores (solo las no asignadas aún)
+      for (const zona of zonas) {
+        if (zona.equipo_id && zonasDataRef.current[zona.id]) {
+          const { data: distResult } = await supabase.rpc('distribuir_manzanas_zona', {
+            p_encuesta_zona_id: zona.id,
+            p_forzar: false,  // no sobreescribir asignaciones existentes
+          })
+          console.log('[distribuir_manzanas]', zona.nombre, distResult)
+        }
+      }
+
+      // 6. Guardar config_muestreo en encuesta
       const { error: e3 } = await supabase
         .from('encuestas')
         .update({ config_muestreo: config })
@@ -954,6 +984,15 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--ink3)', padding: '0 2px', lineHeight: 1 }}>
                             x
                           </button>
+                        {zona.equipo_id && (
+                          <button
+                            onClick={ev => { ev.stopPropagation(); redistribuirManzanas(zona.id) }}
+                            title="Redistribuir manzanas entre los encuestadores del equipo al azar"
+                            disabled={distribuyendo === zona.id}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--accent2)', padding: '0 2px', lineHeight: 1 }}>
+                            {distribuyendo === zona.id ? '⏳' : '🎲'}
+                          </button>
+                        )}
                         </div>
                         {eq ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}>
