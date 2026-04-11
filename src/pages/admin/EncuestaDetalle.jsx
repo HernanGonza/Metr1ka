@@ -457,38 +457,58 @@ export default function EncuestaDetalle() {
     if (perfil?.organizacion_id && id) fetchBase()
   }, [id, perfil?.organizacion_id])
 
-  // Auto-refresh cada 30s + realtime si está disponible
+  // Realtime — escuchar nuevas sesiones y actualizar contadores + gráficos sin recargar estructura
   useEffect(() => {
-    if (!id) return
+    if (!id || !perfil?.organizacion_id) return
 
-    // Polling confiable
-    const interval = setInterval(() => {
-      cacheClear(`enc_base:${id}`)
-      cacheClear(`enc_resp:${id}`)
-      fetchBase()
-    }, 30000)
+    let debounce = null
 
-    // Realtime como complemento (actualización inmediata)
+    async function recargarRespuestas() {
+      // Siempre ir a la DB — ignorar cache para actualizaciones en tiempo real
+      try {
+        const { data } = await supabase.rpc('get_encuesta_full', {
+          p_encuesta_id: id,
+          p_org_id: perfil.organizacion_id,
+          p_equipo_id: null, p_encuestador_id: null,
+          p_fecha_desde: null, p_fecha_hasta: null,
+        })
+        if (data && !data.error) {
+          // Solo actualizar resumen y respuestas — NO encuesta ni preguntas (no cambian)
+          if (data.resumen)     setResumen(data.resumen)
+          if (data.respuestas)  setRespuestas(data.respuestas)
+          if (data.encuestadores) setEncuestadores(data.encuestadores)
+          // Actualizar cache también
+          cacheClear(`enc_base:${id}`)
+          cacheClear(`enc_resp:${id}:base`)
+          cacheSet(`enc_resp:${id}:base`, data.respuestas || [], 60_000)
+        }
+      } catch (e) { console.error('[realtime reload]', e) }
+    }
+
     const channel = supabase
-      .channel(`encuesta-detalle-${id}`)
+      .channel(`encuesta-live-${id}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'sesiones_respuesta',
       }, () => {
-        cacheClear(`enc_base:${id}`)
-        cacheClear(`enc_resp:${id}`)
-        fetchBase()
+        // Debounce 800ms para no recargar por cada respuesta de un batch
+        if (debounce) clearTimeout(debounce)
+        debounce = setTimeout(recargarRespuestas, 800)
       })
       .subscribe((status) => {
-        console.log('[realtime encuesta]', status)
+        console.log('[realtime encuesta-detalle]', status)
       })
 
+    // Polling cada 20s como fallback (más agresivo que 30s)
+    const interval = setInterval(recargarRespuestas, 20_000)
+
     return () => {
+      if (debounce) clearTimeout(debounce)
       clearInterval(interval)
       supabase.removeChannel(channel)
     }
-  }, [id])
+  }, [id, perfil?.organizacion_id])
 
   const debounceRef = useRef(null)
   useEffect(() => {

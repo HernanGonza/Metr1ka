@@ -110,26 +110,59 @@ export default function Dashboard() {
 
   useEffect(() => { if (orgId) fetchAll() }, [orgId])
 
-  // Auto-refresh cada 30s + realtime si está disponible
+  // Realtime — actualizar contadores sin mostrar spinner de carga
   useEffect(() => {
     if (!orgId) return
 
-    // Polling como fallback confiable
-    const interval = setInterval(() => fetchAll(), 30000)
+    let debounce = null
 
-    // Realtime como complemento
+    async function actualizarSilencioso() {
+      // Sin setLoading(true) — actualiza en background sin parpadear
+      try {
+        const [kpisRes, encRes, diasRes, topRes] = await Promise.all([
+          supabase.rpc('get_dashboard_kpis',        { p_org_id: orgId }),
+          supabase.rpc('get_encuestas_con_sesiones', { p_org_id: orgId }),
+          supabase.rpc('get_sesiones_por_dia',       { p_org_id: orgId, p_dias: 7 }),
+          supabase.rpc('get_top_encuestadores',      { p_org_id: orgId, p_dias: 7, p_limit: 6 }),
+        ])
+        if (kpisRes.data)  setKpis(kpisRes.data)
+        if (encRes.data)   setEncuestas(encRes.data)
+        if (topRes.data)   setTopEnc(topRes.data)
+        if (diasRes.data) {
+          const map = {}
+          diasRes.data.forEach(d => { map[d.dia] = parseInt(d.total) })
+          const hoyIso = new Date().toISOString().slice(0, 10)
+          const dias = []
+          for (let i = 6; i >= 0; i--) {
+            const d = new Date(); d.setDate(d.getDate() - i)
+            const iso = d.toISOString().slice(0, 10)
+            dias.push({ label: d.toLocaleDateString('es-AR', { weekday: 'short' }), value: map[iso] || 0 })
+          }
+          setHoy(map[hoyIso] || 0)
+          setPorDia(dias)
+        }
+      } catch (e) { console.error('[realtime dashboard]', e) }
+    }
+
     const channel = supabase
-      .channel(`dashboard-admin-${orgId}`)
+      .channel(`dashboard-live-${orgId}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'sesiones_respuesta',
-      }, () => fetchAll())
+      }, () => {
+        if (debounce) clearTimeout(debounce)
+        debounce = setTimeout(actualizarSilencioso, 800)
+      })
       .subscribe((status) => {
         console.log('[realtime dashboard]', status)
       })
 
+    // Polling cada 20s sin spinner
+    const interval = setInterval(actualizarSilencioso, 20_000)
+
     return () => {
+      if (debounce) clearTimeout(debounce)
       clearInterval(interval)
       supabase.removeChannel(channel)
     }
