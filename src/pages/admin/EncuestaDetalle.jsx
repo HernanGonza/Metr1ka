@@ -269,9 +269,21 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
   const filasPorPregunta = useMemo(() => {
     const map = {}
     preguntas.forEach(p => { map[String(p.id)] = [] })
-    respuestas.forEach(f => { if (map[String(f.pregunta_id)]) map[String(f.pregunta_id)].push(f) })
+    // Incluir TODAS las respuestas, incluso de preguntas base (participa, edad, etc.)
+    respuestas.forEach(f => {
+      if (!map[String(f.pregunta_id)]) map[String(f.pregunta_id)] = []
+      map[String(f.pregunta_id)].push(f)
+    })
     return map
   }, [respuestas, preguntas])
+
+  // Razones de no respuesta (pregunta con clave_base = 'participa', valores != 'Sí')
+  const razonesNoResp = useMemo(() => {
+    const pregParticipa = preguntas.find(p => p.clave_base === 'participa')
+    if (!pregParticipa) return []
+    const filas = filasPorPregunta[String(pregParticipa.id)] || []
+    return filas.filter(f => f.valor_texto && f.valor_texto !== 'Sí')
+  }, [preguntas, filasPorPregunta])
 
   const encuestadoresFiltrados = useMemo(() =>
     filtros.equipo_id ? encuestadores.filter(e => e.equipo_id === filtros.equipo_id) : encuestadores,
@@ -329,6 +341,23 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
         {loadingR && <span style={{ fontSize: 11, color: 'var(--ink3)', alignSelf: 'flex-end', paddingBottom: 8 }}>Actualizando...</span>}
       </div>
 
+      {/* Razones de no respuesta */}
+      {razonesNoResp.length > 0 && (
+        <div style={{ background: '#fff', border: '1px solid #fca5a5', borderRadius: 'var(--r2)', padding: '14px 18px', borderLeft: '4px solid #ef4444' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#c0392b', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            📋 Razones de no-respuesta — {razonesNoResp.reduce((s, f) => s + Number(f.cantidad), 0)} registros
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {razonesNoResp.map((f, i) => (
+              <div key={i} style={{ background: '#fef2f2', borderRadius: 'var(--r)', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, color: '#c0392b', fontWeight: 600 }}>{f.valor_texto}</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: '#ef4444', fontFamily: 'Syne' }}>{f.cantidad}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)' }}>
         {[['resumen','Resumen'],['preguntas','Por pregunta'],['encuestadores','Encuestadores']].map(([v, label]) => (
@@ -344,7 +373,7 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
 
       {vista === 'resumen' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 14 }}>
-          {preguntas.slice(0, 4).map((p, i) => (
+          {preguntas.filter(p => !p.clave_base || p.clave_base === 'edad' || p.clave_base === 'sexo').slice(0, 4).map((p, i) => (
             <PreguntaChart key={p.id} pregunta={p} filas={filasPorPregunta[String(p.id)] || []} paletaIdx={i} />
           ))}
         </div>
@@ -352,7 +381,7 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
 
       {vista === 'preguntas' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {preguntas.map((p, i) => (
+          {preguntas.filter(p => p.clave_base !== 'participa').map((p, i) => (
             <PreguntaChart key={p.id} pregunta={p} filas={filasPorPregunta[String(p.id)] || []} paletaIdx={i} />
           ))}
         </div>
