@@ -798,7 +798,6 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
 
   // ── Guardar todo ──
   async function handleSave() {
-    // Validar muestreo
     if ((config.razones_seleccionadas || []).length < 2) {
       setTab('muestreo')
       setError('Selecciona al menos 2 razones de no-respuesta')
@@ -806,79 +805,52 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
     }
     setSaving(true); setError('')
     try {
-      // 1. Guardar snapshot de la zona activa
       guardarSnapshotActual()
 
-      // 2. Para cada zona, guardar area_geojson y manzanas+parcelas
-      for (const zona of zonas) {
+      // Armar el payload completo — UNA sola llamada a la DB
+      const zonasPayload = zonas.map(zona => {
         const geojson = zonasDataRef.current[zona.id]
-        if (!geojson) continue
-
-        const manzSel = (geojson.features || [])
-          .filter(f => f.properties?.tipo === 'manzana' && f.properties?.seleccionada === true)
-
-        // 1. Guardar manzanas (sin parcelas — las maneja guardar-parcelas edge function)
-        const { error: e1 } = await supabase.rpc('guardar_manzanas_y_parcelas', {
-          p_encuesta_zona_id: zona.id,
-          p_manzanas: manzSel.map(f => ({
-            gid: f.properties?.gid ?? f.properties?.id ?? null,
-            area_geojson: JSON.stringify(f),
-          })),
-          p_parcelas: [],  // siempre vacío — parcelas se guardan por edge function
-        })
-        if (e1) throw e1
-
-        // Guardar geojson (zona + manzanas seleccionadas) + equipo_id en encuesta_zonas
-        const featsPersistir = (geojson.features || [])
-          .filter(f => f.properties?.tipo === 'zona' || f.properties?.tipo === 'manzana')
-        const zonaEstado = zonas.find(z => z.id === zona.id)
-        const { error: e2 } = await supabase.from('encuesta_zonas').update({
-          area_geojson: featsPersistir.length > 0
-            ? { type: 'FeatureCollection', features: featsPersistir }
-            : null,
+        const manzanas = geojson
+          ? (geojson.features || [])
+              .filter(f => f.properties?.tipo === 'manzana' && f.properties?.seleccionada === true)
+              .map(f => ({ area_geojson: JSON.stringify(f) }))
+          : []
+        const featsPersistir = geojson
+          ? (geojson.features || []).filter(f =>
+              f.properties?.tipo === 'zona' || f.properties?.tipo === 'manzana')
+          : []
+        return {
+          id:                zona.id,
+          equipo_id:         zona.equipo_id ?? null,
           geofencing_activo: featsPersistir.some(f => f.properties?.tipo === 'zona'),
-          equipo_id: zonaEstado?.equipo_id ?? null,
-        }).eq('id', zona.id)
-        if (e2) throw e2
-
-        // 3. Disparar guardar-parcelas en background (edge function fetchea WFS + hace spatial join)
-        // No await — es lento, lo hacemos async y no bloqueamos al usuario
-        supabase.functions.invoke('guardar-parcelas', {
-          body: { encuesta_zona_id: zona.id }
-        }).then(({ data, error }) => {
-          if (error) console.error('[guardar-parcelas]', zona.id, error)
-          else console.log('[guardar-parcelas]', zona.id, data)
-        })
-      }
-
-      // 4. Guardar equipo_id de zonas que no tenían geojson (solo equipo asignado)
-      for (const zona of zonas) {
-        if (!zonasDataRef.current[zona.id]) {
-          // Sin geojson — solo actualizar equipo_id si cambió
-          const { error: eZona } = await supabase.from('encuesta_zonas')
-            .update({ equipo_id: zona.equipo_id ?? null })
-            .eq('id', zona.id)
-          if (eZona) throw eZona
+          area_geojson:      featsPersistir.length > 0
+                               ? { type: 'FeatureCollection', features: featsPersistir }
+                               : null,
+          manzanas,  // vacío si la zona no se tocó
         }
-      }
+      })
 
-      // 5. Distribuir manzanas entre encuestadores (solo las no asignadas aún)
-      for (const zona of zonas) {
-        if (zona.equipo_id && zonasDataRef.current[zona.id]) {
-          const { data: distResult } = await supabase.rpc('distribuir_manzanas_zona', {
-            p_encuesta_zona_id: zona.id,
-            p_forzar: false,  // no sobreescribir asignaciones existentes
-          })
-          console.log('[distribuir_manzanas]', zona.nombre, distResult)
+      const { data, error } = await supabase.rpc('guardar_config_encuesta', {
+        p_payload: {
+          encuesta_id:     encuesta.id,
+          config_muestreo: config,
+          zonas:           zonasPayload,
         }
-      }
+      })
+      if (error) throw error
 
-      // 6. Guardar config_muestreo en encuesta
-      const { error: e3 } = await supabase
-        .from('encuestas')
-        .update({ config_muestreo: config })
-        .eq('id', encuesta.id)
-      if (e3) throw e3
+      // Disparar parcelas y distribución en background para cada zona que tuvo manzanas
+      zonas.forEach(zona => {
+        const tuvoCambios = (zonasDataRef.current[zona.id] != null)
+        if (tuvoCambios) {
+          supabase.functions.invoke('guardar-parcelas', { body: { encuesta_zona_id: zona.id } })
+            .then(({ error: e }) => { if (e) console.error('[guardar-parcelas]', zona.id, e) })
+          if (zona.equipo_id) {
+            supabase.rpc('distribuir_manzanas_zona', { p_encuesta_zona_id: zona.id, p_forzar: false })
+              .then(({ data: d }) => console.log('[distribuir]', zona.nombre, d))
+          }
+        }
+      })
 
       onSaved()
       onClose()
