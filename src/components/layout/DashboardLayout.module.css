@@ -1,12 +1,18 @@
 .layout {
-  display: flex;
-  min-height: 100vh;
+  display: flex; min-height: 100vh;
 }
 .main {
   flex: 1;
   margin-left: var(--sidebar-w);
   min-height: 100vh;
   background: var(--surface);
-  display: flex;
-  flex-direction: column;
+  display: flex; flex-direction: column;
+  transition: margin-left 0.25s ease;
+}
+
+@media (max-width: 768px) {
+  .main {
+    margin-left: 0;
+    padding-top: 56px; /* espacio para el hamburger */
+  }
 }

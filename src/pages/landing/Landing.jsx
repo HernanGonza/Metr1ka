@@ -1,480 +1,479 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { MapPin, BarChart2, Smartphone, Users, Shield, Zap, ChevronUp, Menu, X, Sun, Moon, CheckCircle, ArrowRight, Mail, MessageSquare, Send, Globe, Clock, TrendingUp } from 'lucide-react'
+import { useTheme } from '../../hooks/useTheme'
 import Chart from 'chart.js/auto'
 import styles from './Landing.module.css'
-import logoEnfoque  from '../../assets/logo-enfoque.png'
+import LogoMetr1ka from '../../assets/LogoMetr1ka.svg'
+import logoEnfoque from '../../assets/logo-enfoque.png'
 import logoParalelo from '../../assets/logo-paralelo.webp'
-import LogoMetr1ka  from '../../assets/LogoMetr1ka.svg'
-import { FaFacebookF, FaInstagram, FaLinkedinIn } from 'react-icons/fa'
-import {
-  SECTIONS, FLOW_STEPS, ROLES, PLANS, TESTIMONIALS,
-  SURVEY_QUESTIONS, MOBILE_FEATURES, DASHBOARD_SIDEBAR, DASHBOARD_DATA,
-} from './landingData'
+import { SECTIONS, FLOW_STEPS, ROLES, PLANS, TESTIMONIALS, DASHBOARD_DATA } from './landingData'
 
-/* ── CHARTS ── */
-function BarChart({ labels, data, color }) {
-  const ref = useRef(null)
+/* ── Theme Toggle ── */
+function ThemeToggle() {
+  const { theme, toggle } = useTheme()
+  return (
+    <button
+      onClick={toggle}
+      className={styles.themeToggle}
+      aria-label={theme === 'dark' ? 'Activar modo claro' : 'Activar modo oscuro'}
+    >
+      {theme === 'dark'
+        ? <Sun size={16} strokeWidth={2} />
+        : <Moon size={16} strokeWidth={2} />
+      }
+    </button>
+  )
+}
+
+/* ── Scroll to Top ── */
+function ScrollToTop() {
+  const [visible, setVisible] = useState(false)
   useEffect(() => {
-    if (!ref.current) return
-    const c = new Chart(ref.current.getContext('2d'), {
+    const fn = () => setVisible(window.scrollY > 600)
+    window.addEventListener('scroll', fn, { passive: true })
+    return () => window.removeEventListener('scroll', fn)
+  }, [])
+  if (!visible) return null
+  return (
+    <button
+      className={styles.scrollTop}
+      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      aria-label="Volver arriba"
+    >
+      <ChevronUp size={20} strokeWidth={2.5} />
+    </button>
+  )
+}
+
+/* ── Cookie Banner ── */
+function CookieBanner() {
+  const [visible, setVisible] = useState(() => !localStorage.getItem('metr1ka-cookies'))
+  if (!visible) return null
+  return (
+    <div className={styles.cookieBanner}>
+      <div className={styles.cookieContent}>
+        <span>🍪 Usamos cookies para mejorar tu experiencia en Metr1ka.</span>
+        <div className={styles.cookieBtns}>
+          <button className={styles.cookieDecline} onClick={() => { localStorage.setItem('metr1ka-cookies', 'decline'); setVisible(false) }}>Rechazar</button>
+          <button className={styles.cookieAccept} onClick={() => { localStorage.setItem('metr1ka-cookies', 'accept'); setVisible(false) }}>Aceptar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Contact Modal ── */
+function ContactModal({ onClose }) {
+  const [form, setForm] = useState({ nombre: '', email: '', mensaje: '' })
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!form.nombre || !form.email || !form.mensaje) { setError('Completá todos los campos'); return }
+    setSending(true); setError('')
+    // Simular envío (en producción conectar con edge function o Resend)
+    await new Promise(r => setTimeout(r, 1200))
+    setSent(true)
+    setSending(false)
+  }
+
+  return (
+    <div className={styles.modalOverlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className={styles.modal}>
+        <div className={styles.modalHeader}>
+          <div>
+            <h3 className={styles.modalTitle}>Hablemos</h3>
+            <p className={styles.modalSub}>Te respondemos en menos de 24 horas</p>
+          </div>
+          <button className={styles.modalClose} onClick={onClose}><X size={20} /></button>
+        </div>
+
+        {sent ? (
+          <div className={styles.modalSuccess}>
+            <div className={styles.successIcon}>✓</div>
+            <h4>¡Mensaje enviado!</h4>
+            <p>Gracias por escribirnos. Te contactaremos a <strong>{form.email}</strong> a la brevedad.</p>
+            <button className={styles.btnPrimary} onClick={onClose}>Cerrar</button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className={styles.modalForm}>
+            <div className={styles.formRow}>
+              <div className={styles.formGroup}>
+                <label>Nombre *</label>
+                <input placeholder="Tu nombre" value={form.nombre} onChange={e => setForm(f => ({...f, nombre: e.target.value}))} />
+              </div>
+              <div className={styles.formGroup}>
+                <label>Email *</label>
+                <input type="email" placeholder="tu@email.com" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} />
+              </div>
+            </div>
+            <div className={styles.formGroup}>
+              <label>Mensaje *</label>
+              <textarea rows={4} placeholder="Contanos sobre tu proyecto o consulta..." value={form.mensaje} onChange={e => setForm(f => ({...f, mensaje: e.target.value}))} />
+            </div>
+            {error && <div className={styles.formError}>{error}</div>}
+            <div className={styles.formFooter}>
+              <span className={styles.formNote}><Mail size={14} /> hola@metr1ka.com</span>
+              <button type="submit" className={styles.btnPrimary} disabled={sending}>
+                {sending ? 'Enviando...' : <><Send size={15} /> Enviar mensaje</>}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ── Nav ── */
+function Nav({ active, onContact }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const { theme, toggle, isDark } = useTheme()
+
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 20)
+    window.addEventListener('scroll', fn, { passive: true })
+    return () => window.removeEventListener('scroll', fn)
+  }, [])
+
+  function scrollTo(id) {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+    setMenuOpen(false)
+  }
+
+  return (
+    <>
+      <nav className={`${styles.nav} ${scrolled ? styles.navScrolled : ''}`}>
+        <div className={styles.navInner}>
+          <button className={styles.navBrand} onClick={() => scrollTo('inicio')}>
+            <img src={LogoMetr1ka} alt="Metr1ka" className={styles.brandLogo} />
+          </button>
+
+          <div className={styles.navTabs}>
+            {SECTIONS.filter(s => !['nosotros','clientes'].includes(s.id)).map(s => (
+              <button key={s.id} className={`${styles.navTab} ${active === s.id ? styles.navTabActive : ''}`} onClick={() => scrollTo(s.id)}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          <div className={styles.navActions}>
+            <ThemeToggle />
+            <button className={styles.navContact} onClick={onContact}>Contacto</button>
+            <Link to="/login" className={styles.navLogin}>Ingresar →</Link>
+            <button className={styles.navHamburger} onClick={() => setMenuOpen(o => !o)} aria-label="Menú">
+              {menuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {menuOpen && (
+        <div className={styles.mobileMenu}>
+          {SECTIONS.map(s => (
+            <button key={s.id} className={styles.mobileMenuItem} onClick={() => scrollTo(s.id)}>{s.label}</button>
+          ))}
+          <div className={styles.mobileMenuDivider} />
+          <button className={styles.mobileMenuContact} onClick={() => { onContact(); setMenuOpen(false) }}>Contacto</button>
+          <Link to="/login" className={styles.mobileMenuLogin}>Ingresar →</Link>
+        </div>
+      )}
+    </>
+  )
+}
+
+/* ── Hero ── */
+function Hero({ onContact }) {
+  return (
+    <section id="inicio" className={styles.hero}>
+      <div className={styles.heroBg}>
+        <div className={styles.heroBgGrad} />
+        <div className={styles.heroBgGrid} />
+      </div>
+      <div className={styles.container}>
+        <div className={styles.heroContent}>
+          <div className={styles.heroEyebrow}>
+            <span className={styles.eyebrowDot} />
+            Sistema de encuestas de campo
+          </div>
+          <h1 className={styles.heroH1}>
+            Datos de campo<br />
+            <em>en tiempo real.</em><br />
+            Sin papel. Sin espera.
+          </h1>
+          <p className={styles.heroSub}>
+            Metr1ka es la plataforma que conecta a tus encuestadores en campo con tu panel de análisis. Geofencing, GPS en vivo y resultados al instante.
+          </p>
+          <div className={styles.heroBtns}>
+            <button className={styles.btnPrimary} onClick={onContact}>
+              <MessageSquare size={16} /> Solicitar demo
+            </button>
+            <button className={styles.btnOutline} onClick={() => document.getElementById('flujo')?.scrollIntoView({ behavior: 'smooth' })}>
+              Ver cómo funciona <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+
+        <div className={styles.heroViz}>
+          <div className={styles.heroCard}>
+            <div className={styles.heroCardHeader}>
+              <div className={styles.heroCardDot} style={{ background: '#ef4444' }} />
+              <div className={styles.heroCardDot} style={{ background: '#f59e0b' }} />
+              <div className={styles.heroCardDot} style={{ background: '#22c55e' }} />
+              <span className={styles.heroCardTitle}>Panel en vivo</span>
+            </div>
+            <div className={styles.heroCardBody}>
+              <div className={styles.heroKpiRow}>
+                {[
+                  { label: 'Respuestas hoy', value: '412', icon: <BarChart2 size={14} />, color: '#1a472a' },
+                  { label: 'En campo', value: '23', icon: <Users size={14} />, color: '#0369a1' },
+                  { label: 'Zonas activas', value: '5', icon: <MapPin size={14} />, color: '#7c3aed' },
+                ].map((k, i) => (
+                  <div key={i} className={styles.heroKpi}>
+                    <div className={styles.heroKpiIcon} style={{ color: k.color }}>{k.icon}</div>
+                    <div className={styles.heroKpiVal} style={{ color: k.color }}>{k.value}</div>
+                    <div className={styles.heroKpiLabel}>{k.label}</div>
+                  </div>
+                ))}
+              </div>
+              <HeroMiniMap />
+              <div className={styles.heroEncuestadores}>
+                {DASHBOARD_DATA.encuestadores.slice(0, 3).map((e, i) => (
+                  <div key={i} className={styles.heroEnc}>
+                    <div className={styles.heroEncAvatar} style={{ background: e.bg, color: e.tc }}>{e.initials}</div>
+                    <div className={styles.heroEncInfo}>
+                      <span className={styles.heroEncName}>{e.name}</span>
+                      <span className={styles.heroEncCount}>{e.count} enc.</span>
+                    </div>
+                    <div className={`${styles.heroEncStatus} ${e.status === 'active' ? styles.heroEncActive : styles.heroEncIdle}`} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.heroStats}>
+        {[
+          { num: '10x', label: 'Más rápido que papel' },
+          { num: '99%', label: 'Uptime garantizado' },
+          { num: '< 1s', label: 'Datos en tiempo real' },
+          { num: '100%', label: 'Mobile-first' },
+        ].map((s, i) => (
+          <div key={i} className={styles.heroStat}>
+            <div className={styles.heroStatNum}>{s.num}</div>
+            <div className={styles.heroStatLabel}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function HeroMiniMap() {
+  const pins = [
+    { x: 22, y: 38, color: '#1a472a' },
+    { x: 55, y: 58, color: '#0369a1' },
+    { x: 73, y: 32, color: '#b45309' },
+  ]
+  return (
+    <div className={styles.miniMap}>
+      <svg width="100%" height="100%" viewBox="0 0 100 80" preserveAspectRatio="none">
+        <rect width="100" height="80" fill="var(--surface2)" rx="6" />
+        <path d="M0 40 Q25 30 50 40 Q75 50 100 40" stroke="var(--border2)" strokeWidth="1" fill="none" />
+        <path d="M50 0 L50 80" stroke="var(--border)" strokeWidth="0.5" fill="none" />
+        <rect x="8" y="12" width="18" height="10" fill="var(--surface3)" rx="2" />
+        <rect x="35" y="20" width="15" height="8" fill="var(--surface3)" rx="2" />
+        <rect x="62" y="48" width="20" height="12" fill="var(--surface3)" rx="2" />
+        <polygon points="15,15 45,12 48,48 18,50" fill="rgba(26,71,42,0.1)" stroke="#1a472a" strokeWidth="0.8" strokeDasharray="3,2" />
+        {pins.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r="5" fill={p.color} opacity="0.2" />
+            <circle cx={p.x} cy={p.y} r="2.5" fill={p.color} />
+            <circle cx={p.x} cy={p.y} r="5" fill="none" stroke={p.color} strokeWidth="0.8" opacity="0.6" />
+          </g>
+        ))}
+      </svg>
+      <div className={styles.miniMapLabel}><span className={styles.liveDot} /> En vivo</div>
+    </div>
+  )
+}
+
+/* ── Features ── */
+function Features() {
+  const features = [
+    { icon: <MapPin size={22} />, title: 'Geofencing inteligente', desc: 'Delimitá zonas geográficas por equipo. Si un encuestador sale del área, la app se desactiva automáticamente.', color: '#1a472a' },
+    { icon: <Zap size={22} />, title: 'Respuestas en tiempo real', desc: 'Cada respuesta llega al panel central en menos de un segundo. Sin sincronizaciones manuales ni esperas.', color: '#7c3aed' },
+    { icon: <Smartphone size={22} />, title: 'App móvil nativa', desc: 'Aplicación para iOS y Android. Funciona en modo offline y sincroniza cuando recupera señal.', color: '#0369a1' },
+    { icon: <BarChart2 size={22} />, title: 'Gráficos automáticos', desc: 'Los resultados se visualizan en gráficos interactivos automáticamente, sin configuración adicional.', color: '#b45309' },
+    { icon: <Shield size={22} />, title: 'Roles y permisos', desc: 'Admin, gestor, coordinador y encuestador. Cada uno ve solo lo que necesita para su rol.', color: '#dc2626' },
+    { icon: <TrendingUp size={22} />, title: 'Reportes exportables', desc: 'Exportá los resultados en Excel o PDF con un clic. Con filtros por equipo, zona y fecha.', color: '#059669' },
+  ]
+
+  return (
+    <section id="sistema" className={styles.features}>
+      <div className={styles.container}>
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionLabel}>El sistema</div>
+          <h2 className={styles.sectionTitle}>Todo lo que necesitás<br />para el trabajo de campo</h2>
+          <p className={styles.sectionSub}>Diseñado para organizaciones que necesitan datos confiables, rápidos y verificables desde el campo.</p>
+        </div>
+        <div className={styles.featuresGrid}>
+          {features.map((f, i) => (
+            <div key={i} className={styles.featureCard}>
+              <div className={styles.featureIcon} style={{ color: f.color, background: `${f.color}15` }}>{f.icon}</div>
+              <h3 className={styles.featureTitle}>{f.title}</h3>
+              <p className={styles.featureDesc}>{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ── Flujo ── */
+function Flujo() {
+  const [active, setActive] = useState(0)
+  const step = FLOW_STEPS[active]
+
+  return (
+    <section id="flujo" className={styles.flujo}>
+      <div className={styles.container}>
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionLabel}>Flujo de trabajo</div>
+          <h2 className={styles.sectionTitle}>De la configuración<br />al campo en minutos</h2>
+        </div>
+        <div className={styles.flujoLayout}>
+          <div className={styles.flujoSteps}>
+            {FLOW_STEPS.map((s, i) => (
+              <button key={i} className={`${styles.flujoStep} ${active === i ? styles.flujoStepActive : ''}`} onClick={() => setActive(i)}>
+                <div className={styles.flujoStepNum}>{i + 1}</div>
+                <div className={styles.flujoStepText}>{s.title}</div>
+                {active === i && <ArrowRight size={16} className={styles.flujoStepArrow} />}
+              </button>
+            ))}
+          </div>
+          <div className={styles.flujoDetail}>
+            <h3 className={styles.flujoDetailTitle}>{step.title}</h3>
+            <p className={styles.flujoDetailDesc}>{step.detail}</p>
+            <div className={styles.flujoChips}>
+              {step.chips.map((c, i) => (
+                <span key={i} className={styles.flujoChip}><CheckCircle size={12} /> {c}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ── Roles ── */
+function Roles() {
+  return (
+    <section id="roles" className={styles.roles}>
+      <div className={styles.container}>
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionLabel}>Roles del sistema</div>
+          <h2 className={styles.sectionTitle}>Cada rol, con lo que necesita</h2>
+          <p className={styles.sectionSub}>Un sistema de permisos jerárquico que garantiza que cada persona vea y haga exactamente lo que le corresponde.</p>
+        </div>
+        <div className={styles.rolesGrid}>
+          {ROLES.map((r, i) => (
+            <div key={i} className={`${styles.roleCard} ${styles[`roleCard_${r.key}`]}`}>
+              <div className={styles.roleBadge}>{r.label}</div>
+              <h3 className={styles.roleTitle}>{r.title}</h3>
+              <p className={styles.roleDesc}>{r.desc}</p>
+              <ul className={styles.rolePerms}>
+                {r.perms.map((p, j) => (
+                  <li key={j}><CheckCircle size={13} className={styles.roleCheck} /> {p}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ── Dashboard Preview ── */
+function DashboardPreview() {
+  const barRef = useRef(null)
+
+  useEffect(() => {
+    if (!barRef.current) return
+    const c = new Chart(barRef.current.getContext('2d'), {
       type: 'bar',
-      data: { labels, datasets: [{ data, backgroundColor: color || '#1a472a', borderRadius: 5, borderSkipped: false }] },
+      data: {
+        labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+        datasets: [{ data: [65, 89, 120, 98, 145, 87, 112], backgroundColor: '#1a472a', borderRadius: 6, borderSkipped: false }],
+      },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-          y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 } } },
+          x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#9ca3af' } },
+          y: { display: false, beginAtZero: true },
         },
       },
     })
     return () => c.destroy()
   }, [])
-  return <canvas ref={ref} />
-}
-
-function DonutChart() {
-  const ref = useRef(null)
-  useEffect(() => {
-    if (!ref.current) return
-    const c = new Chart(ref.current.getContext('2d'), {
-      type: 'doughnut',
-      data: {
-        labels: ['Muy satisfecho', 'Satisfecho', 'Regular', 'Insatisfecho'],
-        datasets: [{ data: [38, 29, 21, 12], backgroundColor: ['#1a472a', '#2d6a4f', '#52b788', '#b7e4c7'], borderWidth: 0 }],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false, cutout: '70%',
-        plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10, padding: 10 } } },
-      },
-    })
-    return () => c.destroy()
-  }, [])
-  return <canvas ref={ref} />
-}
-
-function MapSVG({ full }) {
-  const h = full ? 360 : 190
-  const pins = [
-    { x: 110, y: 105, name: 'María R.',  color: '#1a472a', count: '14' },
-    { x: 230, y: 190, name: 'Juan L.',   color: '#0369a1', count: '9'  },
-    { x: 320, y: 115, name: 'Ana S.',    color: '#b45309', count: '7'  },
-    { x: 400, y: 245, name: 'Carlos P.', color: '#7c3aed', count: '11' },
-    { x: 495, y: 148, name: 'Laura M.',  color: '#c0392b', count: '6'  },
-  ]
-  return (
-    <div style={{ borderRadius: 8, overflow: 'hidden', height: h, position: 'relative', background: '#deefd8' }}>
-      <svg width="100%" height="100%" viewBox="0 0 600 360" preserveAspectRatio="xMidYMid slice">
-        <rect width={600} height={360} fill="#deefd8" />
-        <path d="M0 160 Q150 122 300 160 Q450 198 600 160" stroke="#a8d5a2" strokeWidth={3} fill="none" />
-        <path d="M190 0 L190 360" stroke="#a8d5a2" strokeWidth={2} fill="none" />
-        <path d="M400 0 L400 360" stroke="#a8d5a2" strokeWidth={2} fill="none" />
-        {[{x:25,y:45,w:85,h:42},{x:125,y:175,w:95,h:52},{x:245,y:65,w:75,h:38},{x:315,y:195,w:88,h:48},{x:425,y:75,w:105,h:46},{x:445,y:260,w:72,h:52}].map((b,i)=><rect key={i} {...b} fill="#c5dbc5" rx={5}/>)}
-        <polygon points="80,60 280,40 320,200 120,220" fill="rgba(26,71,42,.12)" stroke="#1a472a" strokeWidth={2} strokeDasharray="8,4"/>
-        <text x="185" y="135" textAnchor="middle" fontSize={10} fill="#1a472a" fontWeight={700} opacity={.7}>Zona Norte</text>
-        <text x={300} y={348} textAnchor="middle" fontSize={11} fill="#5a9e5a" fontWeight={600}>Posadas, Misiones</text>
-        {pins.map((p, i) => (
-          <g key={i}>
-            <circle cx={p.x} cy={p.y} r={14} fill={p.color} opacity={0.18} />
-            <circle cx={p.x} cy={p.y} r={7}  fill={p.color} stroke="#fff" strokeWidth={2} />
-            <rect x={p.x - 28} y={p.y + 10} width={56} height={28} fill="#fff" rx={5} opacity={0.95} />
-            <text x={p.x} y={p.y + 22} textAnchor="middle" fontSize={9}  fill="#222"    fontWeight={700}>{p.name}</text>
-            <text x={p.x} y={p.y + 33} textAnchor="middle" fontSize={8}  fill={p.color} fontWeight={600}>{p.count} enc.</text>
-          </g>
-        ))}
-      </svg>
-    </div>
-  )
-}
-
-/* ── NAV ── */
-function Nav({ active, onNav }) {
-  const [menuOpen, setMenuOpen] = useState(false)
-
-  function handleNav(id) {
-    onNav(id)
-    setMenuOpen(false)
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
-  }
 
   return (
-    <>
-      <nav className={styles.nav}>
-        <div className={styles.navBrand}>
-          <img src={LogoMetr1ka} alt="METR1KA" className={styles.brandLogoMain} />
-          
-        </div>
-        <div className={styles.navTabs}>
-          {SECTIONS.map(s => (
-            <button key={s.id} className={`${styles.navTab} ${active === s.id ? styles.active : ''}`} onClick={() => handleNav(s.id)}>
-              {s.label}
-            </button>
-          ))}
-        </div>
-        <Link to="/login" className={styles.navLogin}>Ingresar →</Link>
-        <button className={`${styles.navHamburger} ${menuOpen ? styles.open : ''}`} onClick={() => setMenuOpen(o => !o)} aria-label="Menú">
-          <span /><span /><span />
-        </button>
-      </nav>
-      <div className={`${styles.navMobileMenu} ${menuOpen ? styles.open : ''}`}>
-        {SECTIONS.map(s => (
-          <button key={s.id} className={`${styles.navTab} ${active === s.id ? styles.active : ''}`} onClick={() => handleNav(s.id)}>
-            {s.label}
-          </button>
-        ))}
-        <Link to="/login" className={styles.navMobileLogin} onClick={() => setMenuOpen(false)}>Ingresar →</Link>
-      </div>
-    </>
-  )
-}
-
-/* ── HERO ── */
-function Hero() {
-  return (
-    <section id="inicio" className={`${styles.section} ${styles.hero}`}>
+    <section id="panel" className={styles.dashSection}>
       <div className={styles.container}>
-        <div className={styles.heroEyebrow}>Sistema de encuestas profesionales</div>
-        <h1 className={styles.heroH1}>Tomá el pulso del territorio <em>en tiempo real</em></h1>
-        <p className={styles.heroSub}>
-          Una plataforma completa para que cualquier organización haga encuestas de campo con su propio equipo y vea los resultados al instante.
-        </p>
-        <div className={styles.heroBtns}>
-          <Link to="/login" className={styles.btnPrimary}>→ Empezar</Link>
-          <button className={styles.btnOutline} onClick={() => document.getElementById('panel')?.scrollIntoView({ behavior: 'smooth' })}>
-            Ver el panel
-          </button>
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionLabel}>Panel de control</div>
+          <h2 className={styles.sectionTitle}>Todo el campo,<br />en una sola pantalla</h2>
+          <p className={styles.sectionSub}>Monitorea encuestadores, zonas y resultados desde el panel web. Actualización automática sin recargar.</p>
         </div>
-        <div className={styles.statsRow}>
-          {[
-            { num: '100%', label: 'Datos en tiempo real'       },
-            { num: '4',    label: 'Roles diferenciados'        },
-            { num: '∞',    label: 'Encuestas reutilizables'    },
-            { num: '🔒',   label: 'Datos aislados por cliente' },
-          ].map((s, i) => (
-            <div key={i} className={styles.statBox}>
-              <span className={styles.statNum}>{s.num}</span>
-              <span className={styles.statLabel}>{s.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
 
-/* ── SOBRE NOSOTROS ── */
-function SobreNosotros() {
-  return (
-    <section id="nosotros" className={`${styles.section} ${styles.sobreSection}`}>
-      <div className={styles.container}>
-        <div className={styles.secLabel}>Nuestra historia</div>
-        <h2 className={styles.secTitle}>Sobre METR1KA</h2>
-        <div className={styles.aboutContent}>
-          <p>
-            METR1KA nace como un proyecto conjunto entre <strong>Enfoque Misiones</strong> y <strong>Paralelo Software Studio</strong>, con el propósito de transformar la forma en que se crean, gestionan y analizan las encuestas en Misiones.
-          </p>
-          <p>
-            Enfoque Misiones, el diario digital referente de la provincia, identificó una necesidad recurrente en su trabajo diario: las herramientas de encuestas tradicionales eran lentas, poco intuitivas y limitadas a la hora de generar datos útiles en tiempo real.
-          </p>
-          <p>
-            Fue así como decidimos unir fuerzas: la experiencia periodística y el profundo conocimiento del territorio de Enfoque Misiones, junto con la capacidad técnica de <strong>Paralelo Software Studio</strong>, especializada en crear soluciones digitales escalables y centradas en la experiencia del usuario.
-          </p>
-          <div className={styles.aboutHighlight}>
-            <p><strong>El resultado es METR1KA:</strong> una plataforma moderna de encuestas en tiempo real que permite:</p>
-            <ul>
-              <li>Crear encuestas profesionales y asignarlas a equipos de campo</li>
-              <li>Recolectar respuestas de forma instantánea con GPS</li>
-              <li>Visualizar resultados en vivo con gráficos claros</li>
-              <li>Controlar zonas de trabajo con geofencing por equipo</li>
-            </ul>
-          </div>
-          <p>
-            Nuestra misión es democratizar el acceso a herramientas de investigación de campo, permitiendo a organizaciones, empresas y gobiernos tomar decisiones basadas en datos reales, comenzando desde Misiones hacia todo el país.
-          </p>
-        </div>
-        
-      </div>
-    </section>
-  )
-}
-
-/* ── ROLES ── */
-function Roles() {
-  const [active, setActive] = useState('admin')
-  const badgeMap = { admin: styles.badgeAdmin, coordinador: styles.badgeCoordinador, encuestador: styles.badgeEncuestador }
-
-  return (
-    <section id="sistema" className={styles.section}>
-      <div className={styles.container}>
-        <div className={styles.secLabel}>El sistema</div>
-        <h2 className={styles.secTitle}>Roles claros, una plataforma</h2>
-        <p className={styles.secSub}>Cada usuario ve únicamente lo que necesita. El cliente tiene su propio acceso aislado y sus datos no se mezclan con los de otros clientes.</p>
-        <div className={styles.rolesGrid}>
-          {ROLES.map(r => (
-            <div key={r.key} className={`${styles.roleCard} ${active === r.key ? styles.active : ''}`} onClick={() => setActive(r.key)}>
-              <span className={`${styles.roleBadge} ${badgeMap[r.badge]}`}>{r.label}</span>
-              <h3>{r.title}</h3>
-              <p>{r.desc}</p>
-              <ul className={styles.rolePerms}>
-                {r.perms.map((p, i) => <li key={i}>{p}</li>)}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* ── FLUJO ── */
-function Flujo() {
-  const [step, setStep] = useState(0)
-  return (
-    <section id="flujo" className={`${styles.section} ${styles.flowSection}`}>
-      <div className={styles.container}>
-        <div className={styles.secLabel}>Cómo funciona</div>
-        <h2 className={styles.secTitle}>Del diseño al dato en 5 pasos</h2>
-        <p className={styles.secSub}>El flujo completo desde que armamos la encuesta hasta que los resultados aparecen en el panel.</p>
-        <div className={styles.flowSteps}>
-          {FLOW_STEPS.map((s, i) => (
-            <div key={i} className={`${styles.flowStep} ${step === i ? styles.active : ''}`} onClick={() => setStep(i)}>
-              <div className={styles.flowStepNum}>0{i + 1}</div>
-              <h4>{s.title}</h4>
-            </div>
-          ))}
-        </div>
-        <div className={`${styles.flowDetail} ${styles.fadeIn}`} key={step}>
-          <h3>{FLOW_STEPS[step].title}</h3>
-          <p>{FLOW_STEPS[step].detail}</p>
-          <div className={styles.chips}>
-            {FLOW_STEPS[step].chips.map((c, i) => <span key={i} className={styles.chip}>{c}</span>)}
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* ── DASHBOARD PREVIEW ── */
-function DashboardPreview() {
-  const [tab, setTab] = useState('dashboard')
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { kpis, encuestadores, encuestasCards, equiposCards, encuestadoresCards, reportesCards, configCards, coordinadores } = DASHBOARD_DATA
-
-  function handleTabMobile(k) { setTab(k); setSidebarOpen(false) }
-
-  const sidebarContent = DASHBOARD_SIDEBAR.map(({ group, items }) => (
-    <div key={group} className={styles.sbSection}>
-      <div className={styles.sbLabel}>{group}</div>
-      {items.map(s => (
-        <div key={s.key} className={`${styles.sbItem} ${tab === s.key ? styles.active : ''}`} onClick={() => handleTabMobile(s.key)}>
-          <span className={styles.sbIcon}>{s.icon}</span> {s.label}
-        </div>
-      ))}
-    </div>
-  ))
-
-  function renderMain() {
-    if (tab === 'dashboard') return (
-      <div className={styles.fadeIn}>
-        <div className={styles.kpis}>
-          {kpis.map((k, i) => (
-            <div key={i} className={styles.kpi}>
-              <div className={styles.kpiL}>{k.l}</div>
-              <div className={styles.kpiV}>{k.v}</div>
-              <div className={styles.kpiS}>{k.s}</div>
-            </div>
-          ))}
-        </div>
-        <div className={styles.grid2}>
-          <div className={styles.dashCard}>
-            <div className={styles.dashCardT}>Respuestas por hora</div>
-            <div className={styles.chartWrap}>
-              <BarChart labels={['8h','9h','10h','11h','12h','13h','14h','15h']} data={[12,34,55,62,48,71,58,63]} color="#1a472a" />
-            </div>
-          </div>
-          <div className={styles.dashCard}>
-            <div className={styles.dashCardT}>¿Cómo calificás la gestión?</div>
-            <div className={styles.chartWrap}><DonutChart /></div>
-          </div>
-        </div>
-        <div className={styles.grid2}>
-          <div className={styles.dashCard}>
-            <div className={styles.dashCardT}>Mapa de encuestadores</div>
-            <MapSVG full={false} />
-          </div>
-          <div className={styles.dashCard}>
-            <div className={styles.dashCardT}>Encuestadores activos</div>
-            <div className={styles.encList}>
-              {encuestadores.map((e, i) => (
-                <div key={i} className={styles.encRow}>
-                  <div className={styles.encAv} style={{ background: e.bg, color: e.tc }}>{e.initials}</div>
-                  <div style={{ flex: 1 }}>
-                    <div className={styles.encName}>{e.name}</div>
-                    <div className={styles.encZone}>
-                      <span className={`${styles.sDot} ${e.status === 'active' ? styles.sOn : styles.sOff}`} />{e.zone}
-                    </div>
-                  </div>
-                  <div className={styles.encCnt}>{e.count} enc.</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-    if (tab === 'mapa') return (
-      <div className={`${styles.dashCard} ${styles.fadeIn}`}>
-        <div className={styles.dashCardT}>Mapa en tiempo real — Posadas, Misiones</div>
-        <MapSVG full={true} />
-      </div>
-    )
-    if (tab === 'encuestas') return (
-      <div className={styles.fadeIn}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-          <span style={{ fontFamily:'Syne', fontWeight:700, fontSize:15 }}>Encuestas</span>
-          <button className={styles.btnPrimary} style={{ padding:'7px 14px', fontSize:12 }}>+ Nueva</button>
-        </div>
-        <div className={styles.cardsGrid}>
-          {encuestasCards.map((e, i) => (
-            <div key={i} className={styles.itemCard}>
-              <div className={styles.itemCardT}>{e.name}</div>
-              <div className={styles.itemCardS}>{e.p} preguntas · {e.r} respuestas</div>
-              <div className={styles.itemCardM}>
-                <span className={`${styles.tag} ${e.estado === 'activa' ? styles.tg : styles.tgr}`}>{e.estado}</span>
-                <span className={`${styles.tag} ${styles.tb}`}>{e.eq} equipos</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-    if (tab === 'equipos') return (
-      <div className={styles.fadeIn}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-          <span style={{ fontFamily:'Syne', fontWeight:700, fontSize:15 }}>Equipos</span>
-          <button className={styles.btnPrimary} style={{ padding:'7px 14px', fontSize:12 }}>+ Nuevo</button>
-        </div>
-        <div className={styles.cardsGrid}>
-          {equiposCards.map((e, i) => (
-            <div key={i} className={styles.itemCard}>
-              <div className={styles.itemCardT}>{e.name}</div>
-              <div style={{ fontSize:11, color:'var(--ink3)', marginBottom:8, marginTop:2 }}>Coordinador</div>
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
-                <div className={styles.encAv} style={{ background:e.coordBg, color:e.coordTc, width:26, height:26, fontSize:10 }}>{e.coordI}</div>
-                <span style={{ fontSize:13, fontWeight:600 }}>{e.coord}</span>
-              </div>
-              <div className={styles.itemCardM}>
-                <span className={`${styles.tag} ${styles.tb}`}>{e.enc} encuestadores</span>
-                <span className={`${styles.tag} ${styles.tg}`}>{e.encuestas} encuestas</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-    if (tab === 'coordinadores') return (
-      <div className={styles.fadeIn}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-          <span style={{ fontFamily:'Syne', fontWeight:700, fontSize:15 }}>Coordinadores</span>
-          <button className={styles.btnPrimary} style={{ padding:'7px 14px', fontSize:12 }}>+ Invitar</button>
-        </div>
-        <div className={styles.cardsGrid}>
-          {coordinadores.map((c, i) => (
-            <div key={i} className={styles.itemCard} style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
-              <div className={styles.encAv} style={{ background:c.bg, color:c.tc, width:36, height:36, fontSize:13, flexShrink:0 }}>{c.i}</div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div className={styles.itemCardT}>{c.name}</div>
-                <div className={styles.itemCardS}>{c.email}</div>
-                <div className={styles.itemCardM}>
-                  {c.equipos.length > 0
-                    ? c.equipos.map((eq, j) => <span key={j} className={`${styles.tag} ${styles.tb}`}>Equipo {eq}</span>)
-                    : <span className={`${styles.tag} ${styles.tgr}`}>Sin equipo asignado</span>
-                  }
-                  <span className={`${styles.tag} ${c.estado === 'Activo' ? styles.tg : styles.tgr}`}>{c.estado}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-    if (tab === 'encuestadores') return (
-      <div className={styles.fadeIn}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-          <span style={{ fontFamily:'Syne', fontWeight:700, fontSize:15 }}>Encuestadores</span>
-          <button className={styles.btnPrimary} style={{ padding:'7px 14px', fontSize:12 }}>+ Invitar</button>
-        </div>
-        <div className={styles.cardsGrid}>
-          {encuestadoresCards.map((e, i) => (
-            <div key={i} className={styles.itemCard} style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
-              <div className={styles.encAv} style={{ background:e.bg, color:e.tc, width:34, height:34, fontSize:12, flexShrink:0 }}>{e.i}</div>
-              <div>
-                <div className={styles.itemCardT}>{e.name}</div>
-                <div className={styles.itemCardS}>Equipo {e.eq} · {e.enc} enc.</div>
-                <div className={styles.itemCardM}>
-                  <span className={`${styles.tag} ${e.estado.toLowerCase().includes('activ') ? styles.tg : styles.tgr}`}>{e.estado}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-    if (tab === 'reportes') return (
-      <div className={styles.fadeIn}>
-        <div style={{ fontFamily:'Syne', fontWeight:700, fontSize:15, marginBottom:14 }}>Reportes disponibles</div>
-        {reportesCards.map((r, i) => (
-          <div key={i} className={styles.repRow}>
-            <span className={styles.repIcon}>{r.icon}</span>
-            <div style={{ flex:1 }}>
-              <div className={styles.repT}>{r.title}</div>
-              <div className={styles.repS}>{r.meta}</div>
-            </div>
-            <button className={styles.repBtn}>Descargar</button>
-          </div>
-        ))}
-      </div>
-    )
-    if (tab === 'configuracion') return (
-      <div className={styles.fadeIn}>
-        <div style={{ fontFamily:'Syne', fontWeight:700, fontSize:15, marginBottom:14 }}>Configuración</div>
-        {configCards.map((c, i) => (
-          <div key={i} className={styles.cfgRow}>
-            <div>
-              <div className={styles.cfgL}>{c.l}</div>
-              <div className={styles.cfgS}>{c.s}</div>
-            </div>
-            <div className={`${styles.toggle} ${!c.on ? styles.toggleOff : ''}`} />
-          </div>
-        ))}
-      </div>
-    )
-    return null
-  }
-
-  return (
-    <section id="panel" className={`${styles.section} ${styles.dashSection}`}>
-      <div className={styles.container}>
-        <div className={styles.secLabel}>Panel central</div>
-        <h2 className={styles.secTitle}>Todo el territorio en una pantalla</h2>
-        <p className={styles.secSub}>El admin y el coordinador monitorean en tiempo real cada respuesta, cada encuestador y cada zona de operación.</p>
-        <div className={styles.dashWrap}>
-          <div className={styles.dashTopbar}>
-            <div className={styles.dot + ' ' + styles.dR} />
-            <div className={styles.dot + ' ' + styles.dY} />
-            <div className={styles.dot + ' ' + styles.dG} />
-            <div className={styles.dashTitle}>Panel Central — Posadas, Misiones</div>
-            <div style={{ marginLeft:'auto', fontSize:'12px', opacity:.5 }}>● En vivo</div>
+        <div className={styles.dashWindow}>
+          <div className={styles.dashTitleBar}>
+            <div className={styles.dashDot} style={{ background: '#ef4444' }} />
+            <div className={styles.dashDot} style={{ background: '#f59e0b' }} />
+            <div className={styles.dashDot} style={{ background: '#22c55e' }} />
+            <span className={styles.dashUrl}>panel.metr1ka.com/dashboard</span>
           </div>
           <div className={styles.dashBody}>
-            <div className={styles.dashSidebar}>{sidebarContent}</div>
-            <div className={styles.dashMain}>
-              <button className={styles.dashSidebarToggle} onClick={() => setSidebarOpen(o => !o)}>
-                <span>{sidebarOpen ? '✕' : '☰'}</span> {sidebarOpen ? 'Cerrar' : 'Menú'}
-              </button>
-              <div className={`${styles.dashSidebarMobile} ${sidebarOpen ? styles.open : ''}`}>{sidebarContent}</div>
-              {renderMain()}
+            <div className={styles.dashKpis}>
+              {DASHBOARD_DATA.kpis.map((k, i) => (
+                <div key={i} className={styles.dashKpi}>
+                  <div className={styles.dashKpiVal}>{k.v}</div>
+                  <div className={styles.dashKpiLabel}>{k.l}</div>
+                  <div className={styles.dashKpiSub}>{k.s}</div>
+                </div>
+              ))}
+            </div>
+            <div className={styles.dashChartRow}>
+              <div className={styles.dashChartCard}>
+                <div className={styles.dashChartTitle}>Respuestas por día</div>
+                <div style={{ height: 100 }}><canvas ref={barRef} /></div>
+              </div>
+              <div className={styles.dashEncsCard}>
+                <div className={styles.dashChartTitle}>Encuestadores activos</div>
+                {DASHBOARD_DATA.encuestadores.map((e, i) => (
+                  <div key={i} className={styles.dashEnc}>
+                    <div className={styles.dashEncAv} style={{ background: e.bg, color: e.tc }}>{e.initials}</div>
+                    <div className={styles.dashEncInfo}>
+                      <span className={styles.dashEncName}>{e.name}</span>
+                      <span className={styles.dashEncZone}>{e.zone}</span>
+                    </div>
+                    <span className={`${styles.dashEncBadge} ${e.status === 'active' ? styles.dashEncBadgeActive : styles.dashEncBadgeIdle}`}>
+                      {e.status === 'active' ? 'Activo' : 'Pausado'}
+                    </span>
+                    <span className={styles.dashEncCount}>{e.count}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -483,358 +482,151 @@ function DashboardPreview() {
   )
 }
 
-/* ── PHONE COMPONENTS ── */
-function PhoneSurvey({ surveyName, onBack }) {
-  const [step, setStep]       = useState(0)
-  const [answers, setAnswers] = useState({})
-  const [done, setDone]       = useState(false)
-  const q     = SURVEY_QUESTIONS[step]
-  const total = SURVEY_QUESTIONS.length
-  const pct   = Math.round(((step + (done ? 1 : 0)) / total) * 100)
-  const hasAnswer = answers[step] !== undefined && answers[step] !== ''
-
-  function next() { step < total - 1 ? setStep(s => s + 1) : setDone(true) }
-  function back() { if (step > 0) setStep(s => s - 1) }
-
-  function renderQ() {
-    if (done) return (
-      <div className={styles.phoneSvDone}>
-        <div className={styles.phoneSvDoneIcon}>✅</div>
-        <h4>¡Completada!</h4>
-        <p>Respuestas enviadas al panel central.</p>
-        <button className={styles.phoneActionBtn} style={{ background:'#1a472a', marginTop:16 }} onClick={onBack}>← Volver</button>
-      </div>
-    )
-    if (q.type === 'multi' || q.type === 'sino') return (
-      <div className={styles.phoneSvOpts}>
-        {q.opts.map((opt, i) => (
-          <button key={i} className={`${styles.phoneSvOpt} ${answers[step] === i ? styles.sel : ''}`} onClick={() => setAnswers(a => ({ ...a, [step]: i }))}>
-            <span className={styles.phoneSvOptK}>{String.fromCharCode(65 + i)}</span>{opt}
-          </button>
-        ))}
-      </div>
-    )
-    if (q.type === 'escala') return (
-      <div className={styles.phoneSvScale}>
-        <div className={styles.phoneSvScaleRow}>
-          {Array.from({ length: 10 }, (_, i) => (
-            <button key={i} className={`${styles.phoneScaleBtn} ${answers[step] === (i + 1) ? styles.sel : ''}`} onClick={() => setAnswers(a => ({ ...a, [step]: i + 1 }))}>
-              {i + 1}
-            </button>
-          ))}
-        </div>
-        <div className={styles.phoneSvScaleLabels}><span>Nada probable</span><span>Muy probable</span></div>
-      </div>
-    )
-    if (q.type === 'texto') return (
-      <textarea className={styles.phoneSvTextarea} rows={4} placeholder="Escribí la respuesta..."
-        value={answers[step] || ''} onChange={e => setAnswers(a => ({ ...a, [step]: e.target.value }))} />
-    )
-  }
-
-  return (
-    <div className={styles.phoneSurvey}>
-      <div className={styles.phoneSvHeader}>
-        <button className={styles.phoneSvBack} onClick={onBack}>←</button>
-        <div className={styles.phoneSvTitle}>{surveyName}</div>
-      </div>
-      <div className={styles.phoneSvProg}><div className={styles.phoneSvProgB} style={{ width:`${pct}%` }} /></div>
-      <div className={styles.phoneSvBody}>
-        {!done && <div className={styles.phoneSvQnum}>Pregunta {step + 1} de {total}</div>}
-        {!done && <div className={styles.phoneSvQtext}>{q.text}</div>}
-        {renderQ()}
-      </div>
-      {!done && (
-        <div className={styles.phoneSvFooter}>
-          <button className={`${styles.phoneSvNavBtn} ${styles.phoneSvPrev}`} onClick={back} style={{ visibility: step === 0 ? 'hidden' : 'visible' }}>← Atrás</button>
-          <button className={`${styles.phoneSvNavBtn} ${styles.phoneSvNxt}`} disabled={!hasAnswer} onClick={next}>
-            {step === total - 1 ? 'Finalizar' : 'Siguiente →'}
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function PhoneHome({ onStart }) {
-  return (
-    <>
-      <div className={styles.phoneHomeHeader}><h4>Mis encuestas</h4><p>Hola, María. Tenés 2 activas.</p></div>
-      <div style={{ margin:'10px 12px 0', padding:'8px 12px', background:'#d8f3dc', borderRadius:8, display:'flex', alignItems:'center', gap:8 }}>
-        <span style={{ fontSize:14 }}>📍</span>
-        <div>
-          <div style={{ fontSize:11, fontWeight:700, color:'#1a472a' }}>Zona activa: Barrio Norte</div>
-          <div style={{ fontSize:10, color:'#2d6a4f' }}>Dentro del área · GPS activo</div>
-        </div>
-        <div style={{ marginLeft:'auto', width:8, height:8, borderRadius:'50%', background:'#22c55e' }} />
-      </div>
-      <div className={styles.phoneHomeBody}>
-        <div className={styles.phoneEncCard}>
-          <div className={styles.phoneEncCardT}>Satisfacción general</div>
-          <div className={styles.phoneEncCardM}>14 completadas · Barrio Norte</div>
-          <div className={styles.phoneProg}><div className={styles.phoneProgB} style={{ width:'56%' }} /></div>
-          <div className={styles.phoneProgL}>14 de 25 asignadas</div>
-          <button className={styles.phoneActionBtn} style={{ background:'#1a472a' }} onClick={() => onStart('Satisfacción general')}>Continuar →</button>
-        </div>
-        <div className={styles.phoneEncCard}>
-          <div className={styles.phoneEncCardT}>Seguridad barrial</div>
-          <div className={styles.phoneEncCardM}>0 completadas · Barrio Norte</div>
-          <div className={styles.phoneProg}><div className={styles.phoneProgB} style={{ width:'0%' }} /></div>
-          <div className={styles.phoneProgL}>0 de 20 asignadas</div>
-          <button className={styles.phoneActionBtn} style={{ background:'#52b788' }} onClick={() => onStart('Seguridad barrial')}>Comenzar →</button>
-        </div>
-      </div>
-    </>
-  )
-}
-
-function PhoneCoord() {
-  const [mapTab, setMapTab] = useState('mapa')
-  const encuestadores = [
-    { i:'MR', name:'María R.',  zone:'Barrio Norte', count:14, status:'active', bg:'#d8f3dc', tc:'#1a472a' },
-    { i:'JL', name:'Juan L.',   zone:'Centro',       count:9,  status:'active', bg:'#e0f2fe', tc:'#0369a1' },
-    { i:'AS', name:'Ana S.',    zone:'Barrio Sur',   count:7,  status:'idle',   bg:'#fef3c7', tc:'#b45309' },
-    { i:'CP', name:'Carlos P.', zone:'Este',         count:11, status:'active', bg:'#f3e8ff', tc:'#7c3aed' },
-  ]
-  return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#f7f7f5' }}>
-      <div className={styles.phoneHomeHeader}><h4>Equipo Norte</h4><p>Coordinador: Roberto V.</p></div>
-      <div style={{ display:'flex', borderBottom:'1px solid var(--border)', background:'#fff', flexShrink:0 }}>
-        {['mapa','equipo'].map(t => (
-          <button key={t} onClick={() => setMapTab(t)} style={{ flex:1, padding:'10px', border:'none', background:'none', fontSize:12, fontWeight:700, cursor:'pointer', color:mapTab===t?'var(--accent)':'var(--ink3)', borderBottom:mapTab===t?'2px solid var(--accent)':'2px solid transparent' }}>
-            {t==='mapa'?'🗺️ Mapa':'👥 Equipo'}
-          </button>
-        ))}
-      </div>
-      {mapTab === 'mapa' ? (
-        <div style={{ flex:1, display:'flex', flexDirection:'column', padding:12, gap:10 }}>
-          <div style={{ background:'#deefd8', borderRadius:10, overflow:'hidden', flex:1, minHeight:120 }}>
-            <svg width="100%" height="100%" viewBox="0 0 280 180" preserveAspectRatio="xMidYMid slice">
-              <rect width={280} height={180} fill="#deefd8"/>
-              <path d="M0 90 Q70 70 140 90 Q210 110 280 90" stroke="#a8d5a2" strokeWidth={2} fill="none"/>
-              {[{x:20,y:30,w:55,h:30},{x:110,y:100,w:60,h:35},{x:200,y:40,w:65,h:30}].map((b,i)=><rect key={i} {...b} fill="#c5dbc5" rx={4}/>)}
-              <polygon points="20,20 200,15 220,160 30,165" fill="rgba(26,71,42,.12)" stroke="#1a472a" strokeWidth={1.5} strokeDasharray="6,3"/>
-              {[{x:80,y:80,color:'#1a472a'},{x:150,y:130,color:'#0369a1'},{x:195,y:75,color:'#b45309'}].map((p,i)=>(
-                <g key={i}>
-                  <circle cx={p.x} cy={p.y} r={9} fill={p.color} opacity={.2}/>
-                  <circle cx={p.x} cy={p.y} r={5} fill={p.color} stroke="#fff" strokeWidth={1.5}/>
-                </g>
-              ))}
-            </svg>
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-            {[{label:'Activos',val:'3',color:'#22c55e'},{label:'Encuestas hoy',val:'41',color:'var(--accent)'}].map((k,i)=>(
-              <div key={i} style={{ background:'#fff', borderRadius:8, padding:'8px 10px', border:'1px solid var(--border)' }}>
-                <div style={{ fontSize:10, color:'var(--ink3)', fontWeight:600, marginBottom:2 }}>{k.label}</div>
-                <div style={{ fontFamily:'Syne', fontSize:18, fontWeight:800, color:k.color }}>{k.val}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div style={{ flex:1, padding:10, overflowY:'auto' }}>
-          {encuestadores.map((e, i) => (
-            <div key={i} style={{ background:'#fff', borderRadius:8, padding:9, marginBottom:6, border:'1px solid var(--border)', display:'flex', alignItems:'center', gap:8 }}>
-              <div className={styles.encAv} style={{ background:e.bg, color:e.tc, width:30, height:30, fontSize:11 }}>{e.i}</div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:12, fontWeight:700 }}>{e.name}</div>
-                <div style={{ fontSize:10, color:'var(--ink3)' }}>
-                  <span className={`${styles.sDot} ${e.status==='active'?styles.sOn:styles.sOff}`}/>{e.zone}
-                </div>
-              </div>
-              <div style={{ fontSize:11, fontWeight:700, color:'var(--accent2)' }}>{e.count}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function PhoneAdmin() {
-  const [selected, setSelected] = useState(0)
-  const encuestas = [
-    { name:'Satisfacción general', total:412, meta:600, pct:69 },
-    { name:'Seguridad barrial',    total:187, meta:300, pct:62 },
-  ]
-  const e = encuestas[selected]
-  const resultados = [
-    { label:'Muy buena / Buena', pct:67, color:'#1a472a' },
-    { label:'Regular',           pct:21, color:'#52b788' },
-    { label:'Mala / Muy mala',   pct:12, color:'#b7e4c7' },
-  ]
-  return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#f7f7f5' }}>
-      <div className={styles.phoneHomeHeader}><h4>Resultados en vivo</h4><p>Posadas, Misiones</p></div>
-      <div style={{ padding:'8px 12px', background:'#fff', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-        <div style={{ display:'flex', gap:6 }}>
-          {encuestas.map((enc,i)=>(
-            <button key={i} onClick={()=>setSelected(i)} style={{ padding:'4px 10px', borderRadius:100, border:`1.5px solid ${selected===i?'var(--accent)':'var(--border2)'}`, background:selected===i?'var(--accent-light)':'#fff', color:selected===i?'var(--accent)':'var(--ink3)', fontSize:10, fontWeight:600, cursor:'pointer', fontFamily:'DM Sans' }}>
-              {enc.name.split(' ')[0]}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div style={{ flex:1, padding:10, overflowY:'auto', display:'flex', flexDirection:'column', gap:8 }}>
-        <div style={{ background:'#fff', borderRadius:10, padding:12, border:'1px solid var(--border)' }}>
-          <div style={{ fontFamily:'Syne', fontSize:26, fontWeight:800, color:'var(--accent)', letterSpacing:-1 }}>{e.total}</div>
-          <div style={{ fontSize:10, color:'var(--ink3)', marginBottom:8 }}>de {e.meta} previstas</div>
-          <div style={{ height:5, background:'var(--surface2)', borderRadius:3, overflow:'hidden' }}>
-            <div style={{ height:5, background:'var(--accent)', borderRadius:3, width:`${e.pct}%` }}/>
-          </div>
-          <div style={{ fontSize:10, color:'var(--accent2)', marginTop:3, fontWeight:600 }}>{e.pct}%</div>
-        </div>
-        <div style={{ background:'#fff', borderRadius:10, padding:12, border:'1px solid var(--border)' }}>
-          {resultados.map((r,i)=>(
-            <div key={i} style={{ marginBottom:8 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, marginBottom:3 }}>
-                <span style={{ color:'var(--ink2)' }}>{r.label}</span>
-                <span style={{ fontWeight:700, color:r.color }}>{r.pct}%</span>
-              </div>
-              <div style={{ height:4, background:'var(--surface2)', borderRadius:2, overflow:'hidden' }}>
-                <div style={{ height:4, background:r.color, borderRadius:2, width:`${r.pct}%` }}/>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ── MOBILE APP SECTION ── */
+/* ── Mobile App ── */
 function MobileApp() {
-  const [activeRole, setActiveRole]     = useState('encuestador')
-  const [activeSurvey, setActiveSurvey] = useState(null)
-
+  const [tab, setTab] = useState('encuestador')
   const roles = [
-    { key:'encuestador', label:'Encuestador', bgClass:styles.badgeEncuestador },
-    { key:'coordinador', label:'Coordinador', bgClass:styles.badgeCoordinador },
-    { key:'admin',       label:'Admin',       bgClass:styles.badgeAdmin       },
+    { key: 'encuestador', label: 'Encuestador' },
+    { key: 'coordinador', label: 'Coordinador' },
+    { key: 'admin', label: 'Admin' },
   ]
-
-  function renderPhone() {
-    if (activeRole === 'encuestador') return (
-      <div className={styles.phoneFrame}>
-        <div className={styles.phoneStatusbar}><span>9:41</span><span>●●●</span></div>
-        <div className={styles.phoneScreen}>
-          {activeSurvey
-            ? <PhoneSurvey surveyName={activeSurvey} onBack={() => setActiveSurvey(null)} />
-            : <PhoneHome onStart={name => setActiveSurvey(name)} />
-          }
-        </div>
-      </div>
-    )
-    if (activeRole === 'coordinador') return (
-      <div className={styles.phoneFrame}>
-        <div className={styles.phoneStatusbar}><span>9:41</span><span>●●●</span></div>
-        <div className={styles.phoneScreen}><PhoneCoord /></div>
-      </div>
-    )
-    return (
-      <div className={styles.phoneFrame}>
-        <div className={styles.phoneStatusbar}><span>9:41</span><span>●●●</span></div>
-        <div className={styles.phoneScreen}><PhoneAdmin /></div>
-      </div>
-    )
+  const features = {
+    encuestador: [
+      { icon: <Smartphone size={18} />, title: 'Encuestas asignadas', desc: 'Solo ve las encuestas que le tocaron a él. Interfaz limpia y simple.' },
+      { icon: <Zap size={18} />, title: 'Envío en tiempo real', desc: 'Respuestas al instante, sin esperar sincronización.' },
+      { icon: <MapPin size={18} />, title: 'Navegación GPS', desc: 'La app le dice a dónde ir y cuándo llegó a la parcela.' },
+      { icon: <Shield size={18} />, title: 'Control de zona', desc: 'Si sale del área, la app se bloquea automáticamente.' },
+    ],
+    coordinador: [
+      { icon: <Globe size={18} />, title: 'Mapa en vivo', desc: 'Ve la posición de cada encuestador de su equipo en tiempo real.' },
+      { icon: <Users size={18} />, title: 'Estado del equipo', desc: 'Quién está activo, cuántas encuestas completó cada uno.' },
+      { icon: <BarChart2 size={18} />, title: 'Progreso por zona', desc: 'Porcentaje de parcelas completadas por zona.' },
+      { icon: <Clock size={18} />, title: 'Última actividad', desc: 'Ve hace cuánto tiempo estuvo activo cada encuestador.' },
+    ],
+    admin: [
+      { icon: <BarChart2 size={18} />, title: 'Resultados en vivo', desc: 'Gráficos y contadores actualizados en tiempo real.' },
+      { icon: <TrendingUp size={18} />, title: 'Seleccionar encuesta', desc: 'Cambia entre encuestas activas con un toque.' },
+      { icon: <Users size={18} />, title: 'Todos los equipos', desc: 'Ve el estado de todos los equipos sin filtros.' },
+      { icon: <Zap size={18} />, title: 'Notificaciones', desc: 'Alertas cuando hay actividad relevante en el campo.' },
+    ],
   }
 
   return (
-    <section id="app" className={`${styles.section} ${styles.mobileSection}`}>
+    <section id="app" className={styles.mobileSection}>
       <div className={styles.container}>
-        <div className={styles.secLabel}>App móvil</div>
-        <h2 className={styles.secTitle}>Una app, tres experiencias</h2>
-        <p className={styles.secSub}>Una sola app para todos los roles. Cada usuario ve exactamente lo que necesita según su perfil.</p>
-        <div className={styles.roleSelector}>
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionLabel}>App móvil</div>
+          <h2 className={styles.sectionTitle}>El campo en tu bolsillo</h2>
+          <p className={styles.sectionSub}>Una sola app para todos los roles. Cada usuario ve exactamente lo que necesita.</p>
+        </div>
+
+        <div className={styles.mobileTabs}>
           {roles.map(r => (
-            <button key={r.key} className={`${styles.roleSelectorBadge} ${r.bgClass}`}
-              style={{ opacity:activeRole===r.key?1:.5, border:activeRole===r.key?'2px solid currentColor':'2px solid transparent' }}
-              onClick={() => { setActiveRole(r.key); setActiveSurvey(null) }}>
+            <button key={r.key} className={`${styles.mobileTab} ${tab === r.key ? styles.mobileTabActive : ''}`} onClick={() => setTab(r.key)}>
               {r.label}
             </button>
           ))}
         </div>
-        <div className={styles.mobileGrid}>
-          <div className={styles.mobFeats}>
-            {MOBILE_FEATURES[activeRole].map((f, i) => (
-              <div key={i} className={styles.mobFeat}>
-                <div className={styles.featIcon}>{f.icon}</div>
+
+        <div className={styles.mobileLayout}>
+          <div className={styles.mobileFeatures}>
+            {features[tab].map((f, i) => (
+              <div key={i} className={styles.mobileFeature}>
+                <div className={styles.mobileFeatureIcon}>{f.icon}</div>
                 <div>
-                  <div className={styles.featT}>{f.title}</div>
-                  <p className={styles.featD}>{f.desc}</p>
+                  <div className={styles.mobileFeatureTitle}>{f.title}</div>
+                  <div className={styles.mobileFeatureDesc}>{f.desc}</div>
                 </div>
               </div>
             ))}
           </div>
-          {renderPhone()}
+          <div className={styles.mobilePhone}>
+            <div className={styles.phoneMock}>
+              <div className={styles.phoneNotch} />
+              <div className={styles.phoneScreen}>
+                <div className={styles.phoneHeader}>
+                  <span className={styles.phoneTitle}>Metr1ka</span>
+                  <span className={styles.phoneLive}><span className={styles.liveDot} /> En vivo</span>
+                </div>
+                <div className={styles.phoneBody}>
+                  <div className={styles.phoneKpis}>
+                    <div className={styles.phoneKpi}><span className={styles.phoneKpiNum}>412</span><span className={styles.phoneKpiLabel}>respuestas</span></div>
+                    <div className={styles.phoneKpi}><span className={styles.phoneKpiNum}>23</span><span className={styles.phoneKpiLabel}>activos</span></div>
+                  </div>
+                  <div className={styles.phoneMap}><HeroMiniMap /></div>
+                  <div className={styles.phoneBtnRow}>
+                    <div className={styles.phoneBtn}>Comenzar encuesta</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
   )
 }
 
-/* ── PRICING ── */
-function Pricing() {
+/* ── Pricing ── */
+function Pricing({ onContact }) {
   return (
-    <section id="precios" className={`${styles.section} ${styles.pricingSection}`}>
+    <section id="precios" className={styles.pricing}>
       <div className={styles.container}>
-        <div className={styles.secLabel}>Planes</div>
-        <h2 className={styles.secTitle}>Planes de suscripción mensual</h2>
-        <p className={styles.secSub}>Cada plan incluye encuestas diseñadas por nuestro equipo. El acceso está activo mientras la suscripción esté paga.</p>
-        <div className={styles.pricingGrid}>
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionLabel}>Planes</div>
+          <h2 className={styles.sectionTitle}>Elegí el plan<br />para tu organización</h2>
+          <p className={styles.sectionSub}>Precios transparentes, sin sorpresas. Todos los planes incluyen la app móvil y acceso al panel web.</p>
+        </div>
+
+        <div className={styles.plansGrid}>
           {PLANS.map((plan, i) => (
-            <div key={i} className={`${styles.planCard} ${plan.featured ? styles.featured : ''}`}>
-              {plan.featured && <div className={styles.planBadge}>⭐ MÁS POPULAR</div>}
-              <div className={styles.planName}>{plan.name}</div>
-              <div className={styles.planDesc}>{plan.desc}</div>
-              <div className={styles.planPrice}><span className={styles.planAmount}>Consultar</span></div>
-              <div className={styles.planNote}>Precio a convenir según organización</div>
-              <hr className={styles.planHr} />
+            <div key={i} className={`${styles.planCard} ${plan.featured ? styles.planCardFeatured : ''}`}>
+              {plan.featured && <div className={styles.planBadge}>Más elegido</div>}
+              <h3 className={styles.planName}>{plan.name}</h3>
+              <p className={styles.planDesc}>{plan.desc}</p>
               <ul className={styles.planFeatures}>
-                {plan.features.map((f, j) => {
-                  const text = typeof f === 'string' ? f : f.text
-                  const muted = typeof f === 'object' && f.muted
-                  return <li key={j} className={muted ? styles.muted : ''}>{text}</li>
-                })}
+                {plan.features.map((f, j) => (
+                  <li key={j} className={typeof f === 'object' && f.muted ? styles.planFeatureMuted : ''}>
+                    <CheckCircle size={14} className={styles.planCheck} />
+                    {typeof f === 'object' ? f.text : f}
+                  </li>
+                ))}
               </ul>
-              <button className={`${styles.planCta} ${plan.featured ? styles.ctaSolid : styles.ctaOutline}`}>Consultar precio</button>
+              <button className={plan.featured ? styles.btnPrimary : styles.btnOutline} onClick={onContact}>
+                Consultar precio
+              </button>
             </div>
           ))}
         </div>
-        <div className={styles.entCard}>
-          <div>
-            <h3>Encuestas adicionales</h3>
-            <p>¿Necesitás más encuestas de las que incluye tu plan? Las armamos y las agregamos. Sin cambiar de plan.</p>
-            <div className={styles.entTags}>
-              {['Armadas por nuestro equipo','Entrega en 48h','Revisiones incluidas','Sin cambiar de plan'].map((t,i)=>(
-                <span key={i} className={styles.eTag}>{t}</span>
-              ))}
-            </div>
-          </div>
-          <a href="mailto:hola@metr1ka.com" className={styles.btnPrimary}>Consultar</a>
+
+        <div className={styles.pricingNote}>
+          <Shield size={16} />
+          <span>Todos los planes incluyen 30 días de prueba sin compromiso. Sin tarjeta de crédito.</span>
         </div>
       </div>
     </section>
   )
 }
 
-/* ── TESTIMONIALS ── */
-function Clientes() {
+/* ── Testimonials ── */
+function Testimonials() {
   return (
-    <section id="clientes" className={`${styles.section} ${styles.clientesSection}`}>
+    <section id="clientes" className={styles.testimonials}>
       <div className={styles.container}>
-        <div className={styles.secLabel}>Lo que dicen</div>
-        <h2 className={styles.secTitle}>Experiencias de campo reales</h2>
-        <p className={styles.secSub}>Quienes ya usaron METR1KA en sus operaciones.</p>
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionLabel}>Testimonios</div>
+          <h2 className={styles.sectionTitle}>Lo que dicen quienes<br />trabajan con Metr1ka</h2>
+        </div>
         <div className={styles.testimonialsGrid}>
           {TESTIMONIALS.map((t, i) => (
             <div key={i} className={styles.testimonialCard}>
-              <div className={styles.testimonialQuote}>"{t.quote}"</div>
+              <div className={styles.testimonialQuote}>"</div>
+              <p className={styles.testimonialText}>{t.quote}</p>
               <div className={styles.testimonialAuthor}>
-                <div className={styles.encAv} style={{ background:t.bg, color:t.tc, width:36, height:36, fontSize:13, flexShrink:0 }}>{t.initials}</div>
+                <div className={styles.testimonialAvatar} style={{ background: t.bg, color: t.tc }}>{t.initials}</div>
                 <div>
-                  <div style={{ fontSize:13, fontWeight:700 }}>{t.name}</div>
-                  <div style={{ fontSize:12, color:'var(--ink3)' }}>{t.role} · {t.org}</div>
+                  <div className={styles.testimonialName}>{t.name}</div>
+                  <div className={styles.testimonialRole}>{t.role} · {t.org}</div>
                 </div>
               </div>
             </div>
@@ -845,93 +637,100 @@ function Clientes() {
   )
 }
 
-/* ── FOOTER ── */
-function Footer() {
+/* ── Footer ── */
+function Footer({ onContact }) {
+  function scrollTo(id) {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+  }
+
   return (
     <footer className={styles.footer}>
       <div className={styles.footerTop}>
-        {/* Col 1: Logo + descripción */}
-        <div className={styles.footerCol}>
-          <img src={LogoMetr1ka} alt="METR1KA" className={styles.footerLogoMain} />
-          <p className={styles.footerDesc}>
-            Plataforma de encuestas profesionales en tiempo real. Desarrollada en Misiones, Argentina.
-          </p>
-          <div className={styles.footerLogos}>
-            <img src={logoEnfoque}  alt="Enfoque Misiones"      className={styles.footerLogoPartner} />
-            <img src={logoParalelo} alt="Paralelo Software Studio" className={styles.footerLogoPartnerParalelo} />
-          </div>
-        </div>
+        <div className={styles.container}>
+          <div className={styles.footerGrid}>
+            <div className={styles.footerBrand}>
+              <img src={LogoMetr1ka} alt="Metr1ka" className={styles.footerLogo} />
+              <p className={styles.footerTagline}>Sistema profesional de encuestas de campo. Datos reales, en tiempo real.</p>
+              <div className={styles.footerPartners}>
+                <span className={styles.footerPartnerLabel}>Desarrollado por</span>
+                <img src={logoParalelo} alt="Paralelo Software Studio" className={styles.footerPartnerLogo} />
+              </div>
+              <div className={styles.footerPartners} style={{ marginTop: 8 }}>
+                <span className={styles.footerPartnerLabel}>Impulsado por</span>
+                <img src={logoEnfoque} alt="Enfoque Misiones" className={styles.footerPartnerLogo} />
+              </div>
+            </div>
 
-        {/* Col 2: Producto */}
-        <div className={styles.footerCol}>
-          <h4 className={styles.footerColTitle}>Producto</h4>
-          <div className={styles.footerLinks}>
-            <button onClick={() => document.getElementById('inicio')?.scrollIntoView({ behavior:'smooth' })} className={styles.footerLink}>Inicio</button>
-            <button onClick={() => document.getElementById('sistema')?.scrollIntoView({ behavior:'smooth' })} className={styles.footerLink}>El sistema</button>
-            <button onClick={() => document.getElementById('flujo')?.scrollIntoView({ behavior:'smooth' })} className={styles.footerLink}>Flujo</button>
-            <button onClick={() => document.getElementById('app')?.scrollIntoView({ behavior:'smooth' })} className={styles.footerLink}>App móvil</button>
-            <button onClick={() => document.getElementById('precios')?.scrollIntoView({ behavior:'smooth' })} className={styles.footerLink}>Precios</button>
-          </div>
-        </div>
+            <div className={styles.footerCol}>
+              <h4 className={styles.footerColTitle}>Producto</h4>
+              {[['inicio','Inicio'],['sistema','El sistema'],['flujo','Flujo'],['app','App móvil'],['precios','Precios']].map(([id, label]) => (
+                <button key={id} className={styles.footerLink} onClick={() => scrollTo(id)}>{label}</button>
+              ))}
+            </div>
 
-        {/* Col 3: Empresa */}
-        <div className={styles.footerCol}>
-          <h4 className={styles.footerColTitle}>Empresa</h4>
-          <div className={styles.footerLinks}>
-            <button onClick={() => document.getElementById('nosotros')?.scrollIntoView({ behavior:'smooth' })} className={styles.footerLink}>Sobre nosotros</button>
-            <a href="mailto:hola@metr1ka.com" className={styles.footerLink}>Contacto</a>
-          </div>
-        </div>
+            <div className={styles.footerCol}>
+              <h4 className={styles.footerColTitle}>Empresa</h4>
+              <button className={styles.footerLink} onClick={() => scrollTo('clientes')}>Clientes</button>
+              <button className={styles.footerLink} onClick={onContact}>Contacto</button>
+              <a href="mailto:hola@metr1ka.com" className={styles.footerLink}>hola@metr1ka.com</a>
+            </div>
 
-        {/* Col 4: Contacto + redes */}
-        <div className={styles.footerCol}>
-          <h4 className={styles.footerColTitle}>Contacto</h4>
-          <a href="mailto:hola@metr1ka.com" className={styles.footerEmail}>hola@metr1ka.com</a>
-          <span className={styles.footerUrl}>www.metr1ka.com</span>
-          <div className={styles.socialIcons}>
-            <a href="#" className={styles.socialIcon} aria-label="Facebook"><FaFacebookF /></a>
-            <a href="#" className={styles.socialIcon} aria-label="Instagram"><FaInstagram /></a>
-            <a href="#" className={styles.socialIcon} aria-label="LinkedIn"><FaLinkedinIn /></a>
+            <div className={styles.footerCol}>
+              <h4 className={styles.footerColTitle}>Legal</h4>
+              <span className={styles.footerLink}>Política de privacidad</span>
+              <span className={styles.footerLink}>Términos de uso</span>
+              <span className={styles.footerLink}>Política de cookies</span>
+            </div>
           </div>
         </div>
       </div>
-
       <div className={styles.footerBottom}>
-        <span>© {new Date().getFullYear()} METR1KA · Todos los derechos reservados</span>
-        <span>Desarrollado por <strong>Paralelo Software Studio</strong></span>
+        <div className={styles.container}>
+          <div className={styles.footerBottomRow}>
+            <span>© {new Date().getFullYear()} METR1KA · Todos los derechos reservados</span>
+            <span>Hecho en Misiones, Argentina 🇦🇷</span>
+          </div>
+        </div>
       </div>
     </footer>
   )
 }
 
-/* ── LANDING PAGE ── */
+/* ── Landing Page ── */
 export default function Landing() {
   const [activeSection, setActiveSection] = useState('inicio')
+  const [contactOpen, setContactOpen] = useState(false)
 
   useEffect(() => {
-    const handler = () => {
-      const els = SECTIONS.map(s => document.getElementById(s.id)).filter(Boolean)
-      const sy  = window.scrollY + 100
-      let cur   = 'inicio'
+    const fn = () => {
+      const els = [...SECTIONS, { id: 'roles' }, { id: 'clientes' }]
+        .map(s => document.getElementById(s.id)).filter(Boolean)
+      const sy = window.scrollY + 80
+      let cur = 'inicio'
       els.forEach(el => { if (el.offsetTop <= sy) cur = el.id })
       setActiveSection(cur)
     }
-    window.addEventListener('scroll', handler, { passive: true })
-    return () => window.removeEventListener('scroll', handler)
+    window.addEventListener('scroll', fn, { passive: true })
+    return () => window.removeEventListener('scroll', fn)
   }, [])
 
   return (
     <div className={styles.page}>
-      <Nav active={activeSection} onNav={setActiveSection} />
-      <Hero />
-      <SobreNosotros />
-      <Roles />
-      <Flujo />
-      <DashboardPreview />
-      <MobileApp />
-      <Pricing />
-      <Clientes />
-      <Footer />
+      <Nav active={activeSection} onContact={() => setContactOpen(true)} />
+      <main>
+        <Hero onContact={() => setContactOpen(true)} />
+        <Features />
+        <Flujo />
+        <Roles />
+        <DashboardPreview />
+        <MobileApp />
+        <Pricing onContact={() => setContactOpen(true)} />
+        <Testimonials />
+      </main>
+      <Footer onContact={() => setContactOpen(true)} />
+      {contactOpen && <ContactModal onClose={() => setContactOpen(false)} />}
+      <CookieBanner />
+      <ScrollToTop />
     </div>
   )
 }
