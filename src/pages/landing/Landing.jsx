@@ -202,12 +202,10 @@ function Hero({ onContact }) {
             Sistema de encuestas de campo
           </div>
           <h1 className={styles.heroH1}>
-            Datos de campo<br />
-            <em>en tiempo real.</em><br />
-            Sin papel. Sin espera.
+            Tomá el pulso del territorio <em>en tiempo real</em>
           </h1>
           <p className={styles.heroSub}>
-            Metr1ka es la plataforma que conecta a tus encuestadores en campo con tu panel de análisis. Control de zonas, GPS en vivo y resultados al instante.
+            Una plataforma completa para que cualquier organización haga encuestas de campo con su propio equipo y vea los resultados al instante.
           </p>
           <div className={styles.heroBtns}>
             <button className={styles.btnPrimary} onClick={onContact}>
@@ -313,18 +311,28 @@ function SobreNosotros({ onContact }) {
       <div className={styles.container}>
         <div className={styles.sobreGrid}>
           <div className={styles.sobreContent}>
-            <div className={styles.sectionLabel}>Sobre nosotros</div>
-            <h2 className={styles.sectionTitle}>Nacimos para resolver<br />un problema real</h2>
+            <div className={styles.sectionLabel}>Nuestra historia</div>
+            <h2 className={styles.sectionTitle}>Sobre METR1KA</h2>
             <p className={styles.sobreText}>
-              Metr1ka es un producto de <strong>Paralelo Software Studio</strong>, desarrollado junto a
-              <strong> Enfoque Misiones</strong> para cubrir una necesidad que vimos de primera mano:
-              los equipos de campo seguían usando papel, planillas de Excel y llamadas telefónicas
-              para coordinar encuestas.
+              METR1KA nace como un proyecto conjunto entre <strong>Enfoque Misiones</strong> y <strong>Paralelo Software Studio</strong>, con el propósito de transformar la forma en que se crean, gestionan y analizan las encuestas en Misiones.
             </p>
             <p className={styles.sobreText}>
-              Construimos una plataforma que digitaliza todo el proceso — desde la configuración de
-              zonas geográficas hasta la visualización de resultados en tiempo real — para que los
-              datos lleguen cuando importan: mientras pasan.
+              Enfoque Misiones, el diario digital referente de la provincia, identificó una necesidad recurrente en su trabajo diario: las herramientas de encuestas tradicionales eran lentas, poco intuitivas y limitadas a la hora de generar datos útiles en tiempo real.
+            </p>
+            <p className={styles.sobreText}>
+              Fue así como decidimos unir fuerzas: la experiencia periodística y el profundo conocimiento del territorio de Enfoque Misiones, junto con la capacidad técnica de <strong>Paralelo Software Studio</strong>, especializada en crear soluciones digitales escalables y centradas en la experiencia del usuario.
+            </p>
+            <div className={styles.sobreHighlight}>
+              <p><strong>El resultado es METR1KA:</strong> una plataforma moderna de encuestas en tiempo real que permite:</p>
+              <ul>
+                <li>Crear encuestas profesionales y asignarlas a equipos de campo</li>
+                <li>Recolectar respuestas de forma instantánea con GPS</li>
+                <li>Visualizar resultados en vivo con gráficos claros</li>
+                <li>Controlar zonas de trabajo con geofencing por equipo</li>
+              </ul>
+            </div>
+            <p className={styles.sobreText}>
+              Nuestra misión es democratizar el acceso a herramientas de investigación de campo, permitiendo a organizaciones, empresas y gobiernos tomar decisiones basadas en datos reales, comenzando desde Misiones hacia todo el país.
             </p>
             <div className={styles.sobrePartners}>
               <a href="mailto:paralelo.software.studio@gmail.com" className={styles.partnerCard}>

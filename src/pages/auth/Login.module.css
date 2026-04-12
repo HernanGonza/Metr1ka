@@ -23,7 +23,7 @@
 }
 .backLink:hover { color: var(--ink); }
 .brand { display: flex; justify-content: center; margin-bottom: 28px; }
-.logo { height: 32px; width: auto; }
+.logo { height: 22px; width: auto; max-width: 160px; }
 .title {
   font-family: 'Syne', sans-serif;
   font-size: 22px; font-weight: 800;
