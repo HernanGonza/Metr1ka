@@ -683,6 +683,8 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
 
   // ── Estado muestreo ──
   const [config,        setConfig]        = useState(CONFIG_DEFAULT)
+  const [fechaInicio,   setFechaInicio]   = useState('')
+  const [fechaFin,      setFechaFin]      = useState('')
 
   // ── Drag & drop ──
   const [dragging,      setDragging]      = useState(null) // equipo_id que se está arrastrando
@@ -703,10 +705,12 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
       setLoadingZonas(true)
       try {
         const [{ data: enc }, { data: zs }] = await Promise.all([
-          supabase.from('encuestas').select('config_muestreo').eq('id', encuesta.id).single(),
+          supabase.from('encuestas').select('config_muestreo, fecha_inicio, fecha_fin').eq('id', encuesta.id).single(),
           supabase.from('encuesta_zonas').select('*').eq('encuesta_id', encuesta.id).order('orden'),
         ])
         if (enc?.config_muestreo) setConfig(c => ({ ...c, ...enc.config_muestreo }))
+        if (enc?.fecha_inicio) setFechaInicio(enc.fecha_inicio)
+        if (enc?.fecha_fin)    setFechaFin(enc.fecha_fin)
         const lista = zs || []
         setZonas(lista)
         // Precarga snapshots de cada zona
@@ -830,6 +834,7 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
         }
       })
 
+      // Guardar config de muestreo + zonas
       const { data, error } = await supabase.rpc('guardar_config_encuesta', {
         p_payload: {
           encuesta_id:     encuesta.id,
@@ -838,6 +843,14 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
         }
       })
       if (error) throw error
+
+      // Guardar fechas directamente en encuestas
+      await supabase.from('encuestas')
+        .update({
+          fecha_inicio: fechaInicio || null,
+          fecha_fin:    fechaFin    || null,
+        })
+        .eq('id', encuesta.id)
 
       // Disparar parcelas y distribución en background para cada zona que tuvo manzanas
       zonas.forEach(zona => {
@@ -1057,6 +1070,43 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
           {/* ────────── TAB MUESTREO ────────── */}
           {tab === 'muestreo' && (
             <div style={{ padding: '20px 28px', maxWidth: 720 }}>
+
+              {/* ── Fechas de la encuesta ── */}
+              <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '18px 20px', marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Programación</div>
+                <div style={{ fontSize: 13, color: 'var(--ink3)', marginBottom: 16, lineHeight: 1.5 }}>
+                  La encuesta se <strong>desbloquea automáticamente</strong> para los encuestadores en la fecha de inicio. Si no se configura, está disponible siempre que esté publicada.
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 6 }}>📅 Fecha de inicio</label>
+                    <input
+                      type="date"
+                      value={fechaInicio}
+                      onChange={e => setFechaInicio(e.target.value)}
+                      style={{ width: '100%', padding: '9px 12px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--surface)', color: 'var(--ink)', outline: 'none' }}
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--ink4)', marginTop: 4 }}>Dejar vacío = disponible inmediatamente</div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 6 }}>🔚 Fecha de cierre</label>
+                    <input
+                      type="date"
+                      value={fechaFin}
+                      onChange={e => setFechaFin(e.target.value)}
+                      style={{ width: '100%', padding: '9px 12px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--surface)', color: 'var(--ink)', outline: 'none' }}
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--ink4)', marginTop: 4 }}>Dejar vacío = sin fecha de cierre</div>
+                  </div>
+                </div>
+                {fechaInicio && (
+                  <div style={{ marginTop: 14, padding: '10px 14px', background: 'var(--accent-light)', borderRadius: 'var(--r)', fontSize: 13, color: 'var(--accent2)', borderLeft: '3px solid var(--accent2)' }}>
+                    🔒 Esta encuesta se desbloqueará el <strong>{new Date(fechaInicio + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</strong>
+                    {fechaFin && ` y cerrará el ${new Date(fechaFin + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`}.
+                  </div>
+                )}
+              </div>
+
               <PanelConfig config={config} onChange={setConfig} organizacionId={encuesta?.organizacion_id} />
             </div>
           )}

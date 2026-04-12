@@ -237,6 +237,21 @@ function VistaProduccion({ encuesta, preguntas }) {
           <div style={{ fontSize: 13, color: 'var(--ink2)' }}>{encuesta.descripcion}</div>
         </div>
       )}
+      {(encuesta.fecha_inicio || encuesta.fecha_fin) && (
+        <div style={{ background: 'var(--accent-light)', border: '1px solid #b7e4c7', borderRadius: 'var(--r2)', padding: '14px 18px', display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent2)' }}>📅 Programación</span>
+          {encuesta.fecha_inicio && (
+            <span style={{ fontSize: 13, color: 'var(--accent2)' }}>
+              Inicio: <strong>{new Date(encuesta.fecha_inicio + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>
+            </span>
+          )}
+          {encuesta.fecha_fin && (
+            <span style={{ fontSize: 13, color: 'var(--accent2)' }}>
+              Cierre: <strong>{new Date(encuesta.fecha_fin + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>
+            </span>
+          )}
+        </div>
+      )}
       {preguntas.length > 0 && (
         <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', marginBottom: 12 }}>Vista previa — {preguntas.length} preguntas</div>
