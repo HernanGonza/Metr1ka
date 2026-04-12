@@ -74,6 +74,14 @@ export function Sidebar() {
     await signOut(); navigate('/')
   }
 
+  function toggleCollapse() {
+    setCollapsed(c => {
+      const next = !c
+      document.documentElement.setAttribute('data-sidebar', next ? 'collapsed' : 'expanded')
+      return next
+    })
+  }
+
   const sidebarClass = [
     styles.sidebar,
     collapsed ? styles.collapsed : '',
@@ -98,7 +106,7 @@ export function Sidebar() {
           }
           <button
             className={styles.collapseBtn}
-            onClick={() => setCollapsed(c => !c)}
+            onClick={toggleCollapse}
             title={collapsed ? 'Expandir' : 'Colapsar'}
           >
             {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
