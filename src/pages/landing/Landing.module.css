@@ -31,7 +31,8 @@
   font-family: 'Syne', sans-serif;
   font-size: clamp(28px, 4vw, 44px);
   font-weight: 800; letter-spacing: -1.5px;
-  line-height: 1.1; margin: 0 0 16px;
+  line-height: 1.25; margin: 0 0 16px;
+  padding-bottom: 4px;
   color: var(--ink);
 }
 .sectionSub {
@@ -202,7 +203,7 @@
 .heroH1 {
   font-family: 'Syne', sans-serif;
   font-size: clamp(36px, 4.5vw, 62px);
-  font-weight: 800; line-height: 1.06;
+  font-weight: 800; line-height: 1.18;
   letter-spacing: -2px; margin-bottom: 24px;
   color: var(--ink);
 }
@@ -719,3 +720,38 @@
   .heroBtns { flex-direction: column; }
   .heroBtns .btnPrimary, .heroBtns .btnOutline { width: 100%; justify-content: center; }
 }
+
+/* ── SOBRE NOSOTROS ── */
+.sobreSection { padding: 100px 0; background: var(--surface); }
+.sobreGrid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 64px; align-items: center; }
+.sobreContent { display: flex; flex-direction: column; gap: 0; }
+.sobreText { font-size: 16px; color: var(--ink3); line-height: 1.75; margin: 0 0 16px; }
+.sobreText strong { color: var(--ink2); font-weight: 700; }
+.sobrePartners { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
+.partnerCard {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--paper); border-radius: 12px;
+  padding: 14px 16px; border: 1px solid var(--border);
+  text-decoration: none; transition: all 0.2s;
+}
+.partnerCard:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.partnerLogo { height: 28px; object-fit: contain; flex-shrink: 0; }
+.partnerName { font-size: 13px; font-weight: 700; color: var(--ink); }
+.partnerRole { font-size: 11px; color: var(--ink3); margin-top: 2px; }
+.sobreStats { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.sobreStat {
+  background: var(--paper); border-radius: 16px;
+  padding: 28px 24px; border: 1px solid var(--border);
+  text-align: center;
+}
+.sobreStatNum {
+  font-family: 'Syne', sans-serif; font-size: 36px;
+  font-weight: 800; color: var(--accent);
+  letter-spacing: -1.5px; margin-bottom: 6px;
+}
+.sobreStatLabel { font-size: 13px; color: var(--ink3); }
+
+
+/* ── Logo sizes para partners ── */
+.footerLogoParalelo { height: 32px !important; }
+.footerLogoEnfoque  { height: 26px !important; }

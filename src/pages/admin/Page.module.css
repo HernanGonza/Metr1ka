@@ -1,10 +1,10 @@
 /* ── Admin pages base ── */
 .page { display: flex; flex-direction: column; min-height: 100vh; }
 .content { flex: 1; padding: 28px; max-width: 1200px; margin: 0 auto; width: 100%; }
-.placeholder { font-size: 15px; color: var(--ink3); padding: 48px; text-align: center; background: #fff; border: 1px dashed var(--border2); border-radius: var(--r2); }
+.placeholder { font-size: 15px; color: var(--ink3); padding: 48px; text-align: center; background: var(--paper); border: 1px dashed var(--border2); border-radius: var(--r2); }
 
 /* ── Topbar interno (páginas admin) ── */
-.topbar { display: flex; justify-content: space-between; align-items: center; padding: 20px 28px; border-bottom: 1px solid var(--border); background: #fff; }
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 20px 28px; border-bottom: 1px solid var(--border); background: var(--paper); }
 .eyebrow { font-size: 11px; font-weight: 700; color: var(--ink3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
 .title { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: -.5px; margin: 0; }
 
@@ -12,7 +12,7 @@
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
 
 /* ── Tarjeta de encuesta ── */
-.encuestaCard { background: #fff; border: 1px solid var(--border); border-radius: var(--r2); padding: 18px; transition: all .2s; cursor: pointer; }
+.encuestaCard { background: var(--paper); border: 1px solid var(--border); border-radius: var(--r2); padding: 18px; transition: all .2s; cursor: pointer; }
 .encuestaCard:hover { box-shadow: var(--shadow-md); }
 .encuestaCardPublicada { border-left: 4px solid var(--accent); background: linear-gradient(135deg, #fff 0%, var(--accent-light) 100%); }
 .encuestaCardPublicada:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(26,71,42,.15); }
@@ -37,7 +37,7 @@
 
 /* ── Modal ── */
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
-.modalContent { background: #fff; border-radius: var(--r2); width: 100%; max-width: 480px; box-shadow: 0 24px 80px rgba(0,0,0,.2); max-height: 90vh; overflow: auto; }
+.modalContent { background: var(--paper); border-radius: var(--r2); width: 100%; max-width: 480px; box-shadow: 0 24px 80px rgba(0,0,0,.2); max-height: 90vh; overflow: auto; }
 .modalHeader { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px; border-bottom: 1px solid var(--border); }
 .modalHeader h3 { margin: 0; font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; }
 .closeBtn { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--ink3); line-height: 1; padding: 0 4px; }
@@ -48,7 +48,7 @@
   width: 100%; padding: 10px 14px;
   border: 1.5px solid var(--border2); border-radius: var(--r);
   font-size: 14px; font-family: 'DM Sans', sans-serif;
-  outline: none; background: #fff; color: var(--ink);
+  outline: none; background: var(--paper); color: var(--ink);
   transition: border-color .15s;
 }
 .formGroup input:focus, .formGroup textarea:focus, .formGroup select:focus, .select:focus { border-color: var(--accent); }
@@ -60,12 +60,12 @@
 .modalActions button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ── EncuestaDetalle: Filtros ── */
-.filtroCard { background: #fff; border: 1px solid var(--border); border-radius: var(--r2); padding: 16px; margin-bottom: 20px; }
+.filtroCard { background: var(--paper); border: 1px solid var(--border); border-radius: var(--r2); padding: 16px; margin-bottom: 20px; }
 .filtroGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; align-items: end; }
 .filtroGroup { display: flex; flex-direction: column; gap: 4px; }
 .filtroGroup label { font-size: 12px; font-weight: 600; color: var(--ink3); }
 .filtroActions { display: flex; justify-content: flex-end; align-items: flex-end; }
-.input { width: 100%; padding: 8px 12px; border: 1.5px solid var(--border2); border-radius: var(--r); font-size: 13px; font-family: 'DM Sans', sans-serif; outline: none; background: #fff; color: var(--ink); }
+.input { width: 100%; padding: 8px 12px; border: 1.5px solid var(--border2); border-radius: var(--r); font-size: 13px; font-family: 'DM Sans', sans-serif; outline: none; background: var(--paper); color: var(--ink); }
 .input:focus { border-color: var(--accent); }
 
 /* ── EncuestaDetalle: Tabs ── */
@@ -76,7 +76,7 @@
 
 /* ── EncuestaDetalle: Métricas ── */
 .metricasGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
-.metricaCard { background: #fff; border: 1px solid var(--border); border-radius: var(--r2); padding: 16px; }
+.metricaCard { background: var(--paper); border: 1px solid var(--border); border-radius: var(--r2); padding: 16px; }
 .metricaLabel { font-size: 12px; color: var(--ink3); margin-bottom: 4px; font-weight: 600; }
 .metricaValue { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -1px; }
 .metricaSub { font-size: 11px; color: var(--ink3); margin-top: 2px; }
@@ -84,7 +84,7 @@
 /* ── EncuestaDetalle: Gráficos ── */
 .graficosGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
 .listaPreguntas { display: flex; flex-direction: column; gap: 16px; }
-.preguntaCard { background: #fff; border: 1px solid var(--border); border-radius: var(--r2); padding: 18px; }
+.preguntaCard { background: var(--paper); border: 1px solid var(--border); border-radius: var(--r2); padding: 18px; }
 .preguntaTitulo { margin: 0 0 12px; font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.4; }
 .sinDatos { color: var(--ink3); font-size: 13px; font-style: italic; text-align: center; padding: 24px; }
 .respuestasTexto { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; }
@@ -92,7 +92,7 @@
 .verMas { font-size: 12px; color: var(--accent2); text-align: center; padding: 8px; cursor: pointer; font-weight: 600; }
 
 /* ── EncuestaDetalle: Mapa ── */
-.mapaCard { background: #fff; border: 1px solid var(--border); border-radius: var(--r2); overflow: hidden; }
+.mapaCard { background: var(--paper); border: 1px solid var(--border); border-radius: var(--r2); overflow: hidden; }
 .mapaPlaceholder { height: 400px; background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--ink3); position: relative; }
 .mapaHint { font-size: 12px; margin-top: 8px; opacity: .7; }
 .pins { position: absolute; inset: 0; pointer-events: none; }
@@ -119,3 +119,12 @@
   .graficosGrid { grid-template-columns: 1fr; }
   .filtroGrid { grid-template-columns: 1fr 1fr; }
 }
+/* ── Dark mode general admin ── */
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border-color: var(--border2) !important;
+}
+[data-theme="dark"] .modalContent { background: var(--paper); }

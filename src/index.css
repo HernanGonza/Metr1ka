@@ -109,3 +109,31 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* ═══════════════════════════════════════════
+   DARK MODE — sobrescrituras globales
+   ═══════════════════════════════════════════ */
+[data-theme="dark"] body {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* Topbar, Sidebar y superficies principales */
+[data-theme="dark"] .topbar,
+[data-theme="dark"] header {
+  background: var(--paper) !important;
+  border-color: var(--border) !important;
+}
+
+/* Inputs globales */
+[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border-color: var(--border2) !important;
+}
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: var(--ink4) !important;
+}

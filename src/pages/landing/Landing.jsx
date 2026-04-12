@@ -150,11 +150,12 @@ function Nav({ active, onContact }) {
       <nav className={`${styles.nav} ${scrolled ? styles.navScrolled : ''}`}>
         <div className={styles.navInner}>
           <button className={styles.navBrand} onClick={() => scrollTo('inicio')}>
-            <img src={LogoMetr1ka} alt="Metr1ka" className={styles.brandLogo} />
+            <img src={LogoMetr1ka} alt="Metr1ka" className={styles.brandLogo}
+              style={{ filter: isDark ? 'invert(1) brightness(2)' : 'none' }} />
           </button>
 
           <div className={styles.navTabs}>
-            {SECTIONS.filter(s => !['nosotros','clientes'].includes(s.id)).map(s => (
+            {SECTIONS.filter(s => s.id !== 'clientes').map(s => (
               <button key={s.id} className={`${styles.navTab} ${active === s.id ? styles.navTabActive : ''}`} onClick={() => scrollTo(s.id)}>
                 {s.label}
               </button>
@@ -206,7 +207,7 @@ function Hero({ onContact }) {
             Sin papel. Sin espera.
           </h1>
           <p className={styles.heroSub}>
-            Metr1ka es la plataforma que conecta a tus encuestadores en campo con tu panel de análisis. Geofencing, GPS en vivo y resultados al instante.
+            Metr1ka es la plataforma que conecta a tus encuestadores en campo con tu panel de análisis. Control de zonas, GPS en vivo y resultados al instante.
           </p>
           <div className={styles.heroBtns}>
             <button className={styles.btnPrimary} onClick={onContact}>
@@ -304,10 +305,67 @@ function HeroMiniMap() {
   )
 }
 
+
+/* ── Sobre Nosotros ── */
+function SobreNosotros({ onContact }) {
+  return (
+    <section id="nosotros" className={styles.sobreSection}>
+      <div className={styles.container}>
+        <div className={styles.sobreGrid}>
+          <div className={styles.sobreContent}>
+            <div className={styles.sectionLabel}>Sobre nosotros</div>
+            <h2 className={styles.sectionTitle}>Nacimos para resolver<br />un problema real</h2>
+            <p className={styles.sobreText}>
+              Metr1ka es un producto de <strong>Paralelo Software Studio</strong>, desarrollado junto a
+              <strong> Enfoque Misiones</strong> para cubrir una necesidad que vimos de primera mano:
+              los equipos de campo seguían usando papel, planillas de Excel y llamadas telefónicas
+              para coordinar encuestas.
+            </p>
+            <p className={styles.sobreText}>
+              Construimos una plataforma que digitaliza todo el proceso — desde la configuración de
+              zonas geográficas hasta la visualización de resultados en tiempo real — para que los
+              datos lleguen cuando importan: mientras pasan.
+            </p>
+            <div className={styles.sobrePartners}>
+              <a href="mailto:paralelo.software.studio@gmail.com" className={styles.partnerCard}>
+                <img src={logoParalelo} alt="Paralelo Software Studio" className={styles.partnerLogo} />
+                <div>
+                  <div className={styles.partnerName}>Paralelo Software Studio</div>
+                  <div className={styles.partnerRole}>Desarrollo de producto</div>
+                </div>
+              </a>
+              <a href="mailto:enfoquemisiones@gmail.com" className={styles.partnerCard}>
+                <img src={logoEnfoque} alt="Enfoque Misiones" className={styles.partnerLogo} />
+                <div>
+                  <div className={styles.partnerName}>Enfoque Misiones</div>
+                  <div className={styles.partnerRole}>Partner estratégico</div>
+                </div>
+              </a>
+            </div>
+          </div>
+          <div className={styles.sobreStats}>
+            {[
+              { num: '2025', label: 'Año de lanzamiento' },
+              { num: '+50', label: 'Encuestadores en campo' },
+              { num: '100%', label: 'Hecho en Misiones' },
+              { num: '0', label: 'Papel usado' },
+            ].map((s, i) => (
+              <div key={i} className={styles.sobreStat}>
+                <div className={styles.sobreStatNum}>{s.num}</div>
+                <div className={styles.sobreStatLabel}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 /* ── Features ── */
 function Features() {
   const features = [
-    { icon: <MapPin size={22} />, title: 'Geofencing inteligente', desc: 'Delimitá zonas geográficas por equipo. Si un encuestador sale del área, la app se desactiva automáticamente.', color: '#1a472a' },
+    { icon: <MapPin size={22} />, title: 'Control de zona inteligente', desc: 'Delimitá zonas geográficas por equipo. Si un encuestador sale del área, la app se desactiva automáticamente.', color: '#1a472a' },
     { icon: <Zap size={22} />, title: 'Respuestas en tiempo real', desc: 'Cada respuesta llega al panel central en menos de un segundo. Sin sincronizaciones manuales ni esperas.', color: '#7c3aed' },
     { icon: <Smartphone size={22} />, title: 'App móvil nativa', desc: 'Aplicación para iOS y Android. Funciona en modo offline y sincroniza cuando recupera señal.', color: '#0369a1' },
     { icon: <BarChart2 size={22} />, title: 'Gráficos automáticos', desc: 'Los resultados se visualizan en gráficos interactivos automáticamente, sin configuración adicional.', color: '#b45309' },
@@ -599,10 +657,7 @@ function Pricing({ onContact }) {
           ))}
         </div>
 
-        <div className={styles.pricingNote}>
-          <Shield size={16} />
-          <span>Todos los planes incluyen 30 días de prueba sin compromiso. Sin tarjeta de crédito.</span>
-        </div>
+
       </div>
     </section>
   )
@@ -653,11 +708,15 @@ function Footer({ onContact }) {
               <p className={styles.footerTagline}>Sistema profesional de encuestas de campo. Datos reales, en tiempo real.</p>
               <div className={styles.footerPartners}>
                 <span className={styles.footerPartnerLabel}>Desarrollado por</span>
-                <img src={logoParalelo} alt="Paralelo Software Studio" className={styles.footerPartnerLogo} />
+                <a href="mailto:paralelo.software.studio@gmail.com">
+                  <img src={logoParalelo} alt="Paralelo Software Studio" className={`${styles.footerPartnerLogo} ${styles.footerLogoParalelo}`} />
+                </a>
               </div>
               <div className={styles.footerPartners} style={{ marginTop: 8 }}>
                 <span className={styles.footerPartnerLabel}>Impulsado por</span>
-                <img src={logoEnfoque} alt="Enfoque Misiones" className={styles.footerPartnerLogo} />
+                <a href="mailto:enfoquemisiones@gmail.com">
+                  <img src={logoEnfoque} alt="Enfoque Misiones" className={`${styles.footerPartnerLogo} ${styles.footerLogoEnfoque}`} />
+                </a>
               </div>
             </div>
 
@@ -703,11 +762,13 @@ export default function Landing() {
 
   useEffect(() => {
     const fn = () => {
-      const els = [...SECTIONS, { id: 'roles' }, { id: 'clientes' }]
-        .map(s => document.getElementById(s.id)).filter(Boolean)
-      const sy = window.scrollY + 80
+      const ids = ['inicio', 'nosotros', 'sistema', 'flujo', 'roles', 'panel', 'app', 'precios', 'clientes']
+      const sy = window.scrollY + window.innerHeight * 0.35
       let cur = 'inicio'
-      els.forEach(el => { if (el.offsetTop <= sy) cur = el.id })
+      for (const id of ids) {
+        const el = document.getElementById(id)
+        if (el && el.offsetTop <= sy) cur = id
+      }
       setActiveSection(cur)
     }
     window.addEventListener('scroll', fn, { passive: true })
@@ -719,6 +780,7 @@ export default function Landing() {
       <Nav active={activeSection} onContact={() => setContactOpen(true)} />
       <main>
         <Hero onContact={() => setContactOpen(true)} />
+        <SobreNosotros onContact={() => setContactOpen(true)} />
         <Features />
         <Flujo />
         <Roles />
