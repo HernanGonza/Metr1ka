@@ -1,0 +1,27 @@
+# Robots.txt para Metr1ka
+# Última actualización: Abril 2026
+
+User-agent: *
+# Permitir rastreo de la landing pública
+Allow: /$
+Allow: /privacy
+Allow: /terms
+Allow: /cookies
+
+# Bloquear rutas de la aplicación (requieren auth de todas formas)
+Disallow: /login
+Disallow: /registro
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /app
+Disallow: /perfil
+Disallow: /encuestas
+Disallow: /api/
+
+# Bloquear archivos sensibles
+Disallow: /*.json$
+Disallow: /vercel.json
+Disallow: /package.json
+
+# Crawl-delay para bots respetuosos (opcional)
+Crawl-delay: 10

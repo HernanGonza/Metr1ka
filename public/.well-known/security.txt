@@ -1,0 +1,3 @@
+Contact: mailto:hola@metr1ka.com
+Preferred-Languages: es, en
+Policy: https://www.metr1ka.com/privacy

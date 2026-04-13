@@ -1,0 +1,25 @@
+/* EQUIPO */
+Desarrollo: Paralelo Software Studio
+Contacto: paralelo.software.studio@gmail.com
+Web: https://paralelo.software
+
+Partner estratégico: Enfoque Misiones
+Contacto: enfoquemisiones@gmail.com
+Web: https://enfoquemisiones.com
+
+/* TECNOLOGÍAS */
+Frontend: React 19, Vite
+Backend: Supabase (PostgreSQL, Auth, Storage, Edge Functions)
+Mapas: Leaflet + Leaflet-Geoman + OpenStreetMap
+Gráficos: Chart.js + react-chartjs-2
+Estilos: CSS Modules
+Hosting: Vercel
+Idioma: Español (Argentina)
+
+/* ÚLTIMA ACTUALIZACIÓN */
+Updated: 2026-04-13
+
+/* CRÉDITOS ADICIONALES */
+Fuentes: Syne y DM Sans (Google Fonts)
+Íconos: Lucide React
+Geo: Turf.js para cálculos geoespaciales
