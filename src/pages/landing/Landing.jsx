@@ -8,6 +8,8 @@ import LogoMetr1ka from '../../assets/LogoMetr1ka.svg'
 import logoEnfoque from '../../assets/logo-enfoque.png'
 import logoParalelo from '../../assets/logo-paralelo.webp'
 import { SECTIONS, FLOW_STEPS, ROLES, PLANS, TESTIMONIALS, DASHBOARD_DATA } from './landingData'
+import LegalModal from './LegalModal'
+import { PRIVACY_POLICY, TERMS, COOKIES } from './legalTexts'
 
 
 /* ── Logo SVG Web (inline, acepta color) ── */
@@ -717,7 +719,7 @@ function Testimonials() {
 }
 
 /* ── Footer ── */
-function Footer({ onContact }) {
+function Footer({ onContact, onOpenLegal }) {
   function scrollTo(id) {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -746,7 +748,7 @@ function Footer({ onContact }) {
 
             <div className={styles.footerCol}>
               <h4 className={styles.footerColTitle}>Producto</h4>
-              {[['inicio','Inicio'],['sistema','El sistema'],['flujo','Flujo'],['app','App móvil'],['precios','Precios']].map(([id, label]) => (
+              {[['inicio','Inicio'],['sistema','El sistema'],['nosotros','Sobre nosotros'],['flujo','Flujo'],['app','App móvil'],['precios','Precios']].map(([id, label]) => (
                 <button key={id} className={styles.footerLink} onClick={() => scrollTo(id)}>{label}</button>
               ))}
             </div>
@@ -760,9 +762,17 @@ function Footer({ onContact }) {
 
             <div className={styles.footerCol}>
               <h4 className={styles.footerColTitle}>Legal</h4>
-              <span className={styles.footerLink}>Política de privacidad</span>
-              <span className={styles.footerLink}>Términos de uso</span>
-              <span className={styles.footerLink}>Política de cookies</span>
+              <button className={styles.footerLink} onClick={() => onOpenLegal('privacy')}>
+  Política de privacidad
+</button>
+
+<button className={styles.footerLink} onClick={() => onOpenLegal('terms')}>
+  Términos de uso
+</button>
+
+<button className={styles.footerLink} onClick={() => onOpenLegal('cookies')}>
+  Política de cookies
+</button>
             </div>
           </div>
         </div>
@@ -783,6 +793,7 @@ function Footer({ onContact }) {
 export default function Landing() {
   const [activeSection, setActiveSection] = useState('inicio')
   const [contactOpen, setContactOpen] = useState(false)
+  const [legalModal, setLegalModal] = useState(null)
 
   useEffect(() => {
     const fn = () => {
@@ -813,10 +824,25 @@ export default function Landing() {
         <Pricing onContact={() => setContactOpen(true)} />
         <Testimonials />
       </main>
-      <Footer onContact={() => setContactOpen(true)} />
+      <Footer 
+  onContact={() => setContactOpen(true)}
+  onOpenLegal={(type) => {
+    if (type === 'privacy') setLegalModal({ title: 'Política de privacidad', content: PRIVACY_POLICY })
+    if (type === 'terms') setLegalModal({ title: 'Términos de uso', content: TERMS })
+    if (type === 'cookies') setLegalModal({ title: 'Política de cookies', content: COOKIES })
+  }}
+/>
       {contactOpen && <ContactModal onClose={() => setContactOpen(false)} />}
+        {legalModal && (
+  <LegalModal
+    title={legalModal.title}
+    content={legalModal.content}
+    onClose={() => setLegalModal(null)}
+  />
+)}
       <CookieBanner />
       <ScrollToTop />
     </div>
   )
 }
+

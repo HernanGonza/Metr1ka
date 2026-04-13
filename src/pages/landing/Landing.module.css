@@ -549,7 +549,7 @@
 .testimonialRole { font-size: 12px; color: var(--ink3); }
 
 /* ── FOOTER ── */
-.footer { background: #0f0f0f; color: rgba(255,255,255,0.7); }
+.footer { background: #0f0f0f; color: rgba(255,255,255,0.7); transition: background 0.3s, color 0.3s; }
 .footerTop { padding: 64px 0; }
 .footerGrid { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 40px; }
 .footerBrand { display: flex; flex-direction: column; }
@@ -753,8 +753,8 @@
 
 
 /* ── Logo sizes para partners ── */
-.footerLogoParalelo { height: 40px; opacity: 0.75; }
-.footerLogoEnfoque  { height: 28px; opacity: 0.75; }
+.footerLogoParalelo { height: 80px; opacity: 0.8; max-width: 160px; }
+.footerLogoEnfoque  { height: 30px; opacity: 0.8; max-width: 100px; }
 
 /* ── Sobre Nosotros highlight ── */
 .sobreHighlight {
@@ -771,5 +771,97 @@
 
 /* ── Partner logos específicos ── */
 .partnerLogoBase { object-fit: contain; flex-shrink: 0; }
-.partnerLogoParalelo { height: auto; max-height: 36px; max-width: 130px; }
-.partnerLogoEnfoque  { height: auto; max-height: 28px; max-width: 110px; }
+.partnerLogoParalelo { height: 40px; max-width: 150px; }
+.partnerLogoEnfoque  { height: 28px; max-width: 100px; }
+
+/* Footer invierte en dark mode */
+[data-theme="dark"] .footer { background: #ffffff; color: rgba(0,0,0,0.7); }
+[data-theme="dark"] .footerTagline { color: rgba(0,0,0,0.5); }
+[data-theme="dark"] .footerColTitle { color: rgba(0,0,0,0.4); }
+[data-theme="dark"] .footerLink { color: rgba(0,0,0,0.65); }
+[data-theme="dark"] .footerLink:hover { color: rgba(0,0,0,1); }
+[data-theme="dark"] .footerPartnerLabel { color: rgba(0,0,0,0.4); }
+[data-theme="dark"] .footerBottom { border-top-color: rgba(0,0,0,0.1); }
+[data-theme="dark"] .footerBottomRow { color: rgba(0,0,0,0.4); }
+/* Los logos de partners se invierten para verse en fondo blanco */
+[data-theme="dark"] .footerPartnerLogo { filter: brightness(0) !important; opacity: 0.6 !important; }
+
+/* ===== LEGAL MODAL ===== */
+
+.legalContent {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: 65vh;
+}
+
+.legalContent h1,
+.legalContent h2,
+.legalContent h3 {
+  margin-top: 20px;
+  margin-bottom: 10px;
+  color: var(--ink);
+}
+
+.legalContent p {
+  color: var(--ink3);
+  line-height: 1.6;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.legalContent ul {
+  padding-left: 18px;
+  margin-bottom: 12px;
+}
+
+.legalContent li {
+  margin-bottom: 6px;
+  color: var(--ink3);
+}
+
+.legalContent strong {
+  color: var(--ink);
+}
+
+/* scroll lindo */
+.legalContent::-webkit-scrollbar {
+  width: 6px;
+}
+
+.legalContent::-webkit-scrollbar-thumb {
+  background: var(--border2);
+  border-radius: 10px;
+}
+
+.modalHeader {
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  z-index: 10;
+  border-bottom: 1px solid var(--border);
+}
+
+.legalContent h2 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.legalContent h3 {
+  font-size: 15px;
+  margin-top: 18px;
+  margin-bottom: 6px;
+  color: var(--ink);
+}
+
+.legalContent p {
+  margin-bottom: 12px;
+}
+
+.legalContent ul {
+  margin-bottom: 12px;
+  padding-left: 18px;
+}
+
+.legalContent li {
+  margin-bottom: 4px;
+}
