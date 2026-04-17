@@ -5,6 +5,7 @@ import { Button, Input } from '../../components/ui'
 import { Mail, Lock, Zap, ArrowLeft } from 'lucide-react'
 import styles from './Login.module.css'
 import { useTheme } from '../../hooks/useTheme'
+import { useAuth } from '../../hooks/useAuth'
 
 async function getRedirectPath() {
   const { data: { user } } = await supabase.auth.getUser()
@@ -35,6 +36,7 @@ function LogoLogin({ isDark }) {
 
 export default function Login() {
   const { isDark } = useTheme()
+  const { user, perfil, loading: authLoading } = useAuth()
   const [mode, setMode]         = useState('password')
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
@@ -45,6 +47,22 @@ export default function Login() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const invited = searchParams.get('invited') === 'true'
+
+  // Si el AuthContext ya tiene usuario y perfil cargado → redirigir al dashboard
+  // Esto maneja el caso de Google OAuth que vuelve a /login con sesión activa
+  useEffect(() => {
+    if (authLoading) return
+    if (!user || !perfil) return
+    if (searchParams.get('sin_cuenta') === 'true') return
+    // Ya está autenticado con perfil → ir al dashboard según rol
+    if (perfil.rol === 'superadmin' || perfil.rol === 'editor') {
+      navigate('/superadmin', { replace: true })
+    } else if (perfil.rol === 'coordinador') {
+      navigate('/coord/dashboard', { replace: true })
+    } else {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [authLoading, user, perfil])
 
   // Handle magic link callback and email confirmation
   useEffect(() => {
@@ -82,35 +100,8 @@ export default function Login() {
     // Si viene con sin_cuenta=true, hacer signOut para limpiar la sesión de Google
     if (searchParams.get('sin_cuenta') === 'true') {
       supabase.auth.signOut()
-      return
     }
-
-    let navigating = false
-
-    async function handleSession(session) {
-      if (!session || navigating) return
-      navigating = true
-      // Pequeño delay para que Supabase termine de establecer la sesión
-      // antes de que el ProtectedRoute la verifique
-      await new Promise(r => setTimeout(r, 300))
-      const path = await getRedirectPath()
-      navigate(path, { replace: true })
-    }
-
-    // Caso OAuth: Google vuelve a /login con la sesión ya activa en la URL
-    // getSession() la captura inmediatamente sin esperar el evento SIGNED_IN
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) handleSession(session)
-    })
-
-    // Caso login normal: esperar el evento SIGNED_IN
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        handleSession(session)
-      }
-    })
-    return () => subscription.unsubscribe()
-  }, [navigate])
+  }, [])
 
   async function handlePasswordLogin(e) {
     e.preventDefault()
