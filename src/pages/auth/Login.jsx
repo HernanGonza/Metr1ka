@@ -87,12 +87,26 @@ export default function Login() {
 
     let navigating = false
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Capturar SIGNED_IN e INITIAL_SESSION (OAuth de Google puede devolver cualquiera)
-      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session && !navigating) {
-        navigating = true
-        const path = await getRedirectPath()
-        navigate(path, { replace: true })
+    async function handleSession(session) {
+      if (!session || navigating) return
+      navigating = true
+      // Pequeño delay para que Supabase termine de establecer la sesión
+      // antes de que el ProtectedRoute la verifique
+      await new Promise(r => setTimeout(r, 300))
+      const path = await getRedirectPath()
+      navigate(path, { replace: true })
+    }
+
+    // Caso OAuth: Google vuelve a /login con la sesión ya activa en la URL
+    // getSession() la captura inmediatamente sin esperar el evento SIGNED_IN
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) handleSession(session)
+    })
+
+    // Caso login normal: esperar el evento SIGNED_IN
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        handleSession(session)
       }
     })
     return () => subscription.unsubscribe()
