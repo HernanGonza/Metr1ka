@@ -87,9 +87,9 @@ export default function App() {
           {/* Coordinador routes */}
           <Route element={<ProtectedRoute roles={['coordinador']} />}>
             <Route element={<DashboardLayout />}>
-              <Route path="/dashboard" element={<DashboardCoord />} />
-              <Route path="/equipo"    element={<EquipoCoord />} />
-              <Route path="/encuestas" element={<EncuestasCoord />} />
+              <Route path="/coord/dashboard" element={<DashboardCoord />} />
+              <Route path="/coord/equipo"    element={<EquipoCoord />} />
+              <Route path="/coord/encuestas" element={<EncuestasCoord />} />
             </Route>
           </Route>
 

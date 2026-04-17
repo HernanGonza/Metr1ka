@@ -64,12 +64,11 @@ const NAV_GESTOR = [
 
 const NAV_COORDINADOR = [
   { group: 'Principal', items: [
-    { to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/mapa',          icon: Map,             label: 'Mapa en vivo' },
+    { to: '/coord/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   ]},
   { group: 'Mi equipo', items: [
-    { to: '/equipo',        icon: Users,           label: 'Mi equipo' },
-    { to: '/encuestas',     icon: FileText,        label: 'Encuestas' },
+    { to: '/coord/equipo',    icon: Users,           label: 'Mi equipo' },
+    { to: '/coord/encuestas', icon: FileText,        label: 'Encuestas' },
   ]},
 ]
 

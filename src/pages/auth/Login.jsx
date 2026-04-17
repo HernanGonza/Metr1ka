@@ -11,6 +11,7 @@ async function getRedirectPath() {
   if (!user) return '/login'
   const { data: perfil } = await supabase.from('perfiles').select('rol').eq('id', user.id).single()
   if (perfil?.rol === 'superadmin' || perfil?.rol === 'editor') return '/superadmin'
+  if (perfil?.rol === 'coordinador') return '/coord/dashboard'
   return '/dashboard'
 }
 
