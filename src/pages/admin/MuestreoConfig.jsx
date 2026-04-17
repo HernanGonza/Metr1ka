@@ -394,7 +394,7 @@ const MapaZona = forwardRef(function MapaZona(
     fontSize: 12, fontFamily: 'DM Sans', fontWeight: 600,
     display: 'flex', alignItems: 'center', gap: 5, transition: 'all .15s',
     border: `1.5px solid ${danger ? '#fca5a5' : active ? 'var(--accent)' : 'var(--border2)'}`,
-    background: danger ? '#fef2f2' : active ? 'var(--accent)' : '#fff',
+    background: danger ? 'var(--danger-light)' : active ? 'var(--accent)' : 'var(--paper)',
     color: danger ? '#c0392b' : active ? '#fff' : 'var(--ink)',
   })
 
@@ -461,7 +461,7 @@ const MapaZona = forwardRef(function MapaZona(
       </div>
 
       {/* Footer leyenda */}
-      <div style={{ padding: '6px 12px', background: '#fff', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, minHeight: 32 }}>
+      <div style={{ padding: '6px 12px', background: 'var(--paper)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, minHeight: 32 }}>
         {nManz > 0 ? (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--ink3)' }}>
@@ -519,7 +519,7 @@ function RazonesSelector({ organizacionId, seleccionadas, onChangeSel }) {
   }
 
   const nSel = seleccionadas.length
-  const secStyle = { background: '#fff', border: `1px solid ${nSel < 2 ? '#fca5a5' : 'var(--border)'}`, borderRadius: 'var(--r)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }
+  const secStyle = { background: 'var(--paper)', border: `1px solid ${nSel < 2 ? '#fca5a5' : 'var(--border)'}`, borderRadius: 'var(--r)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }
 
   return (
     <div style={secStyle}>
@@ -541,9 +541,9 @@ function RazonesSelector({ organizacionId, seleccionadas, onChangeSel }) {
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', cursor: 'pointer',
               border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border2)'}`,
-              background: sel ? 'var(--accent-light)' : '#fff', transition: 'all .15s',
+              background: sel ? 'var(--accent-light)' : 'var(--paper)', transition: 'all .15s',
             }}>
-              <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `2px solid ${sel ? 'var(--accent)' : 'var(--border2)'}`, background: sel ? 'var(--accent)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `2px solid ${sel ? 'var(--accent)' : 'var(--border2)'}`, background: sel ? 'var(--accent)' : 'var(--paper)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {sel && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
               </div>
               <span style={{ flex: 1, fontSize: 12, color: sel ? 'var(--accent2)' : 'var(--ink2)', fontWeight: sel ? 600 : 400 }}>{r.label}</span>
@@ -577,7 +577,7 @@ function RazonesSelector({ organizacionId, seleccionadas, onChangeSel }) {
 function PanelConfig({ config, onChange, organizacionId }) {
   const k = config.intervalo_salto || 2
   function update(key, val) { onChange({ ...config, [key]: val }) }
-  const secStyle   = { background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }
+  const secStyle   = { background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }
   const labelStyle = { fontSize: 13, fontWeight: 700, color: 'var(--ink)' }
 
   return (
@@ -592,7 +592,7 @@ function PanelConfig({ config, onChange, organizacionId }) {
           {Array.from({ length: Math.min(k + 3, 8) }, (_, i) => {
             const enc = i === 0 || i === k + 1
             return (
-              <div key={i} style={{ width: 26, height: 26, borderRadius: 4, border: `2px solid ${enc ? 'var(--accent)' : 'var(--border2)'}`, background: enc ? 'var(--accent)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: enc ? '#fff' : 'var(--ink3)' }}>
+              <div key={i} style={{ width: 26, height: 26, borderRadius: 4, border: `2px solid ${enc ? 'var(--accent)' : 'var(--border2)'}`, background: enc ? 'var(--accent)' : 'var(--paper)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: enc ? '#fff' : 'var(--ink3)' }}>
                 {enc ? '✔' : i + 1}
               </div>
             )
@@ -631,7 +631,7 @@ function PanelConfig({ config, onChange, organizacionId }) {
           <div style={{ display: 'flex', gap: 6 }}>
             {[1, 2, 3].map(n => (
               <button key={n} onClick={() => update('max_intentos', n)}
-                style={{ flex: 1, padding: '8px 0', borderRadius: 'var(--r)', border: `2px solid ${config.max_intentos === n ? 'var(--accent)' : 'var(--border2)'}`, background: config.max_intentos === n ? 'var(--accent-light)' : '#fff', color: config.max_intentos === n ? 'var(--accent)' : 'var(--ink3)', fontFamily: 'Syne', fontSize: 18, fontWeight: 800, cursor: 'pointer', transition: 'all .15s' }}>
+                style={{ flex: 1, padding: '8px 0', borderRadius: 'var(--r)', border: `2px solid ${config.max_intentos === n ? 'var(--accent)' : 'var(--border2)'}`, background: config.max_intentos === n ? 'var(--accent-light)' : 'var(--paper)', color: config.max_intentos === n ? 'var(--accent)' : 'var(--ink3)', fontFamily: 'Syne', fontSize: 18, fontWeight: 800, cursor: 'pointer', transition: 'all .15s' }}>
                 {n}
               </button>
             ))}
@@ -647,7 +647,7 @@ function PanelConfig({ config, onChange, organizacionId }) {
             { key: 'salto',     icon: '⇒', label: 'Por salto',  desc: `Aplicar intervalo k=${k}` },
           ].map(op => (
             <div key={op.key} onClick={() => update('tipo_reemplazo', op.key)}
-              style={{ padding: '10px 12px', border: `2px solid ${config.tipo_reemplazo === op.key ? 'var(--accent)' : 'var(--border2)'}`, borderRadius: 'var(--r)', background: config.tipo_reemplazo === op.key ? 'var(--accent-light)' : '#fff', cursor: 'pointer', transition: 'all .15s' }}>
+              style={{ padding: '10px 12px', border: `2px solid ${config.tipo_reemplazo === op.key ? 'var(--accent)' : 'var(--border2)'}`, borderRadius: 'var(--r)', background: config.tipo_reemplazo === op.key ? 'var(--accent-light)' : 'var(--paper)', cursor: 'pointer', transition: 'all .15s' }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: config.tipo_reemplazo === op.key ? 'var(--accent)' : 'var(--ink)' }}>{op.icon} {op.label}</div>
               <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>{op.desc}</div>
             </div>
@@ -893,7 +893,7 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', zIndex: 500, display: 'flex', alignItems: 'stretch', justifyContent: 'center', padding: 12 }}>
-      <div style={{ background: '#fff', borderRadius: 'var(--r2)', width: '100%', maxWidth: 1200, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,.3)' }}>
+      <div style={{ background: 'var(--paper)', borderRadius: 'var(--r2)', width: '100%', maxWidth: 1200, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,.3)' }}>
 
         {/* Header */}
         <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, background: 'var(--surface)' }}>
@@ -953,7 +953,7 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                         onDrop={() => onDropEnZona(zona.id)}
                         style={{
                           padding: '8px 10px', borderRadius: 'var(--r)', marginBottom: 4, cursor: 'pointer',
-                          background: activa ? 'var(--accent-light)' : dragging ? '#f0fdf4' : '#fff',
+                          background: activa ? 'var(--accent-light)' : dragging ? 'rgba(22,163,74,0.06)' : 'var(--paper)',
                           border: `2px solid ${activa ? 'var(--accent2)' : dragging ? '#86efac' : 'var(--border)'}`,
                           transition: 'all .1s',
                         }}>
@@ -1021,7 +1021,7 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                         onDragEnd={onDragEnd}
                         style={{
                           padding: '7px 10px', borderRadius: 'var(--r)', border: '1.5px solid var(--border2)',
-                          background: dragging === eq.id ? 'var(--accent-light)' : '#fff',
+                          background: dragging === eq.id ? 'var(--accent-light)' : 'var(--paper)',
                           cursor: 'grab', fontSize: 13, fontWeight: 600, fontFamily: 'DM Sans',
                           color: dragging === eq.id ? 'var(--accent)' : 'var(--ink)',
                           transition: 'all .1s', userSelect: 'none',

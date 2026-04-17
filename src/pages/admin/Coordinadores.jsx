@@ -45,7 +45,7 @@ function InviteModal({ onClose, onSaved, session, rolInicial }) {
             <label>Email *</label>
             <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder={`${esCoord ? 'coordinador' : 'gestor'}@email.com`} required />
           </div>
-          <div style={{ padding: '10px 14px', background: esCoord ? '#e0f2fe' : '#f3e8ff', borderRadius: 'var(--r)', fontSize: 13, color: esCoord ? '#0369a1' : '#7c3aed' }}>
+          <div style={{ padding: '10px 14px', background: esCoord ? 'var(--info-light)' : 'rgba(124,58,237,0.1)', borderRadius: 'var(--r)', fontSize: 13, color: esCoord ? '#0369a1' : '#7c3aed' }}>
             {esCoord
               ? 'El coordinador gestionará un equipo en campo desde la app móvil y el panel web.'
               : 'El gestor tiene el mismo acceso que el admin pero sin gestión de suscripción.'}
@@ -122,7 +122,7 @@ function AsignarEquipoModal({ perfil: miembro, equipos, onClose, onSaved }) {
   )
 }
 
-const COLORS      = ['#d8f3dc','#e0f2fe','#fef3c7','#f3e8ff','#fce7f3','#ecfdf5']
+const COLORS      = ['#d8f3dc','var(--info-light)','var(--warning-light)','rgba(124,58,237,0.1)','#fce7f3','var(--accent-light)']
 const TEXT_COLORS = ['#1a472a','#0369a1','#b45309','#7c3aed','#be185d','#047857']
 const initials    = (n) => (n || '').split(' ').slice(0,2).map(x => x[0]).join('').toUpperCase()
 
@@ -206,16 +206,16 @@ export default function Coordinadores() {
   const gestores      = miembros.filter(m => m.rol === 'gestor')
 
   const statsCoord = [
-    { label: 'Total',      value: coordinadores.length,                                                 color: '#0369a1', bg: '#e0f2fe' },
+    { label: 'Total',      value: coordinadores.length,                                                 color: '#0369a1', bg: 'var(--info-light)' },
     { label: 'Activos',    value: coordinadores.filter(m => m.activo !== false).length,                 color: 'var(--accent)', bg: 'var(--accent-light)' },
-    { label: 'Con equipo', value: coordinadores.filter(m => m.equipo_coordinadores?.length > 0).length, color: '#047857', bg: '#ecfdf5' },
-    { label: 'Sin equipo', value: coordinadores.filter(m => !m.equipo_coordinadores?.length).length,    color: '#b45309', bg: '#fef3c7' },
+    { label: 'Con equipo', value: coordinadores.filter(m => m.equipo_coordinadores?.length > 0).length, color: '#047857', bg: 'var(--accent-light)' },
+    { label: 'Sin equipo', value: coordinadores.filter(m => !m.equipo_coordinadores?.length).length,    color: '#b45309', bg: 'var(--warning-light)' },
   ]
 
   const statsGestor = [
-    { label: 'Total',     value: gestores.length,                                color: '#7c3aed', bg: '#f3e8ff' },
+    { label: 'Total',     value: gestores.length,                                color: '#7c3aed', bg: 'rgba(124,58,237,0.1)' },
     { label: 'Activos',   value: gestores.filter(m => m.activo !== false).length, color: 'var(--accent)', bg: 'var(--accent-light)' },
-    { label: 'Inactivos', value: gestores.filter(m => m.activo === false).length, color: '#c0392b', bg: '#fef2f2' },
+    { label: 'Inactivos', value: gestores.filter(m => m.activo === false).length, color: '#c0392b', bg: 'var(--danger-light)' },
   ]
 
   const seccion = (titulo, descripcion, colorBadge, bgBadge, stats, lista, rolInvitar, idx0, puedeInvitar, puedeGestionar) => (
@@ -293,7 +293,7 @@ export default function Coordinadores() {
             {seccion(
               'Coordinadores',
               'Gestionan equipos en campo. Acceden desde la app móvil y el panel web.',
-              '#0369a1', '#e0f2fe',
+              '#0369a1', 'var(--info-light)',
               statsCoord, coordinadores, 'coordinador', 0,
               true,    // gestor SÍ puede invitar coordinadores
               true     // gestor SÍ puede desactivar coordinadores
@@ -301,7 +301,7 @@ export default function Coordinadores() {
             {seccion(
               'Gestores',
               'Acceso completo al panel web. Mismo nivel que admin, sin gestión de suscripción.',
-              '#7c3aed', '#f3e8ff',
+              '#7c3aed', 'rgba(124,58,237,0.1)',
               statsGestor, gestores, 'gestor', coordinadores.length,
               !esGestor,  // gestor NO puede invitar gestores
               !esGestor   // gestor NO puede desactivar gestores

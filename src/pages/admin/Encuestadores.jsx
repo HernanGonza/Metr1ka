@@ -140,7 +140,7 @@ function DesactivarModal({ encuestador, onClose, onSaved }) {
           <button className={styles.closeBtn} onClick={onClose}>×</button>
         </div>
         <div className={styles.modalBody}>
-          <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 'var(--r)', fontSize: 13, color: '#c0392b', marginBottom: 8 }}>
+          <div style={{ padding: '10px 14px', background: 'var(--danger-light)', border: '1px solid #fca5a5', borderRadius: 'var(--r)', fontSize: 13, color: '#c0392b', marginBottom: 8 }}>
             El encuestador verá un aviso en su app móvil con la razón de desactivación.
           </div>
           <div className={styles.formGroup}>
@@ -173,7 +173,7 @@ function DesactivarModal({ encuestador, onClose, onSaved }) {
   )
 }
 
-const COLORS      = ['#d8f3dc','#e0f2fe','#fef3c7','#f3e8ff','#fce7f3','#ecfdf5']
+const COLORS      = ['#d8f3dc','var(--info-light)','var(--warning-light)','rgba(124,58,237,0.1)','#fce7f3','var(--accent-light)']
 const TEXT_COLORS = ['#1a472a','#0369a1','#b45309','#7c3aed','#be185d','#047857']
 const initials    = (n) => (n || '').split(' ').slice(0,2).map(x => x[0]).join('').toUpperCase()
 
@@ -271,9 +271,9 @@ export default function Encuestadores() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
             {[
               { label: 'Total',      value: encuestadores.length, color: 'var(--accent)',  bg: 'var(--accent-light)' },
-              { label: 'Activos',    value: activos.length,       color: '#0369a1',        bg: '#e0f2fe' },
-              { label: 'Inactivos',  value: inactivos.length,     color: inactivos.length > 0 ? '#c0392b' : '#1a472a', bg: inactivos.length > 0 ? '#fef2f2' : 'var(--accent-light)' },
-              { label: 'Sin equipo', value: sinEquipo,             color: sinEquipo > 0 ? '#b45309' : '#1a472a', bg: sinEquipo > 0 ? '#fef3c7' : 'var(--accent-light)' },
+              { label: 'Activos',    value: activos.length,       color: '#0369a1',        bg: 'var(--info-light)' },
+              { label: 'Inactivos',  value: inactivos.length,     color: inactivos.length > 0 ? '#c0392b' : '#1a472a', bg: inactivos.length > 0 ? 'var(--danger-light)' : 'var(--accent-light)' },
+              { label: 'Sin equipo', value: sinEquipo,             color: sinEquipo > 0 ? '#b45309' : '#1a472a', bg: sinEquipo > 0 ? 'var(--warning-light)' : 'var(--accent-light)' },
             ].map((s, i) => (
               <div key={i} style={{ background: s.bg, borderRadius: 'var(--r2)', padding: '14px 18px' }}>
                 <div style={{ fontFamily: 'Syne', fontSize: 26, fontWeight: 800, color: s.color }}>{s.value}</div>
@@ -354,11 +354,11 @@ export default function Encuestadores() {
                       <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
                         {tab === 'activos' && (equipoNombre
                           ? <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 600, background: 'var(--accent-light)', color: 'var(--accent2)' }}>{equipoNombre}</span>
-                          : <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, background: '#fef3c7', color: '#b45309', fontWeight: 600 }}>⚠ Sin equipo</span>
+                          : <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, background: 'var(--warning-light)', color: '#b45309', fontWeight: 600 }}>⚠ Sin equipo</span>
                         )}
                       </div>
                       {tab === 'inactivos' && enc.motivo_desactivacion && (
-                        <div style={{ marginTop: 6, padding: '6px 10px', background: '#fef2f2', borderRadius: 'var(--r)', fontSize: 12, color: '#c0392b' }}>
+                        <div style={{ marginTop: 6, padding: '6px 10px', background: 'var(--danger-light)', borderRadius: 'var(--r)', fontSize: 12, color: '#c0392b' }}>
                           <span style={{ fontWeight: 700 }}>Razón: </span>{enc.motivo_desactivacion}
                           {enc.desactivado_en && <span style={{ color: 'var(--ink3)', marginLeft: 8 }}>{new Date(enc.desactivado_en).toLocaleDateString('es-AR')}</span>}
                         </div>

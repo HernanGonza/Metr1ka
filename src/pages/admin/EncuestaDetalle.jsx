@@ -15,10 +15,10 @@ import styles from './Page.module.css'
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Tooltip, Legend, Filler)
 
 const ESTADO_CONFIG = {
-  pendiente:    { label: 'Pendiente',    color: '#b45309', bg: '#fef3c7' },
-  en_proceso:   { label: 'En proceso',   color: '#0369a1', bg: '#e0f2fe' },
-  para_revisar: { label: 'Para revisar', color: '#7c3aed', bg: '#f3e8ff' },
-  publicada:    { label: 'Publicada',    color: '#1a472a', bg: '#d8f3dc' },
+  pendiente:    { label: 'Pendiente',    color: '#b45309', bg: 'var(--warning-light)' },
+  en_proceso:   { label: 'En proceso',   color: '#0369a1', bg: 'var(--info-light)' },
+  para_revisar: { label: 'Para revisar', color: '#7c3aed', bg: 'rgba(124,58,237,0.1)' },
+  publicada:    { label: 'Publicada',    color: '#1a472a', bg: 'var(--accent-light)' },
 }
 
 // Paleta variada — cada índice de pregunta recibe colores distintos
@@ -153,11 +153,11 @@ function PreguntaChart({ pregunta, filas, paletaIdx }) {
     }
   }, [tipoGrafico, datos?.total])
 
-  const card = { background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px' }
+  const card = { background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px' }
   const btnStyle = (v) => ({
     padding: '3px 10px', borderRadius: 100, fontSize: 11, fontFamily: 'DM Sans', cursor: 'pointer',
     border: `1.5px solid ${tipoGrafico === v ? paleta[0] : 'var(--border2)'}`,
-    background: tipoGrafico === v ? `${paleta[0]}18` : '#fff',
+    background: tipoGrafico === v ? `${paleta[0]}18` : 'var(--paper)',
     color: tipoGrafico === v ? paleta[0] : 'var(--ink3)',
     fontWeight: tipoGrafico === v ? 700 : 400,
     transition: 'all .15s',
@@ -232,7 +232,7 @@ function VistaProduccion({ encuesta, preguntas }) {
         </div>
       </div>
       {encuesta.descripcion && (
-        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px' }}>
+        <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', marginBottom: 6 }}>Descripción</div>
           <div style={{ fontSize: 13, color: 'var(--ink2)' }}>{encuesta.descripcion}</div>
         </div>
@@ -253,7 +253,7 @@ function VistaProduccion({ encuesta, preguntas }) {
         </div>
       )}
       {preguntas.length > 0 && (
-        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px' }}>
+        <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', marginBottom: 12 }}>Vista previa — {preguntas.length} preguntas</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {preguntas.map((p, i) => (
@@ -313,7 +313,7 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
   ]
 
   const hayFiltros = filtros.equipo_id || filtros.encuestador_id || filtros.fecha_desde || filtros.fecha_hasta
-  const inp = { padding: '6px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: '#fff' }
+  const inp = { padding: '6px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--paper)' }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -321,7 +321,7 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
         {kpis.map((k, i) => (
-          <div key={i} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 18px', borderTop: `3px solid ${k.border}` }}>
+          <div key={i} style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 18px', borderTop: `3px solid ${k.border}` }}>
             <div style={{ fontFamily: 'Syne', fontSize: 28, fontWeight: 800, color: k.color, letterSpacing: -1 }}>{k.value}</div>
             <div style={{ fontSize: 12, color: 'var(--ink3)', fontWeight: 600, marginTop: 2 }}>{k.label}</div>
           </div>
@@ -329,7 +329,7 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
       </div>
 
       {/* Filtros */}
-      <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '12px 16px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '12px 16px', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)' }}>Equipo</label>
           <select value={filtros.equipo_id || ''} onChange={e => onFiltroChange('equipo_id', e.target.value || null)} style={inp}>
@@ -358,13 +358,13 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
 
       {/* Razones de no respuesta */}
       {razonesNoResp.length > 0 && (
-        <div style={{ background: '#fff', border: '1px solid #fca5a5', borderRadius: 'var(--r2)', padding: '14px 18px', borderLeft: '4px solid #ef4444' }}>
+        <div style={{ background: 'var(--paper)', border: '1px solid #fca5a5', borderRadius: 'var(--r2)', padding: '14px 18px', borderLeft: '4px solid #ef4444' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#c0392b', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
             📋 Razones de no-respuesta — {razonesNoResp.reduce((s, f) => s + Number(f.cantidad), 0)} registros
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {razonesNoResp.map((f, i) => (
-              <div key={i} style={{ background: '#fef2f2', borderRadius: 'var(--r)', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div key={i} style={{ background: 'var(--danger-light)', borderRadius: 'var(--r)', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 13, color: '#c0392b', fontWeight: 600 }}>{f.valor_texto}</span>
                 <span style={{ fontSize: 18, fontWeight: 800, color: '#ef4444', fontFamily: 'Syne' }}>{f.cantidad}</span>
               </div>
@@ -407,18 +407,18 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
           {equipos.length > 1 && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button onClick={() => onFiltroChange('equipo_id', null)}
-                style={{ padding: '5px 12px', borderRadius: 100, border: `1.5px solid ${!filtros.equipo_id ? 'var(--accent)' : 'var(--border2)'}`, background: !filtros.equipo_id ? 'var(--accent-light)' : '#fff', color: !filtros.equipo_id ? 'var(--accent)' : 'var(--ink3)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                style={{ padding: '5px 12px', borderRadius: 100, border: `1.5px solid ${!filtros.equipo_id ? 'var(--accent)' : 'var(--border2)'}`, background: !filtros.equipo_id ? 'var(--accent-light)' : 'var(--paper)', color: !filtros.equipo_id ? 'var(--accent)' : 'var(--ink3)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans' }}>
                 Todos
               </button>
               {equipos.map(eq => (
                 <button key={eq.id} onClick={() => onFiltroChange('equipo_id', eq.id)}
-                  style={{ padding: '5px 12px', borderRadius: 100, border: `1.5px solid ${filtros.equipo_id === eq.id ? 'var(--accent)' : 'var(--border2)'}`, background: filtros.equipo_id === eq.id ? 'var(--accent-light)' : '#fff', color: filtros.equipo_id === eq.id ? 'var(--accent)' : 'var(--ink3)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                  style={{ padding: '5px 12px', borderRadius: 100, border: `1.5px solid ${filtros.equipo_id === eq.id ? 'var(--accent)' : 'var(--border2)'}`, background: filtros.equipo_id === eq.id ? 'var(--accent-light)' : 'var(--paper)', color: filtros.equipo_id === eq.id ? 'var(--accent)' : 'var(--ink3)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans' }}>
                   {eq.nombre}
                 </button>
               ))}
             </div>
           )}
-          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
@@ -429,7 +429,7 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
               </thead>
               <tbody>
                 {encuestadoresFiltrados.map((enc, i) => (
-                  <tr key={enc.encuestador_id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? '#fff' : 'var(--surface)' }}>
+                  <tr key={enc.encuestador_id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'var(--paper)' : 'var(--surface)' }}>
                     <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 600 }}>{enc.nombre_completo}</td>
                     <td style={{ padding: '10px 16px', fontSize: 13, color: 'var(--ink3)' }}>{enc.equipo_nombre || '—'}</td>
                     <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--accent)', textAlign: 'right' }}>{enc.total}</td>
@@ -625,7 +625,7 @@ export default function EncuestaDetalle() {
 } : null}
       />
       <div className={styles.content}>
-        {error && <div style={{ padding: '10px 16px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 'var(--r)', fontSize: 13, color: '#c0392b', marginBottom: 12 }}>Error: {error}</div>}
+        {error && <div style={{ padding: '10px 16px', background: 'var(--danger-light)', border: '1px solid #fca5a5', borderRadius: 'var(--r)', fontSize: 13, color: '#c0392b', marginBottom: 12 }}>Error: {error}</div>}
         {encuesta.estado_produccion === 'publicada'
           ? <VistaResultados preguntas={preguntas} resumen={resumen} respuestas={respuestas}
               encuestadores={encuestadores} equipos={equipos} filtros={filtros}
