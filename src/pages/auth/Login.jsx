@@ -82,10 +82,15 @@ export default function Login() {
     // Si viene con sin_cuenta=true, hacer signOut para limpiar la sesión de Google
     if (searchParams.get('sin_cuenta') === 'true') {
       supabase.auth.signOut()
+      return
     }
 
+    let navigating = false
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
+      // Capturar SIGNED_IN e INITIAL_SESSION (OAuth de Google puede devolver cualquiera)
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session && !navigating) {
+        navigating = true
         const path = await getRedirectPath()
         navigate(path, { replace: true })
       }
