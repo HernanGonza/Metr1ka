@@ -7,7 +7,7 @@
   padding: 24px 16px;
 }
 .welcome {
-  background: #fff;
+  background: var(--paper);
   border-radius: var(--r2);
   padding: 48px 40px;
   max-width: 480px;
@@ -19,7 +19,7 @@
 .welcomeTitle { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; }
 .welcomeSub   { font-size: 16px; color: var(--ink2); line-height: 1.6; margin-bottom: 32px; }
 .card {
-  background: #fff;
+  background: var(--paper);
   border-radius: var(--r2);
   padding: 32px;
   max-width: 540px;
@@ -82,7 +82,7 @@
   font-family: 'DM Sans', sans-serif;
   outline: none;
   transition: border-color .15s;
-  background: #fff;
+  background: var(--paper);
   color: var(--ink);
   box-sizing: border-box;
 }
@@ -126,3 +126,13 @@
   .stepTitle { font-size: 20px; }
   .welcomeTitle { font-size: 26px; }
 }
+/* ── Dark mode ── */
+[data-theme="dark"] .page    { background: var(--surface); }
+[data-theme="dark"] .welcome { background: var(--paper); box-shadow: var(--shadow-lg); }
+[data-theme="dark"] .card    { background: var(--paper); box-shadow: var(--shadow-lg); }
+[data-theme="dark"] .input   {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border-color: var(--border2) !important;
+}
+[data-theme="dark"] .input::placeholder { color: var(--ink4); }
