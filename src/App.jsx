@@ -11,6 +11,9 @@ import Login                from './pages/auth/Login'
 import CompletarPerfil      from './pages/auth/CompletarPerfil'
 import ConfirmacionPendiente from './pages/auth/ConfirmacionPendiente'
 import RecuperarPassword      from './pages/auth/RecuperarPassword'
+import Privacidad             from './pages/legal/Privacidad'
+import Terminos               from './pages/legal/Terminos'
+import Cookies                from './pages/legal/Cookies'
 
 // Superadmin
 import SuperadminDashboard  from './pages/superadmin/Dashboard'
@@ -48,6 +51,9 @@ export default function App() {
           <Route path="/completar-perfil" element={<CompletarPerfil />} />
           <Route path="/confirmacion-pendiente" element={<ConfirmacionPendiente />} />
           <Route path="/recuperar-password"       element={<RecuperarPassword />} />
+          <Route path="/privacidad"              element={<Privacidad />} />
+          <Route path="/terminos"                element={<Terminos />} />
+          <Route path="/cookies"                 element={<Cookies />} />
 
           {/* Superadmin routes */}
           <Route element={<ProtectedRoute roles={['superadmin']} />}>

@@ -763,17 +763,9 @@ function Footer({ onContact, onOpenLegal }) {
 
             <div className={styles.footerCol}>
               <h4 className={styles.footerColTitle}>Legal</h4>
-              <button className={styles.footerLink} onClick={() => onOpenLegal('privacy')}>
-  Política de privacidad
-</button>
-
-<button className={styles.footerLink} onClick={() => onOpenLegal('terms')}>
-  Términos de uso
-</button>
-
-<button className={styles.footerLink} onClick={() => onOpenLegal('cookies')}>
-  Política de cookies
-</button>
+              <Link to="/privacidad" className={styles.footerLink}>Política de privacidad</Link>
+              <Link to="/terminos"   className={styles.footerLink}>Términos de uso</Link>
+              <Link to="/cookies"    className={styles.footerLink}>Política de cookies</Link>
             </div>
           </div>
         </div>
