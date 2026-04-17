@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import ScrollToTop from './components/ScrollToTop'
 import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute, DashboardLayout } from './components/layout'
 import SuperadminLayout from './components/superadmin/SuperadminLayout'
@@ -44,6 +45,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ScrollToTop />
         <Routes>
           {/* Public */}
           <Route path="/" element={<Landing />} />
