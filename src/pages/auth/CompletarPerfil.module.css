@@ -127,12 +127,23 @@
   .welcomeTitle { font-size: 26px; }
 }
 /* ── Dark mode ── */
-[data-theme="dark"] .page    { background: var(--surface); }
-[data-theme="dark"] .welcome { background: var(--paper); box-shadow: var(--shadow-lg); }
-[data-theme="dark"] .card    { background: var(--paper); box-shadow: var(--shadow-lg); }
-[data-theme="dark"] .input   {
+[data-theme="dark"] .page        { background: var(--surface); }
+[data-theme="dark"] .welcome     { background: var(--paper); box-shadow: var(--shadow-lg); }
+[data-theme="dark"] .card        { background: var(--paper); box-shadow: var(--shadow-lg); }
+[data-theme="dark"] .welcomeTitle { color: var(--ink); }
+[data-theme="dark"] .welcomeSub  { color: var(--ink2); }
+[data-theme="dark"] .stepTitle   { color: var(--ink); }
+[data-theme="dark"] .stepSub     { color: var(--ink3); }
+[data-theme="dark"] .fieldLabel  { color: var(--ink2); }
+[data-theme="dark"] .progressLabel { color: var(--ink3); }
+[data-theme="dark"] .input {
   background: var(--surface) !important;
   color: var(--ink) !important;
   border-color: var(--border2) !important;
 }
 [data-theme="dark"] .input::placeholder { color: var(--ink4); }
+[data-theme="dark"] .btnBack {
+  color: var(--ink2);
+  border-color: var(--border2);
+}
+[data-theme="dark"] .btnBack:hover { background: var(--surface2); }

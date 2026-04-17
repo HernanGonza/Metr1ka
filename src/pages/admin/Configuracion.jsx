@@ -12,7 +12,7 @@ export default function Configuracion() {
       <Topbar title="Configuración" />
       <div className={styles.content}>
         <h2 style={{ fontFamily: 'Syne', fontSize: 18, fontWeight: 800, marginBottom: 16, letterSpacing: -.5 }}>Mi cuenta</h2>
-        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden', marginBottom: 24 }}>
+        <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden', marginBottom: 24 }}>
           {[
             { label: 'Nombre completo',  value: perfil?.nombre_completo },
             { label: 'Teléfono',         value: perfil?.telefono },

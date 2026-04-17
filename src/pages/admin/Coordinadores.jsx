@@ -131,7 +131,7 @@ function TarjetaMiembro({ m, i, equipos, onAsignar, onToggleActivo, puedeGestion
   const equiposNombre = m.equipo_coordinadores?.map(ec => ec.equipos?.nombre).filter(Boolean) || []
   const esCoord = m.rol === 'coordinador'
   return (
-    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
       <div style={{ width: 38, height: 38, borderRadius: '50%', background: COLORS[ci], color: TEXT_COLORS[ci], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
         {initials(m.nombre_completo)}
       </div>
@@ -219,7 +219,7 @@ export default function Coordinadores() {
   ]
 
   const seccion = (titulo, descripcion, colorBadge, bgBadge, stats, lista, rolInvitar, idx0, puedeInvitar, puedeGestionar) => (
-    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
+    <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
       <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>

@@ -238,7 +238,7 @@ export default function Encuestadores() {
 
   const lista         = aplicarFiltros(tab === 'activos' ? activos : inactivos)
   const hayFiltros    = busqueda || filtroEquipo
-  const inp = { padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: '#fff' }
+  const inp = { padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--paper)' }
 
   return (
     <div className={styles.page}>
@@ -344,7 +344,7 @@ export default function Encuestadores() {
                 const ci = i % COLORS.length
                 const equipoNombre = enc.equipo_encuestadores?.[0]?.equipos?.nombre
                 return (
-                  <div key={enc.id} style={{ background: '#fff', border: `1px solid ${tab === 'inactivos' ? '#fca5a5' : 'var(--border)'}`, borderRadius: 'var(--r2)', padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 12, opacity: tab === 'inactivos' ? 0.85 : 1 }}>
+                  <div key={enc.id} style={{ background: 'var(--paper)', border: `1px solid ${tab === 'inactivos' ? '#fca5a5' : 'var(--border)'}`, borderRadius: 'var(--r2)', padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 12, opacity: tab === 'inactivos' ? 0.85 : 1 }}>
                     <div style={{ width: 38, height: 38, borderRadius: '50%', background: COLORS[ci], color: TEXT_COLORS[ci], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
                       {initials(enc.nombre_completo)}
                     </div>

@@ -80,11 +80,11 @@ function RequestModal({ organizacionId, onClose, onSaved }) {
     }
   }
 
-  const sel  = { padding: '8px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: '#fff', width: '100%' }
+  const sel  = { padding: '8px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--paper)', width: '100%' }
   const chip = (active, color = 'var(--accent)') => ({
     padding: '5px 12px', borderRadius: 100, fontSize: 12, fontFamily: 'DM Sans',
     cursor: 'pointer', border: `1.5px solid ${active ? color : 'var(--border2)'}`,
-    background: active ? `${color}18` : '#fff',
+    background: active ? `${color}18` : 'var(--paper)',
     color: active ? color : 'var(--ink3)', fontWeight: active ? 700 : 400,
   })
 
@@ -328,7 +328,7 @@ export default function Encuestas() {
   }, {})
 
   const hayFiltrosExtra = filtroOrg || filtroTipo || busqueda
-  const inp = { padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: '#fff' }
+  const inp = { padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--paper)' }
 
   return (
     <div className={styles.page}>
