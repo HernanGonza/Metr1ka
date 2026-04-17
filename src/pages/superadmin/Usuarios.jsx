@@ -70,7 +70,7 @@ function InviteModal({ orgs, onClose, onSaved }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ background: '#fff', borderRadius: 'var(--r2)', width: '100%', maxWidth: 480, boxShadow: '0 24px 80px rgba(0,0,0,.2)' }}>
+      <div style={{ background: 'var(--paper)', borderRadius: 'var(--r2)', width: '100%', maxWidth: 480, boxShadow: '0 24px 80px rgba(0,0,0,.2)' }}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h3 style={{ fontFamily: 'Syne', fontSize: 18, fontWeight: 700 }}>Invitar usuario</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--ink3)' }}>×</button>

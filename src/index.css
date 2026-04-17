@@ -122,15 +122,88 @@ code {
   border-color: var(--border) !important;
 }
 
-/* Inputs globales */
-[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+/* ── Inputs, selects y textareas ── */
+[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 [data-theme="dark"] textarea,
 [data-theme="dark"] select {
   background: var(--surface) !important;
   color: var(--ink) !important;
   border-color: var(--border2) !important;
+  color-scheme: dark;
 }
 [data-theme="dark"] input::placeholder,
 [data-theme="dark"] textarea::placeholder {
   color: var(--ink4) !important;
+}
+[data-theme="dark"] select option {
+  background: var(--surface2) !important;
+  color: var(--ink) !important;
+}
+
+/* ── Modales y overlays ── */
+[data-theme="dark"] [class*="modal"],
+[data-theme="dark"] [class*="Modal"],
+[data-theme="dark"] [class*="dialog"],
+[data-theme="dark"] [class*="Dialog"] {
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+  border-color: var(--border) !important;
+}
+/* Contenido interno de modales */
+[data-theme="dark"] [class*="modalContent"],
+[data-theme="dark"] [class*="modal-content"],
+[data-theme="dark"] [class*="modalBody"],
+[data-theme="dark"] [class*="modal-body"] {
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+}
+/* Headers de modales */
+[data-theme="dark"] [class*="modalHeader"],
+[data-theme="dark"] [class*="modal-header"] {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+
+/* ── Divs con background blanco explícito en JS inline styles ──
+   (no se puede hacer desde CSS — se resuelve via variables en los componentes) */
+
+/* ── Dropdowns y popovers ── */
+[data-theme="dark"] [role="menu"],
+[data-theme="dark"] [role="listbox"],
+[data-theme="dark"] [class*="dropdown"] {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--ink) !important;
+}
+
+/* ── Tables en el panel ── */
+[data-theme="dark"] table {
+  color: var(--ink);
+}
+[data-theme="dark"] th {
+  background: var(--surface2) !important;
+  color: var(--ink3) !important;
+  border-color: var(--border) !important;
+}
+[data-theme="dark"] td {
+  border-color: var(--border) !important;
+}
+
+/* ── Badges y etiquetas que usan background claro ── */
+[data-theme="dark"] [class*="badge"]:not([class*="accent"]) {
+  background: var(--surface2) !important;
+  color: var(--ink2) !important;
+}
+
+/* ── Paneles de contenido inline (Page.module.css cards) ── */
+[data-theme="dark"] [class*="card"],
+[data-theme="dark"] [class*="Card"] {
+  background: var(--paper) !important;
+  border-color: var(--border) !important;
+  color: var(--ink) !important;
+}
+
+/* ── Scrollbar en dark ── */
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--surface3);
 }

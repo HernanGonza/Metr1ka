@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { NavLink, useNavigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import { useTheme } from '../../hooks/useTheme'
+import { Sun, Moon } from 'lucide-react'
 import styles from './SuperadminLayout.module.css'
 
 const NAV = [
@@ -25,6 +27,7 @@ const NAV = [
 
 export default function SuperadminLayout() {
   const { perfil, signOut } = useAuth()
+  const { isDark, toggle } = useTheme()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
 
@@ -82,6 +85,9 @@ export default function SuperadminLayout() {
               <div className={styles.userRole}>superadmin</div>
             </div>
           )}
+          <button className={styles.themeBtn} onClick={toggle} title={isDark ? 'Modo claro' : 'Modo oscuro'}>
+            {isDark ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
           <button className={styles.signOutBtn} onClick={handleSignOut} title="Cerrar sesión">↩</button>
         </div>
       </aside>

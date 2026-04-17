@@ -22,7 +22,7 @@ const ESTADO_CONFIG = {
 const inputStyle = {
   width: '100%', padding: '9px 12px',
   border: '1.5px solid var(--border2)', borderRadius: 'var(--r)',
-  fontSize: 13, outline: 'none', fontFamily: 'DM Sans', background: '#fff',
+  fontSize: 13, outline: 'none', fontFamily: 'DM Sans', background: 'var(--paper)',
 }
 const labelStyle = { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6, color: 'var(--ink2)' }
 
@@ -69,7 +69,7 @@ function PanelCondicionales({ pregunta, todasPreguntas, index, onChange }) {
     fontFamily: 'DM Sans',
   })
 
-  const sel = { padding: '6px 8px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, fontFamily: 'DM Sans', background: '#fff' }
+  const sel = { padding: '6px 8px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, fontFamily: 'DM Sans', background: 'var(--paper)' }
 
   return (
     <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 4 }}>
@@ -141,7 +141,7 @@ function PanelCondicionales({ pregunta, todasPreguntas, index, onChange }) {
 
             <button type="button" onClick={() => removeRegla(i)} style={{
               width: 26, height: 26, border: '1px solid var(--border)', borderRadius: 6,
-              background: '#fff', cursor: 'pointer', color: 'var(--danger)', fontSize: 14, flexShrink: 0,
+              background: 'var(--paper)', cursor: 'pointer', color: 'var(--danger)', fontSize: 14, flexShrink: 0,
             }}>×</button>
           </div>
         ))}
@@ -174,7 +174,7 @@ function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDele
   }
 
   return (
-    <div style={{ background: '#fff', border: `1px solid ${tieneCondicionales ? '#c4b5fd' : 'var(--border)'}`, borderRadius: 'var(--r2)', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.05)' }}>
+    <div style={{ background: 'var(--paper)', border: `1px solid ${tieneCondicionales ? '#c4b5fd' : 'var(--border)'}`, borderRadius: 'var(--r2)', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.05)' }}>
       {/* Header */}
       <div
         style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', borderBottom: expanded ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}
@@ -189,13 +189,13 @@ function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDele
             🔀 {pregunta.condicionales.reglas.length} regla{pregunta.condicionales.reglas.length !== 1 ? 's' : ''}
           </span>
         )}
-        <span style={{ fontSize: 10, color: 'var(--ink3)', background: '#fff', padding: '2px 8px', borderRadius: 100, border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: 10, color: 'var(--ink3)', background: 'var(--paper)', padding: '2px 8px', borderRadius: 100, border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
           {TIPOS.find(t => t.value === pregunta.tipo)?.label}
         </span>
         <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
-          <button onClick={() => onMove(index, -1)} disabled={index === 0} style={{ width: 26, height: 26, border: '1px solid var(--border)', borderRadius: 6, background: '#fff', cursor: index === 0 ? 'not-allowed' : 'pointer', opacity: index === 0 ? .35 : 1, fontSize: 12 }}>↑</button>
-          <button onClick={() => onMove(index,  1)} disabled={index === total-1} style={{ width: 26, height: 26, border: '1px solid var(--border)', borderRadius: 6, background: '#fff', cursor: index === total-1 ? 'not-allowed' : 'pointer', opacity: index === total-1 ? .35 : 1, fontSize: 12 }}>↓</button>
-          <button onClick={() => onDelete(index)} style={{ width: 26, height: 26, border: '1px solid var(--border)', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--danger)' }}>×</button>
+          <button onClick={() => onMove(index, -1)} disabled={index === 0} style={{ width: 26, height: 26, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--paper)', cursor: index === 0 ? 'not-allowed' : 'pointer', opacity: index === 0 ? .35 : 1, fontSize: 12 }}>↑</button>
+          <button onClick={() => onMove(index,  1)} disabled={index === total-1} style={{ width: 26, height: 26, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--paper)', cursor: index === total-1 ? 'not-allowed' : 'pointer', opacity: index === total-1 ? .35 : 1, fontSize: 12 }}>↓</button>
+          <button onClick={() => onDelete(index)} style={{ width: 26, height: 26, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--paper)', cursor: 'pointer', fontSize: 13, color: 'var(--danger)' }}>×</button>
         </div>
       </div>
 
@@ -232,7 +232,7 @@ function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDele
                     <span style={{ fontSize: 11, color: 'var(--ink3)', fontWeight: 700, width: 18, textAlign: 'center' }}>{String.fromCharCode(65+i)}</span>
                     <input value={op.texto} onChange={e => updateOpcion(i, e.target.value)} placeholder={`Opción ${String.fromCharCode(65+i)}`}
                       style={{ ...inputStyle, flex: 1 }} />
-                    <button onClick={() => removeOpcion(i)} style={{ width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 6, background: '#fff', cursor: 'pointer', color: 'var(--danger)', fontSize: 14, flexShrink: 0 }}>×</button>
+                    <button onClick={() => removeOpcion(i)} style={{ width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--paper)', cursor: 'pointer', color: 'var(--danger)', fontSize: 14, flexShrink: 0 }}>×</button>
                   </div>
                 ))}
                 <button onClick={addOpcion}
@@ -542,7 +542,7 @@ export default function EncuestaBuilder() {
               <div style={{ fontSize: 13, color: 'var(--danger)', padding: '10px 14px', background: '#fdecea', borderRadius: 'var(--r)' }}>{error}</div>
             )}
             {preguntas.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '48px 24px', background: '#fff', border: '2px dashed var(--border2)', borderRadius: 'var(--r2)', color: 'var(--ink3)' }}>
+              <div style={{ textAlign: 'center', padding: '48px 24px', background: 'var(--paper)', border: '2px dashed var(--border2)', borderRadius: 'var(--r2)', color: 'var(--ink3)' }}>
                 <div style={{ fontSize: 28, marginBottom: 10 }}>📋</div>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Sin preguntas todavía</div>
                 <div style={{ fontSize: 12 }}>Hacé clic en "Agregar pregunta" para empezar</div>

@@ -774,17 +774,17 @@
 .partnerLogoParalelo { height: 40px; max-width: 150px; }
 .partnerLogoEnfoque  { height: 28px; max-width: 100px; }
 
-/* Footer invierte en dark mode */
-[data-theme="dark"] .footer { background: #ffffff; color: rgba(0,0,0,0.7); }
+/* Footer en dark mode: fondo claro, texto oscuro */
+[data-theme="dark"] .footer { background: #f5f5f3; color: rgba(0,0,0,0.65); transition: background 0.3s, color 0.3s; }
 [data-theme="dark"] .footerTagline { color: rgba(0,0,0,0.5); }
 [data-theme="dark"] .footerColTitle { color: rgba(0,0,0,0.4); }
-[data-theme="dark"] .footerLink { color: rgba(0,0,0,0.65); }
+[data-theme="dark"] .footerLink { color: rgba(0,0,0,0.6); }
 [data-theme="dark"] .footerLink:hover { color: rgba(0,0,0,1); }
 [data-theme="dark"] .footerPartnerLabel { color: rgba(0,0,0,0.4); }
-[data-theme="dark"] .footerBottom { border-top-color: rgba(0,0,0,0.1); }
+[data-theme="dark"] .footerBottom { border-top-color: rgba(0,0,0,0.1); background: #ebebea; }
 [data-theme="dark"] .footerBottomRow { color: rgba(0,0,0,0.4); }
-/* Los logos de partners se invierten para verse en fondo blanco */
-[data-theme="dark"] .footerPartnerLogo { filter: brightness(0) !important; opacity: 0.6 !important; }
+/* Logos de partners sobre fondo claro */
+[data-theme="dark"] .footerPartnerLogo { filter: brightness(0) !important; opacity: 0.55 !important; }
 
 /* ===== LEGAL MODAL ===== */
 
@@ -865,3 +865,34 @@
 .legalContent li {
   margin-bottom: 4px;
 }
+.legalUpdated {
+  font-size: 12px;
+  color: var(--ink4);
+  font-style: italic;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.legalContact {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--ink3);
+}
+.legalContact a {
+  color: var(--accent2);
+  text-decoration: underline;
+}
+.legalContent h2 {
+  font-family: 'Syne', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 24px;
+  margin-bottom: 8px;
+}
+/* Dark mode para modal legal */
+[data-theme="dark"] .modal { background: var(--paper); border-color: var(--border); }
+[data-theme="dark"] .modalHeader { background: var(--paper); border-color: var(--border); }
+[data-theme="dark"] .legalContent { color: var(--ink2); }

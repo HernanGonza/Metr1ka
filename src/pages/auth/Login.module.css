@@ -104,3 +104,6 @@
 @media (max-width: 480px) {
   .card { padding: 28px 20px; border-radius: 16px; }
 }
+/* ── Dark mode ── */
+[data-theme="dark"] .page { background: var(--paper); }
+[data-theme="dark"] .card { background: var(--surface); border-color: var(--border); }

@@ -30,7 +30,7 @@ function MiniBarChart({ data, labels }) {
 
 function KpiCard({ label, value, sub, color = 'var(--accent)', icon }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 4, borderLeft: `4px solid ${color}` }}>
+    <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 4, borderLeft: `4px solid ${color}` }}>
       <div style={{ fontSize: 12, color: 'var(--ink3)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
         {icon && <span>{icon}</span>}{label}
       </div>
@@ -53,7 +53,7 @@ function EncuestaRow({ enc, onClick }) {
 
   return (
     <div onClick={onClick}
-      style={{ padding: '14px 16px', background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r)', cursor: 'pointer', transition: 'box-shadow .15s' }}
+      style={{ padding: '14px 16px', background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r)', cursor: 'pointer', transition: 'box-shadow .15s' }}
       onMouseEnter={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,.08)'}
       onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: enc.estado_produccion === 'publicada' ? 10 : 0 }}>
@@ -229,7 +229,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {porDia.length > 0 && (
-              <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px' }}>
+              <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 12 }}>Respuestas por día — últimos 7 días</div>
                 <div style={{ height: 80 }}>
                   <MiniBarChart data={porDia.map(d => d.value)} labels={porDia.map(d => d.label)} />
@@ -265,7 +265,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px' }}>
+          <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px' }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>Top encuestadores</div>
             <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 14 }}>Últimos 7 días</div>
             {topEnc.length === 0
