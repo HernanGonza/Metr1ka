@@ -5,6 +5,11 @@ import { Topbar } from '../../components/layout'
 import { Spinner } from '../../components/ui'
 import styles from '../admin/Page.module.css'
 
+function esActivo(actualizado_en) {
+  if (!actualizado_en) return false
+  return (Date.now() - new Date(actualizado_en).getTime()) < 5 * 60 * 1000
+}
+
 function SelectorEquipo({ equipos, equipoId, onChange }) {
   if (equipos.length <= 1) return null
   return (
@@ -89,7 +94,21 @@ export default function EquipoCoord() {
           })
         }
       }
-      setEncuestadores((encs || []).map(e => ({ ...e, stats: stats[e.encuestador_id] || { total: 0, completadas: 0 } })))
+      // Cargar ubicaciones de los encuestadores del equipo
+      let ubicaciones = {}
+      if (ids.length) {
+        const { data: ubs } = await supabase
+          .from('ubicaciones_encuestadores')
+          .select('encuestador_id, lat, lng, actualizado_en')
+          .in('encuestador_id', ids)
+        ;(ubs || []).forEach(u => { ubicaciones[u.encuestador_id] = u })
+      }
+
+      setEncuestadores((encs || []).map(e => ({
+        ...e,
+        stats: stats[e.encuestador_id] || { total: 0, completadas: 0 },
+        ubicacion: ubicaciones[e.encuestador_id] || null,
+      })))
       setLoading(false)
     }
     load()
@@ -152,8 +171,23 @@ export default function EquipoCoord() {
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{p?.nombre_completo || '—'}</div>
-                        <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 1 }}>
-                          {p?.localidad ? `${p.localidad}${p.provincia ? `, ${p.provincia}` : ''}` : 'Sin ubicación registrada'}
+                        <div style={{ fontSize: 12, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {e.ubicacion ? (
+                            esActivo(e.ubicacion.actualizado_en) ? (
+                              <span style={{ color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#16a34a', display: 'inline-block', boxShadow: '0 0 0 2px rgba(22,163,74,.2)' }} />
+                                En campo ahora
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--ink3)' }}>
+                                Última vez hace {Math.floor((Date.now() - new Date(e.ubicacion.actualizado_en).getTime()) / 60000)} min
+                              </span>
+                            )
+                          ) : (
+                            <span style={{ color: 'var(--ink3)' }}>
+                              {p?.localidad ? `${p.localidad}${p.provincia ? `, ${p.provincia}` : ''}` : 'Sin ubicación registrada'}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div style={{ textAlign: 'right', marginRight: 8 }}>

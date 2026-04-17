@@ -119,3 +119,13 @@
   border-color: var(--border2) !important;
 }
 [data-theme="dark"] label { color: var(--ink2); }
+.alertError {
+  padding: 12px 14px;
+  background: var(--danger-light);
+  border: 1px solid rgba(220,38,38,.2);
+  border-radius: var(--r);
+  font-size: 13px;
+  color: var(--danger);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}

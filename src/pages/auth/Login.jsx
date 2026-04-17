@@ -10,8 +10,10 @@ async function getRedirectPath() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return '/login'
   const { data: perfil } = await supabase.from('perfiles').select('rol').eq('id', user.id).single()
-  if (perfil?.rol === 'superadmin' || perfil?.rol === 'editor') return '/superadmin'
-  if (perfil?.rol === 'coordinador') return '/coord/dashboard'
+  // Sin perfil = usuario no invitado (ej: se registró con Google sin invitación)
+  if (!perfil) return '/login?sin_cuenta=true'
+  if (perfil.rol === 'superadmin' || perfil.rol === 'editor') return '/superadmin'
+  if (perfil.rol === 'coordinador') return '/coord/dashboard'
   return '/dashboard'
 }
 
@@ -77,9 +79,15 @@ export default function Login() {
   }, [navigate])
 
   useEffect(() => {
+    // Si viene con sin_cuenta=true, hacer signOut para limpiar la sesión de Google
+    if (searchParams.get('sin_cuenta') === 'true') {
+      supabase.auth.signOut()
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
-        navigate(await getRedirectPath(), { replace: true })
+        const path = await getRedirectPath()
+        navigate(path, { replace: true })
       }
     })
     return () => subscription.unsubscribe()
