@@ -667,12 +667,12 @@
 .scrollTop {
   position: fixed; bottom: 80px; right: 24px; z-index: 300;
   width: 44px; height: 44px; border-radius: 50%;
-  background: var(--ink); color: #fff; border: none;
+  background: #52B788; color: #fff; border: none;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  cursor: pointer; box-shadow: 0 4px 20px rgba(82,183,136,0.4);
   transition: all 0.2s;
 }
-.scrollTop:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.scrollTop:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(82,183,136,0.5); }
 
 /* ══════════════════════════════════════════
    RESPONSIVE
@@ -774,7 +774,7 @@
 .partnerLogoParalelo { height: 40px; max-width: 150px; }
 .partnerLogoEnfoque  { height: 28px; max-width: 100px; }
 
-/* Footer en dark mode: fondo claro, texto oscuro */
+/* Footer invierte en dark mode */
 [data-theme="dark"] .footer { background: #f5f5f3; color: rgba(0,0,0,0.65); transition: background 0.3s, color 0.3s; }
 [data-theme="dark"] .footerTagline { color: rgba(0,0,0,0.5); }
 [data-theme="dark"] .footerColTitle { color: rgba(0,0,0,0.4); }
@@ -783,8 +783,6 @@
 [data-theme="dark"] .footerPartnerLabel { color: rgba(0,0,0,0.4); }
 [data-theme="dark"] .footerBottom { border-top-color: rgba(0,0,0,0.1); background: #ebebea; }
 [data-theme="dark"] .footerBottomRow { color: rgba(0,0,0,0.4); }
-/* Logos de partners sobre fondo claro */
-[data-theme="dark"] .footerPartnerLogo { filter: brightness(0) !important; opacity: 0.55 !important; }
 
 /* ===== LEGAL MODAL ===== */
 
@@ -865,34 +863,133 @@
 .legalContent li {
   margin-bottom: 4px;
 }
-.legalUpdated {
-  font-size: 12px;
-  color: var(--ink4);
-  font-style: italic;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
+/* Logos partners: en light mode (footer oscuro) → invertir a blanco */
+.footerLogoDark { filter: brightness(0) invert(1); opacity: 0.7; }
+/* Logos partners: en dark mode (footer claro) → mostrar en negro */
+.footerLogoLight { filter: brightness(0); opacity: 0.6; }
+
+/* ══════════════════════════════════════════
+   LEGAL MODAL — rediseño con header verde
+   ══════════════════════════════════════════ */
+.legalOverlay {
+  position: fixed; inset: 0; z-index: 600;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  animation: fadeInFast 0.2s ease;
+}
+.legalModalWrap {
+  background: var(--paper);
+  border-radius: 24px;
+  width: 100%; max-width: 600px;
+  max-height: 88vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 40px 100px rgba(0,0,0,0.3), 0 0 0 1px var(--border);
+  overflow: hidden;
+  animation: slideUpModal 0.25s ease;
+}
+@keyframes slideUpModal {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Header verde */
+.legalModalHeader {
+  background: linear-gradient(135deg, #1a472a 0%, #2d6a4f 100%);
+  padding: 20px 24px 22px;
+  flex-shrink: 0;
+}
+.legalModalHeaderTop {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.legalModalClose {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff; border-radius: 8px;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+}
+.legalModalClose:hover { background: rgba(255,255,255,0.25); }
+.legalModalTitleRow {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 6px;
+}
+.legalModalIcon { font-size: 22px; line-height: 1; }
+.legalModalTitle {
+  font-family: 'Syne', sans-serif;
+  font-size: 20px; font-weight: 800;
+  color: #fff; margin: 0; letter-spacing: -0.3px;
+}
+.legalModalSub { font-size: 12px; color: rgba(255,255,255,0.5); margin: 0; }
+
+/* Body */
+.legalModalBody {
+  flex: 1; overflow-y: auto;
+  padding: 24px 28px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+.legalModalBody::-webkit-scrollbar { width: 5px; }
+.legalModalBody::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 10px; }
+
+/* Contenido legal dentro del body */
+.legalModalBody h2 {
+  font-family: 'Syne', sans-serif;
+  font-size: 15px; font-weight: 700;
+  color: var(--ink); margin: 20px 0 8px;
+  padding-bottom: 6px;
   border-bottom: 1px solid var(--border);
 }
-.legalContact {
-  margin-top: 24px;
-  padding-top: 16px;
+.legalModalBody h2:first-child { margin-top: 0; }
+.legalModalBody p {
+  font-size: 14px; color: var(--ink3);
+  line-height: 1.7; margin: 0 0 12px;
+}
+.legalModalBody ul {
+  padding-left: 0; margin: 0 0 14px;
+  list-style: none; display: flex; flex-direction: column; gap: 6px;
+}
+.legalModalBody li {
+  font-size: 14px; color: var(--ink3);
+  padding-left: 20px; position: relative; line-height: 1.6;
+}
+.legalModalBody li::before {
+  content: "→";
+  position: absolute; left: 0;
+  color: #52B788; font-weight: 700; font-size: 13px;
+}
+.legalModalBody strong { color: var(--ink); font-weight: 700; }
+.legalModalBody a { color: #52B788; text-decoration: underline; }
+
+/* Footer del modal */
+.legalModalFooter {
+  padding: 14px 24px;
   border-top: 1px solid var(--border);
-  font-size: 13px;
-  color: var(--ink3);
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 16px;
+  flex-shrink: 0;
+  background: var(--surface);
 }
-.legalContact a {
-  color: var(--accent2);
-  text-decoration: underline;
+.legalModalFooterText {
+  font-size: 12px; color: var(--ink3);
 }
-.legalContent h2 {
-  font-family: 'Syne', sans-serif;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--ink);
-  margin-top: 24px;
-  margin-bottom: 8px;
+.legalModalLink { color: #52B788; text-decoration: underline; }
+.legalModalCloseBtn {
+  padding: 8px 20px;
+  background: #1a472a; color: #fff;
+  border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: 'DM Sans', sans-serif;
+  transition: background 0.15s; flex-shrink: 0;
 }
-/* Dark mode para modal legal */
-[data-theme="dark"] .modal { background: var(--paper); border-color: var(--border); }
-[data-theme="dark"] .modalHeader { background: var(--paper); border-color: var(--border); }
-[data-theme="dark"] .legalContent { color: var(--ink2); }
+.legalModalCloseBtn:hover { background: #2d6a4f; }
+
+/* Dark mode del modal legal */
+[data-theme="dark"] .legalModalWrap { background: var(--paper); }
+[data-theme="dark"] .legalModalBody p,
+[data-theme="dark"] .legalModalBody li { color: var(--ink3); }
+[data-theme="dark"] .legalModalBody h2 { border-color: var(--border); }
+[data-theme="dark"] .legalModalFooter { background: var(--surface2); border-color: var(--border); }

@@ -9,7 +9,7 @@ import logoEnfoque from '../../assets/logo-enfoque.png'
 import logoParalelo from '../../assets/logo-paralelo.webp'
 import { SECTIONS, FLOW_STEPS, ROLES, PLANS, TESTIMONIALS, DASHBOARD_DATA } from './landingData'
 import LegalModal from './LegalModal'
-import { PRIVACY_POLICY, TERMS, COOKIES } from './legalTexts'
+import { PRIVACY_POLICY, TERMS, COOKIES } from './legalTexts.jsx'
 
 
 /* ── Logo SVG Web (inline, acepta color) ── */
@@ -720,6 +720,7 @@ function Testimonials() {
 
 /* ── Footer ── */
 function Footer({ onContact, onOpenLegal }) {
+  const { isDark } = useTheme()
   function scrollTo(id) {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -730,18 +731,18 @@ function Footer({ onContact, onOpenLegal }) {
         <div className={styles.container}>
           <div className={styles.footerGrid}>
             <div className={styles.footerBrand}>
-              <LogoSvgWeb width={130} color="#ffffff" accentColor="#52B788" style={{ marginBottom: 16 }} />
+              <LogoSvgWeb width={130} color={isDark ? "#0f0f0f" : "#ffffff"} accentColor="#52B788" style={{ marginBottom: 16 }} />
               <p className={styles.footerTagline}>Sistema profesional de encuestas de campo. Datos reales, en tiempo real.</p>
               <div className={styles.footerPartners}>
                 <span className={styles.footerPartnerLabel}>Desarrollado por</span>
                 <a href="mailto:paralelo.software.studio@gmail.com">
-                  <img src={logoParalelo} alt="Paralelo Software Studio" className={`${styles.footerPartnerLogo} ${styles.footerLogoParalelo}`} />
+                  <img src={logoParalelo} alt="Paralelo Software Studio" className={`${styles.footerPartnerLogo} ${styles.footerLogoParalelo} ${isDark ? styles.footerLogoLight : styles.footerLogoDark}`} />
                 </a>
               </div>
               <div className={styles.footerPartners} style={{ marginTop: 8 }}>
                 <span className={styles.footerPartnerLabel}>Impulsado por</span>
                 <a href="mailto:enfoquemisiones@gmail.com">
-                  <img src={logoEnfoque} alt="Enfoque Misiones" className={`${styles.footerPartnerLogo} ${styles.footerLogoEnfoque}`} />
+                  <img src={logoEnfoque} alt="Enfoque Misiones" className={`${styles.footerPartnerLogo} ${styles.footerLogoEnfoque} ${isDark ? styles.footerLogoLight : styles.footerLogoDark}`} />
                 </a>
               </div>
             </div>

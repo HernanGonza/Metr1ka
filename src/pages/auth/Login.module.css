@@ -105,5 +105,17 @@
   .card { padding: 28px 20px; border-radius: 16px; }
 }
 /* ── Dark mode ── */
-[data-theme="dark"] .page { background: var(--paper); }
-[data-theme="dark"] .card { background: var(--surface); border-color: var(--border); }
+[data-theme="dark"] .page { background: var(--surface); }
+[data-theme="dark"] .card {
+  background: var(--paper);
+  border-color: var(--border);
+  box-shadow: var(--shadow-lg);
+}
+[data-theme="dark"] .title { color: var(--ink); }
+[data-theme="dark"] .subtitle { color: var(--ink3); }
+[data-theme="dark"] input {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border-color: var(--border2) !important;
+}
+[data-theme="dark"] label { color: var(--ink2); }
