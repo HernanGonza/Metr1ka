@@ -158,6 +158,17 @@ export default function Login() {
             ✅ Email confirmado. Podés ingresar.
           </div>
         )}
+        {searchParams.get('password_reset') === 'true' && (
+          <div className={styles.alert}>
+            🔒 Contraseña actualizada. Ya podés ingresar.
+          </div>
+        )}
+        {sinCuenta && (
+          <div className={styles.alertError}>
+            🚫 Tu cuenta de Google no tiene acceso a Metr1ka.<br/>
+            El acceso es <strong>solo por invitación</strong>. Contactá al administrador.
+          </div>
+        )}
 
         {sent ? (
           <div className={styles.sentBox}>

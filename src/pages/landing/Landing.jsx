@@ -789,18 +789,15 @@ export default function Landing() {
   const [contactOpen, setContactOpen] = useState(false)
   const [legalModal, setLegalModal] = useState(null)
 
-  // Detectar errores de auth en la URL (ej: access_denied del hook de Google OAuth)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const hash   = new URLSearchParams(window.location.hash.replace('#', '?'))
-    const error  = params.get('error') || hash.get('error')
-    const desc   = params.get('error_description') || hash.get('error_description')
-    if (error === 'access_denied') {
-      // Limpiar la URL y redirigir al login con la alerta
-      window.history.replaceState(null, '', '/')
-      navigate('/login?sin_cuenta=true', { replace: true })
-    }
-  }, [])
+  // Detectar errores de auth en la URL ANTES del primer render
+  // Supabase redirige errores OAuth a la Site URL con ?error=access_denied
+  const params = new URLSearchParams(window.location.search)
+  const hashParams = new URLSearchParams(window.location.hash.replace('#', '?'))
+  const authError = params.get('error') || hashParams.get('error')
+  if (authError === 'access_denied') {
+    window.location.replace('/login?sin_cuenta=true')
+    return null
+  }
 
   useEffect(() => {
     const fn = () => {
