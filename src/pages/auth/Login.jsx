@@ -44,29 +44,16 @@ export default function Login() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [sent, setSent]         = useState(false)
   const [error, setError]       = useState('')
-  const [sinCuenta, setSinCuenta] = useState(
-    () => new URLSearchParams(window.location.search).get('sin_cuenta') === 'true'
-  )
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const invited = searchParams.get('invited') === 'true'
+  const invited    = searchParams.get('invited') === 'true'
+  const sinCuenta  = searchParams.get('sin_cuenta') === 'true'
 
-  // Si el AuthContext ya tiene usuario y perfil cargado → redirigir al dashboard
-  // Esto maneja el caso de Google OAuth que vuelve a /login con sesión activa
+  // Redirigir al dashboard si ya está autenticado con perfil
   useEffect(() => {
     if (authLoading) return
-    if (!user) return
-
-    // Usuario autenticado pero sin perfil = entró con Google sin invitación
-    if (!perfil) {
-      // Poner el flag en la URL ANTES del signOut para que sobreviva el remount
-      window.history.replaceState(null, '', '/login?sin_cuenta=true')
-      setSinCuenta(true)
-      supabase.auth.signOut()
-      return
-    }
-
-    // Ya está autenticado con perfil → ir al dashboard según rol
+    if (!user || !perfil) return
+    if (sinCuenta) return
     if (perfil.rol === 'superadmin' || perfil.rol === 'editor') {
       navigate('/superadmin', { replace: true })
     } else if (perfil.rol === 'coordinador') {

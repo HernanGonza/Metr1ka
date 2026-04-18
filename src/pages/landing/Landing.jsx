@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { MapPin, BarChart2, Smartphone, Users, Shield, Zap, ChevronUp, Menu, X, Sun, Moon, CheckCircle, ArrowRight, Mail, MessageSquare, Send, Globe, Clock, TrendingUp } from 'lucide-react'
 import { useTheme } from '../../hooks/useTheme'
 import Chart from 'chart.js/auto'
@@ -784,9 +784,23 @@ function Footer({ onContact, onOpenLegal }) {
 
 /* ── Landing Page ── */
 export default function Landing() {
+  const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState('inicio')
   const [contactOpen, setContactOpen] = useState(false)
   const [legalModal, setLegalModal] = useState(null)
+
+  // Detectar errores de auth en la URL (ej: access_denied del hook de Google OAuth)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const hash   = new URLSearchParams(window.location.hash.replace('#', '?'))
+    const error  = params.get('error') || hash.get('error')
+    const desc   = params.get('error_description') || hash.get('error_description')
+    if (error === 'access_denied') {
+      // Limpiar la URL y redirigir al login con la alerta
+      window.history.replaceState(null, '', '/')
+      navigate('/login?sin_cuenta=true', { replace: true })
+    }
+  }, [])
 
   useEffect(() => {
     const fn = () => {
