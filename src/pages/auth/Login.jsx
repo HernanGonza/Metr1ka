@@ -52,8 +52,17 @@ export default function Login() {
   // Esto maneja el caso de Google OAuth que vuelve a /login con sesión activa
   useEffect(() => {
     if (authLoading) return
-    if (!user || !perfil) return
+    if (!user) return
+
+    // Usuario autenticado pero sin perfil = entró con Google sin invitación
+    if (!perfil) {
+      supabase.auth.signOut()
+      navigate('/login?sin_cuenta=true', { replace: true })
+      return
+    }
+
     if (searchParams.get('sin_cuenta') === 'true') return
+
     // Ya está autenticado con perfil → ir al dashboard según rol
     if (perfil.rol === 'superadmin' || perfil.rol === 'editor') {
       navigate('/superadmin', { replace: true })
