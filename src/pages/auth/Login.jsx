@@ -44,6 +44,7 @@ export default function Login() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [sent, setSent]         = useState(false)
   const [error, setError]       = useState('')
+  const [sinCuenta, setSinCuenta] = useState(false)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const invited = searchParams.get('invited') === 'true'
@@ -56,12 +57,10 @@ export default function Login() {
 
     // Usuario autenticado pero sin perfil = entró con Google sin invitación
     if (!perfil) {
+      setSinCuenta(true)
       supabase.auth.signOut()
-      navigate('/login?sin_cuenta=true', { replace: true })
       return
     }
-
-    if (searchParams.get('sin_cuenta') === 'true') return
 
     // Ya está autenticado con perfil → ir al dashboard según rol
     if (perfil.rol === 'superadmin' || perfil.rol === 'editor') {
@@ -105,12 +104,7 @@ export default function Login() {
     }
   }, [navigate])
 
-  useEffect(() => {
-    // Si viene con sin_cuenta=true, hacer signOut para limpiar la sesión de Google
-    if (searchParams.get('sin_cuenta') === 'true') {
-      supabase.auth.signOut()
-    }
-  }, [])
+
 
   async function handlePasswordLogin(e) {
     e.preventDefault()
