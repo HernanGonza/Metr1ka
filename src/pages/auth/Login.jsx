@@ -44,7 +44,9 @@ export default function Login() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [sent, setSent]         = useState(false)
   const [error, setError]       = useState('')
-  const [sinCuenta, setSinCuenta] = useState(false)
+  const [sinCuenta, setSinCuenta] = useState(
+    () => new URLSearchParams(window.location.search).get('sin_cuenta') === 'true'
+  )
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const invited = searchParams.get('invited') === 'true'
@@ -57,6 +59,8 @@ export default function Login() {
 
     // Usuario autenticado pero sin perfil = entró con Google sin invitación
     if (!perfil) {
+      // Poner el flag en la URL ANTES del signOut para que sobreviva el remount
+      window.history.replaceState(null, '', '/login?sin_cuenta=true')
       setSinCuenta(true)
       supabase.auth.signOut()
       return
