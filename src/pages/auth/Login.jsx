@@ -47,7 +47,12 @@ export default function Login() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const invited    = searchParams.get('invited') === 'true'
+  // Detectar "sin cuenta" tanto desde ?sin_cuenta=true como desde ?error=access_denied
+  // (Supabase puede redirigir el error del hook directamente a /login)
+  const hashParams = new URLSearchParams(window.location.hash.replace('#', '?'))
   const sinCuenta  = searchParams.get('sin_cuenta') === 'true'
+    || searchParams.get('error') === 'access_denied'
+    || hashParams.get('error') === 'access_denied'
 
   // Redirigir al dashboard si ya está autenticado con perfil
   useEffect(() => {
