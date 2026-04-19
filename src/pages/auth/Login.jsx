@@ -227,6 +227,12 @@ export default function Login() {
                   value={email} onChange={e => setEmail(e.target.value)} required />
                 <Input id="password" type="password" label="Contraseña" placeholder="••••••••"
                   value={password} onChange={e => setPassword(e.target.value)} required error={error} />
+                <div style={{ textAlign: 'right', marginTop: -8, marginBottom: 4 }}>
+                  <Link to="/recuperar-password"
+                    style={{ fontSize: 12, color: 'var(--accent2)', textDecoration: 'none', fontWeight: 600 }}>
+                    ¿Olvidaste tu contraseña?
+                  </Link>
+                </div>
                 <Button type="submit" loading={loading} fullWidth size="lg">
                   Ingresar
                 </Button>
