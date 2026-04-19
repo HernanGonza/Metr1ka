@@ -353,14 +353,14 @@ function SobreNosotros({ onContact }) {
               Nuestra misión es democratizar el acceso a herramientas de investigación de campo, permitiendo a organizaciones, empresas y gobiernos tomar decisiones basadas en datos reales, comenzando desde Misiones hacia todo el país.
             </p>
             <div className={styles.sobrePartners}>
-              <a href="mailto:paralelo.software.studio@gmail.com" className={styles.partnerCard}>
+              <a href="https://paralelo-studio.vercel.app/" target="_blank" rel="noopener noreferrer" className={styles.partnerCard}>
                 <img src={logoParalelo} alt="Paralelo Software Studio" className={`${styles.partnerLogoBase} ${styles.partnerLogoParalelo}`} />
                 <div>
                   <div className={styles.partnerName}>Paralelo Software Studio</div>
                   <div className={styles.partnerRole}>Desarrollo de producto</div>
                 </div>
               </a>
-              <a href="mailto:enfoquemisiones@gmail.com" className={styles.partnerCard}>
+              <a href="https://www.enfoquemisiones.com" target="_blank" rel="noopener noreferrer" className={styles.partnerCard}>
                 <img src={logoEnfoque} alt="Enfoque Misiones" className={`${styles.partnerLogoBase} ${styles.partnerLogoEnfoque}`} />
                 <div>
                   <div className={styles.partnerName}>Enfoque Misiones</div>
@@ -735,13 +735,13 @@ function Footer({ onContact, onOpenLegal }) {
               <p className={styles.footerTagline}>Sistema profesional de encuestas de campo. Datos reales, en tiempo real.</p>
               <div className={styles.footerPartners}>
                 <span className={styles.footerPartnerLabel}>Desarrollado por</span>
-                <a href="mailto:paralelo.software.studio@gmail.com">
+                <a href="https://paralelo-studio.vercel.app/" target="_blank" rel="noopener noreferrer">
                   <img src={logoParalelo} alt="Paralelo Software Studio" className={`${styles.footerPartnerLogo} ${styles.footerLogoParalelo} ${isDark ? styles.footerLogoLight : styles.footerLogoDark}`} />
                 </a>
               </div>
               <div className={styles.footerPartners} style={{ marginTop: 8 }}>
                 <span className={styles.footerPartnerLabel}>Impulsado por</span>
-                <a href="mailto:enfoquemisiones@gmail.com">
+                <a href="https://www.enfoquemisiones.com" target="_blank" rel="noopener noreferrer">
                   <img src={logoEnfoque} alt="Enfoque Misiones" className={`${styles.footerPartnerLogo} ${styles.footerLogoEnfoque} ${isDark ? styles.footerLogoLight : styles.footerLogoDark}`} />
                 </a>
               </div>
