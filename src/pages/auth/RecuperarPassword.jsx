@@ -50,15 +50,33 @@ export default function RecuperarPassword() {
   const pwdValid = Object.values(pwdChecks).every(Boolean)
   const pwdMatch = password === confirm && confirm !== ''
 
-  // Detectar si venimos desde el link del email (hash con recovery token)
+  // Detectar si venimos desde el link del email
   useEffect(() => {
+    // Caso 1: hash con access_token (flujo implícito legacy)
     const hash = window.location.hash
-    if (hash.includes('type=recovery')) {
+    if (hash.includes('type=recovery') || hash.includes('access_token')) {
       setStep('nueva')
       window.history.replaceState(null, '', window.location.pathname)
+      return
     }
 
-    // Escuchar evento PASSWORD_RECOVERY de Supabase
+    // Caso 2: code en query params (flujo PKCE — el actual por defecto en Supabase)
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    if (code) {
+      window.history.replaceState(null, '', window.location.pathname)
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (!error) setStep('nueva')
+      })
+      return
+    }
+
+    // Caso 3: ya hay una sesión activa con evento PASSWORD_RECOVERY
+    // (el usuario ya pasó por /verify y fue redirigido acá)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setStep('nueva')
+    })
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') setStep('nueva')
     })
