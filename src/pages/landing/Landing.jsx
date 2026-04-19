@@ -6,7 +6,7 @@ import Chart from 'chart.js/auto'
 import styles from './Landing.module.css'
 import LogoMetr1ka from '../../assets/LogoMetr1ka.svg'
 import logoEnfoque from '../../assets/logo-enfoque.png'
-import logoParalelo from '../../assets/logo-paralelo.png'
+import logoParalelo from '../../assets/paralelo-logo.svg'
 import { SECTIONS, FLOW_STEPS, ROLES, PLANS, TESTIMONIALS, DASHBOARD_DATA } from './landingData'
 import LegalModal from './LegalModal'
 import { PRIVACY_POLICY, TERMS, COOKIES } from './legalTexts.jsx'
@@ -736,7 +736,7 @@ function Footer({ onContact, onOpenLegal }) {
               <div className={styles.footerPartners}>
                 <span className={styles.footerPartnerLabel}>Desarrollado por</span>
                 <a href="https://paralelo-studio.vercel.app/" target="_blank" rel="noopener noreferrer">
-                  <img src={logoParalelo} alt="Paralelo Software Studio" className={`${styles.footerPartnerLogo} ${styles.footerLogoParalelo} ${isDark ? styles.footerLogoLight : styles.footerLogoDark}`} />
+                  <img src={logoParalelo} alt="Paralelo Software Studio" className={styles.footerLogoParalelo} />
                 </a>
               </div>
               <div className={styles.footerPartners} style={{ marginTop: 8 }}>

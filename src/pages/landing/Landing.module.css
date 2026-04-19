@@ -753,7 +753,7 @@
 
 
 /* ── Logo sizes para partners ── */
-.footerLogoParalelo { height: 80px; opacity: 0.8; max-width: 160px; }
+.footerLogoParalelo { height: 32px; width: auto; max-width: 160px; object-fit: contain; opacity: 0.9; }
 .footerLogoEnfoque  { height: 30px; opacity: 0.8; max-width: 100px; }
 
 /* ── Sobre Nosotros highlight ── */
