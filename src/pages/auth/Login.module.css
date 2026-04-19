@@ -129,3 +129,66 @@
   line-height: 1.5;
   margin-bottom: 4px;
 }
+/* ── RecuperarPassword — clases adicionales ── */
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink2);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid var(--border2);
+  border-radius: var(--r);
+  font-size: 14px;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  transition: border-color .15s;
+  box-sizing: border-box;
+}
+.input:focus { border-color: var(--accent); }
+.input::placeholder { color: var(--ink3); }
+.btnPrimary {
+  width: 100%;
+  padding: 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--r);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all .15s;
+  margin-top: 4px;
+}
+.btnPrimary:hover:not(:disabled) {
+  background: var(--accent2);
+  transform: translateY(-1px);
+}
+.btnPrimary:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  transform: none;
+}
+.errorMsg {
+  font-size: 13px;
+  color: var(--danger);
+  background: var(--danger-light);
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+[data-theme="dark"] .input {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border-color: var(--border2) !important;
+}
