@@ -101,7 +101,14 @@ export default function RecuperarPassword() {
     setLoading(true); setError('')
     const { error: err } = await supabase.auth.updateUser({ password })
     if (err) {
-      setError(err.message)
+      // Traducir mensajes de error de Supabase al español
+      const errores = {
+        'New password should be different from the old password.': 'La nueva contraseña debe ser diferente a la contraseña actual.',
+        'Password should be at least 6 characters.': 'La contraseña debe tener al menos 6 caracteres.',
+        'Auth session missing': 'Tu sesión expiró. Pedí un nuevo link de recuperación.',
+        'Token has expired or is invalid': 'El link expiró. Pedí un nuevo link de recuperación.',
+      }
+      setError(errores[err.message] || err.message)
       setLoading(false)
     } else {
       await supabase.auth.signOut()
