@@ -1,13 +1,10 @@
 <div align="center">
 
-```
-███╗   ███╗███████╗████████╗██████╗  ██╗██╗  ██╗ █████╗ 
-████╗ ████║██╔════╝╚══██╔══╝██╔══██╗███║██║ ██╔╝██╔══██╗
-██╔████╔██║█████╗     ██║   ██████╔╝╚██║█████╔╝ ███████║
-██║╚██╔╝██║██╔══╝     ██║   ██╔══██╗ ██║██╔═██╗ ██╔══██║
-██║ ╚═╝ ██║███████╗   ██║   ██║  ██║ ██║██║  ██╗██║  ██║
-╚═╝     ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
-```
+<a href="https://www.metr1ka.com">
+  <img src="https://zjphrjcpkzlmdpqhjypq.supabase.co/storage/v1/object/public/assets/LogoMetr1ka_white.svg" alt="METR1KA" width="300" />
+</a>
+
+<br/><br/>
 
 **Sistema profesional de encuestas de campo**  
 Datos reales, en tiempo real.
