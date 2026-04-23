@@ -159,9 +159,18 @@ export default function CompletarPerfil() {
       const ok = await updatePerfil({ ...form, perfil_completo: true })
       if (!ok) throw new Error('No se pudo guardar el perfil')
 
-      // Cerrar sesión y navegar al login
-      await supabase.auth.signOut()
-      navigate('/login?registered=true', { replace: true })
+      // La sesión ya está activa después de updateUser
+      // Redirigir directo al dashboard según rol — sin cerrar sesión
+      // (el usuario ya completó el perfil, no tiene sentido pedirle login de nuevo)
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: perfil }   = await supabase.from('perfiles').select('rol').eq('id', user.id).single()
+      if (perfil?.rol === 'superadmin' || perfil?.rol === 'editor') {
+        navigate('/superadmin', { replace: true })
+      } else if (perfil?.rol === 'coordinador') {
+        navigate('/coord/dashboard', { replace: true })
+      } else {
+        navigate('/dashboard', { replace: true })
+      }
 
     } catch (err) {
       setError(err.message)
