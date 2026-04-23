@@ -52,7 +52,23 @@ function Field({ label, children, required }) {
 
 function TextInput({ value, onChange, placeholder, type = 'text', autoFocus }) {
   const ref = useRef(null)
+  const [showPwd, setShowPwd] = useState(false)
   useEffect(() => { if (autoFocus) setTimeout(() => ref.current?.focus(), 100) }, [autoFocus])
+  if (type === 'password') {
+    return (
+      <div style={{ position: 'relative' }}>
+        <input ref={ref} type={showPwd ? 'text' : 'password'} value={value}
+          onChange={e => onChange(e.target.value)} placeholder={placeholder}
+          className={styles.input} style={{ paddingRight: 40 }} />
+        <button type="button" onClick={() => setShowPwd(v => !v)}
+          style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+            color: 'var(--ink3)', fontSize: 16, lineHeight: 1 }}>
+          {showPwd ? '🙈' : '👁'}
+        </button>
+      </div>
+    )
+  }
   return <input ref={ref} type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className={styles.input} />
 }
 

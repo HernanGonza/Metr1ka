@@ -40,6 +40,8 @@ export default function RecuperarPassword() {
   const [confirm,  setConfirm]  = useState('')
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
+  const [showPwd,  setShowPwd]  = useState(false)
+  const [showPwd2, setShowPwd2] = useState(false)
 
   const pwdChecks = {
     length:  password.length >= 8,
@@ -170,15 +172,33 @@ export default function RecuperarPassword() {
             <form onSubmit={handleNewPassword} className={styles.form}>
               <div className={styles.formGroup}>
                 <label className={styles.label} htmlFor="pwd">Nueva contraseña</label>
-                <input id="pwd" type="password" className={styles.input}
-                  placeholder="Mínimo 8 caracteres" value={password}
-                  onChange={e => setPassword(e.target.value)} autoFocus />
+                <div style={{ position: 'relative' }}>
+                  <input id="pwd" type={showPwd ? 'text' : 'password'} className={styles.input}
+                    placeholder="Mínimo 8 caracteres" value={password}
+                    onChange={e => setPassword(e.target.value)} autoFocus
+                    style={{ paddingRight: 40 }} />
+                  <button type="button" onClick={() => setShowPwd(v => !v)}
+                    style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                      color: 'var(--ink3)', fontSize: 16 }}>
+                    {showPwd ? '🙈' : '👁'}
+                  </button>
+                </div>
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.label} htmlFor="cpwd">Repetir contraseña</label>
-                <input id="cpwd" type="password" className={styles.input}
-                  placeholder="Repetí la contraseña" value={confirm}
-                  onChange={e => setConfirm(e.target.value)} />
+                <div style={{ position: 'relative' }}>
+                  <input id="cpwd" type={showPwd2 ? 'text' : 'password'} className={styles.input}
+                    placeholder="Repetí la contraseña" value={confirm}
+                    onChange={e => setConfirm(e.target.value)}
+                    style={{ paddingRight: 40 }} />
+                  <button type="button" onClick={() => setShowPwd2(v => !v)}
+                    style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                      color: 'var(--ink3)', fontSize: 16 }}>
+                    {showPwd2 ? '🙈' : '👁'}
+                  </button>
+                </div>
               </div>
 
               {/* Checklist */}
