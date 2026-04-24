@@ -69,12 +69,23 @@ export default function Encuestas() {
   useEffect(() => { fetchData() }, [])
 
   async function moveEncuesta(id, nuevoEstado) {
+    // Guardar estado anterior para rollback si falla
+    const estadoAnterior = encuestas.find(e => e.id === id)?.estado_produccion
+    
     // Optimistic update
     setEncuestas(prev => prev.map(e => e.id === id ? { ...e, estado_produccion: nuevoEstado } : e))
     setDraggingId(null)
-    
-    // Update en backend (sin await para no bloquear UI)
-    supabase.from('encuestas').update({ estado_produccion: nuevoEstado }).eq('id', id)
+
+    const { error } = await supabase
+      .from('encuestas')
+      .update({ estado_produccion: nuevoEstado })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error al actualizar estado:', error)
+      // Rollback si falló
+      setEncuestas(prev => prev.map(e => e.id === id ? { ...e, estado_produccion: estadoAnterior } : e))
+    }
   }
 
   function onDragStart(e, enc) { setDraggingId(enc.id); e.dataTransfer.effectAllowed = 'move' }
