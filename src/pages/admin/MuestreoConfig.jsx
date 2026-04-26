@@ -97,7 +97,7 @@ function filtrarDentroDeZona(features, zonaGeoJSON) {
 // MAPA EMBEBIDO
 // ════════════════════════════════════════════════
 const MapaZona = forwardRef(function MapaZona(
-  { encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange, onManzanasChange },
+  { encuestaId, zonaActual, manzanasSeleccionadas, onZonaChange, onManzanasChange, sinManzanas = false },
   ref
 ) {
   const mapRef       = useRef(null)
@@ -277,6 +277,8 @@ const MapaZona = forwardRef(function MapaZona(
       const zonaGeoJSON = zonaLayer.toGeoJSON()
       // Solo traemos manzanas — las parcelas las guarda la edge function guardar-parcelas
       const todasManzanas = await fetchManzanasCatastro(bbox)
+      // Si es encuesta callejera, no cargar manzanas
+      if (sinManzanas) { setLoading(false); return }
       const manzanas = filtrarDentroDeZona(todasManzanas, zonaGeoJSON)
       if (!manzanas.length) { setErrorMap(`No se encontraron manzanas en la zona (el catastro devolvió ${todasManzanas.length})`); setLoading(false); return }
       manzFeatRef.current = manzanas
@@ -918,7 +920,11 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
 
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', paddingLeft: 20, flexShrink: 0, background: 'var(--surface)' }}>
-          <button style={tabBtn('zonas', 'Zonas')} onClick={() => setTab('zonas')}>Zonas y manzanas</button>
+          {encuesta.tipo_encuesta !== 'telefonica' && (
+            <button style={tabBtn('zonas', 'Zonas')} onClick={() => setTab('zonas')}>
+              {encuesta.tipo_encuesta === 'callejera' ? 'Zonas y geofencing' : 'Zonas y manzanas'}
+            </button>
+          )}
           <button style={tabBtn('muestreo', 'Muestreo')} onClick={() => setTab('muestreo')}>Configuracion de muestreo</button>
         </div>
 
@@ -1052,6 +1058,7 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                     onZonaChange={geojson => { if (geojson) zonasDataRef.current[zonaActiva] = geojson }}
                     onManzanasChange={() => {}}
                     colorZona={COLOR_ZONA(zonaActivaIdx)}
+                    sinManzanas={encuesta?.tipo_encuesta === 'callejera'}
                   />
                 ) : (
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, color: 'var(--ink3)' }}>
@@ -1107,7 +1114,38 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                 )}
               </div>
 
-              <PanelConfig config={config} onChange={setConfig} organizacionId={encuesta?.organizacion_id} />
+              {/* Cuota por encuestador — solo callejera y telefónica */}
+              {(encuesta?.tipo_encuesta === 'callejera' || encuesta?.tipo_encuesta === 'telefonica') && (
+                <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '18px 20px', marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Cuota por encuestador</div>
+                  <div style={{ fontSize: 13, color: 'var(--ink3)', marginBottom: 12, lineHeight: 1.5 }}>
+                    Cantidad de encuestas que debe completar cada encuestador.
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <input type="range" min={1} max={200} value={config.cuota_por_encuestador || 50}
+                      onChange={e => setConfig(c => ({ ...c, cuota_por_encuestador: parseInt(e.target.value) }))}
+                      style={{ flex: 1, accentColor: 'var(--accent)' }} />
+                    <span style={{ fontFamily: 'Syne', fontSize: 28, fontWeight: 800, color: 'var(--accent)', minWidth: 48, textAlign: 'center' }}>
+                      {config.cuota_por_encuestador || 50}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Razones de no respuesta — siempre visible */}
+              <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '18px 20px', marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Razones de no respuesta</div>
+                <RazonesSelector
+                  organizacionId={encuesta?.organizacion_id}
+                  seleccionadas={config.razones_seleccionadas || []}
+                  onChangeSel={ids => setConfig(c => ({ ...c, razones_seleccionadas: ids }))}
+                />
+              </div>
+
+              {/* Config domiciliaria — solo domiciliaria */}
+              {encuesta?.tipo_encuesta === 'domiciliaria' && (
+                <PanelConfig config={config} onChange={setConfig} organizacionId={encuesta?.organizacion_id} />
+              )}
             </div>
           )}
         </div>
