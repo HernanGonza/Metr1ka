@@ -86,17 +86,179 @@ function MiniChart({ pregunta, filas, tipo = 'bar', color = '#1a472a' }) {
   return <div style={{ height: 140 }}><canvas ref={ref} /></div>
 }
 
-/* ── Widget de comparación entre dos preguntas ── */
-function Comparacion({ preguntas, respuestasMap, onRemove, index }) {
+/* ── Vista Por Pregunta con selector de tipo de gráfico ── */
+function PorPregunta({ preguntas, respuestasMap }) {
+  const [tiposGrafico, setTiposGrafico] = useState({})
+
+  function setTipo(pregId, tipo) {
+    setTiposGrafico(prev => ({ ...prev, [pregId]: tipo }))
+  }
+
+  const tiposDisponibles = (preg) => {
+    if (preg.tipo === 'si_no') return [['doughnut','Dona'],['bar','Barras']]
+    if (preg.tipo === 'opcion_multiple') return [['horizontal','Barras horiz.'],['bar','Barras vert.'],['doughnut','Dona']]
+    if (preg.tipo === 'escala') return [['bar','Barras'],['horizontal','Barras horiz.']]
+    return []
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {preguntas.filter(p => p.clave_base !== 'participa').map((p, i) => {
+        const tipos = tiposDisponibles(p)
+        const tipoActual = tiposGrafico[p.id] || (tipos[0]?.[0] ?? 'bar')
+        const total = (respuestasMap[p.id] || []).reduce((s, f) => s + Number(f.cantidad), 0)
+        return (
+          <div key={p.id} style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: 20, borderLeft: `3px solid ${PALETA[i % PALETA.length]}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.4 }}>{p.texto}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
+                  {p.tipo} · {total} respuestas
+                </div>
+              </div>
+              {tipos.length > 0 && (
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  {tipos.map(([v, label]) => (
+                    <button key={v} onClick={() => setTipo(p.id, v)}
+                      style={{ padding: '4px 10px', fontSize: 11, fontFamily: 'DM Sans', border: '1.5px solid', borderRadius: 'var(--r)', cursor: 'pointer', transition: 'all .15s',
+                        borderColor: tipoActual === v ? PALETA[i % PALETA.length] : 'var(--border2)',
+                        background:  tipoActual === v ? PALETA[i % PALETA.length] + '15' : 'var(--surface)',
+                        color:       tipoActual === v ? PALETA[i % PALETA.length] : 'var(--ink3)',
+                        fontWeight:  tipoActual === v ? 700 : 500,
+                      }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {p.tipo === 'texto_libre' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                {(respuestasMap[p.id] || []).filter(f => f.valor_texto?.trim()).map((f, j) => (
+                  <div key={j} style={{ fontSize: 13, padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--r)', borderLeft: `3px solid ${PALETA[i%PALETA.length]}`, color: 'var(--ink2)' }}>
+                    "{f.valor_texto}"
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <MiniChart pregunta={p} filas={respuestasMap[p.id] || []} tipo={tipoActual} color={PALETA[i % PALETA.length]} />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ── Cruce de datos entre dos preguntas en un único gráfico ── */
+function GraficoCruce({ preguntas, sesiones, onRemove, index }) {
   const [pregA, setPregA] = useState('')
   const [pregB, setPregB] = useState('')
+  const [tipoGrafico, setTipoGrafico] = useState('stacked')
+  const chartRef = useRef(null)
+  const chartInst = useRef(null)
 
   const pA = preguntas.find(p => p.id === pregA)
   const pB = preguntas.find(p => p.id === pregB)
-  const filasA = pregA ? (respuestasMap[pregA] || []) : []
-  const filasB = pregB ? (respuestasMap[pregB] || []) : []
+  const comparables = preguntas.filter(p =>
+    ['si_no','escala','opcion_multiple'].includes(p.tipo) && p.clave_base !== 'participa'
+  )
 
-  const comparables = preguntas.filter(p => ['si_no','escala','opcion_multiple'].includes(p.tipo) && p.clave_base !== 'participa')
+  const datosCruce = useMemo(() => {
+    if (!pA || !pB || !sesiones?.length) return null
+
+    if (tipoGrafico === 'scatter') {
+      const pts = sesiones.map(s => {
+        const va = s.respuestas?.[pA.id]
+        const vb = s.respuestas?.[pB.id]
+        const na = parseFloat(va)
+        const nb = parseFloat(vb)
+        return isNaN(na) || isNaN(nb) ? null : { x: na, y: nb }
+      }).filter(Boolean)
+      return pts.length ? { tipo: 'scatter', puntos: pts } : null
+    }
+
+    const valoresA = [...new Set(sesiones.map(s => s.respuestas?.[pA.id]).filter(Boolean))].sort()
+    const valoresB = [...new Set(sesiones.map(s => s.respuestas?.[pB.id]).filter(Boolean))].sort()
+    if (!valoresA.length || !valoresB.length) return null
+
+    const matriz = {}
+    valoresA.forEach(va => {
+      matriz[va] = {}
+      valoresB.forEach(vb => { matriz[va][vb] = 0 })
+    })
+    sesiones.forEach(s => {
+      const va = s.respuestas?.[pA.id]
+      const vb = s.respuestas?.[pB.id]
+      if (va && vb && matriz[va] !== undefined) {
+        matriz[va][vb] = (matriz[va][vb] || 0) + 1
+      }
+    })
+    return { tipo: 'bar', labelsX: valoresA, seriesY: valoresB, matriz }
+  }, [pA?.id, pB?.id, tipoGrafico, sesiones])
+
+  // El canvas siempre está en el DOM — si lo condicionamos, el ref llega null cuando se monta
+  useEffect(() => {
+    if (!chartRef.current || !datosCruce) return
+    if (chartInst.current) { chartInst.current.destroy(); chartInst.current = null }
+    const ctx = chartRef.current.getContext('2d')
+
+    if (datosCruce.tipo === 'scatter') {
+      chartInst.current = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+          datasets: [{
+            label: `${pA.texto.slice(0,25)} vs ${pB.texto.slice(0,25)}`,
+            data: datosCruce.puntos,
+            backgroundColor: PALETA[index % PALETA.length] + 'cc',
+            pointRadius: 6, pointHoverRadius: 8,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: c => `(${c.parsed.x}, ${c.parsed.y})` } }
+          },
+          scales: {
+            x: { title: { display: true, text: pA.texto.slice(0,45), font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
+            y: { title: { display: true, text: pB.texto.slice(0,45), font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
+          }
+        }
+      })
+    } else {
+      const { labelsX, seriesY, matriz } = datosCruce
+      const stacked = tipoGrafico === 'stacked'
+      chartInst.current = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labelsX,
+          datasets: seriesY.map((vb, i) => ({
+            label: vb,
+            data: labelsX.map(va => matriz[va]?.[vb] || 0),
+            backgroundColor: PALETA[i % PALETA.length],
+            borderRadius: stacked ? 0 : 4,
+            borderSkipped: false,
+          }))
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'top', labels: { font: { size: 11 }, padding: 12, boxWidth: 12 } } },
+          scales: {
+            x: { stacked, title: { display: true, text: pA.texto.slice(0,50), font: { size: 11 } }, grid: { display: false } },
+            y: { stacked, ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,0.05)' } },
+          }
+        }
+      })
+    }
+  }, [datosCruce])
+
+  // Cleanup solo al desmontar
+  useEffect(() => {
+    return () => { if (chartInst.current) { chartInst.current.destroy(); chartInst.current = null } }
+  }, [])
+
+  const sel = { width: '100%', padding: '8px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, background: 'var(--surface)', color: 'var(--ink)', fontFamily: 'DM Sans', outline: 'none' }
 
   return (
     <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: 20 }}>
@@ -104,31 +266,54 @@ function Comparacion({ preguntas, respuestasMap, onRemove, index }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: PALETA[index % PALETA.length] }} />
           <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1 }}>
-            Comparación {index + 1}
+            Cruce {index + 1}
           </span>
         </div>
         <button onClick={onRemove} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink3)', padding: 4, borderRadius: 6 }}>
           <Trash2 size={14} />
         </button>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, marginBottom: 16 }}>
         <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Pregunta A</label>
-          <select value={pregA} onChange={e => setPregA(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, background: 'var(--surface)', color: 'var(--ink)', fontFamily: 'DM Sans', outline: 'none' }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Pregunta — eje X</label>
+          <select value={pregA} onChange={e => setPregA(e.target.value)} style={sel}>
             <option value="">Seleccionar...</option>
-            {comparables.map(p => <option key={p.id} value={p.id}>{p.texto.slice(0,50)}</option>)}
+            {comparables.map(p => <option key={p.id} value={p.id}>{p.texto.slice(0,55)}</option>)}
           </select>
-          {pA && <div style={{ marginTop: 10 }}><MiniChart pregunta={pA} filas={filasA} color={PALETA[index * 2 % PALETA.length]} /></div>}
         </div>
         <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Pregunta B</label>
-          <select value={pregB} onChange={e => setPregB(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, background: 'var(--surface)', color: 'var(--ink)', fontFamily: 'DM Sans', outline: 'none' }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Cruzar con</label>
+          <select value={pregB} onChange={e => setPregB(e.target.value)} style={sel}>
             <option value="">Seleccionar...</option>
-            {comparables.map(p => <option key={p.id} value={p.id}>{p.texto.slice(0,50)}</option>)}
+            {comparables.filter(p => p.id !== pregA).map(p => <option key={p.id} value={p.id}>{p.texto.slice(0,55)}</option>)}
           </select>
-          {pB && <div style={{ marginTop: 10 }}><MiniChart pregunta={pB} filas={filasB} color={PALETA[(index * 2 + 1) % PALETA.length]} /></div>}
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Tipo</label>
+          <select value={tipoGrafico} onChange={e => setTipoGrafico(e.target.value)} style={{ ...sel, width: 'auto', minWidth: 140 }}>
+            <option value="stacked">Barras apiladas</option>
+            <option value="grouped">Barras agrupadas</option>
+            <option value="scatter">Dispersión</option>
+          </select>
         </div>
       </div>
+
+      {/* Canvas siempre en el DOM para que el ref esté disponible cuando cambia datosCruce */}
+      <div style={{ height: 340, position: 'relative', display: datosCruce ? 'block' : 'none' }}>
+        <canvas ref={chartRef} />
+      </div>
+
+      {!datosCruce && pA && pB && (
+        <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink3)', fontSize: 13 }}>
+          Sin datos suficientes para este cruce.{tipoGrafico === 'scatter' ? ' Para dispersión ambas preguntas deben ser numéricas.' : ''}
+        </div>
+      )}
+      {(!pA || !pB) && (
+        <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink3)', fontSize: 13, border: '1.5px dashed var(--border2)', borderRadius: 'var(--r)' }}>
+          Seleccioná dos preguntas para ver el cruce de datos en un único gráfico
+        </div>
+      )}
     </div>
   )
 }
@@ -242,6 +427,9 @@ export default function Reportes() {
   const [generando,   setGenerando]   = useState(false)
   const [vistaActiva, setVistaActiva] = useState('dashboard')
   const [comparaciones, setComparaciones] = useState([{ id: 1 }])
+  const [sesionesCruce, setSesionesCruce] = useState([])
+  const [datosExport,  setDatosExport]  = useState(null)
+  const [loadingDatos, setLoadingDatos] = useState(false)
 
   // Filtros
   const [filtroEquipo,      setFiltroEquipo]      = useState('')
@@ -261,12 +449,51 @@ export default function Reportes() {
   }, [perfil?.organizacion_id])
 
   async function cargarEncuesta(enc) {
-    setSelected(enc); setData(null); setLoadingEnc(true)
+    setSelected(enc); setData(null); setLoadingEnc(true); setDatosExport(null); setSesionesCruce([])
     setFiltroEquipo(''); setFiltroEncuestador(''); setFiltroDesde(''); setFiltroHasta('')
-    const { data: d } = await supabase.rpc('get_encuesta_full', {
-      p_encuesta_id: enc.id, p_org_id: perfil.organizacion_id,
+    const [{ data: d }, { data: sc }] = await Promise.all([
+      supabase.rpc('get_encuesta_full', { p_encuesta_id: enc.id, p_org_id: perfil.organizacion_id }),
+      supabase.rpc('get_respuestas_por_sesion', { p_encuesta_id: enc.id, p_org_id: perfil.organizacion_id }),
+    ])
+    setData(d)
+    setSesionesCruce(sc?.sesiones || [])
+    setLoadingEnc(false)
+  }
+
+  async function cargarDatosCrudos() {
+    if (!selected) return
+    setLoadingDatos(true)
+    const { data: d } = await supabase.rpc('get_respuestas_crudas', {
+      p_encuesta_id:    selected.id,
+      p_org_id:         perfil.organizacion_id,
+      p_equipo_id:      filtroEquipo      || null,
+      p_encuestador_id: filtroEncuestador || null,
+      p_fecha_desde:    filtroDesde       || null,
+      p_fecha_hasta:    filtroHasta       || null,
     })
-    setData(d); setLoadingEnc(false)
+    setDatosExport(d)
+    setLoadingDatos(false)
+  }
+
+  function exportarCSV() {
+    if (!datosExport?.columnas || !datosExport?.filas) return
+    const cols = datosExport.columnas
+    const header = ['Sesion', 'Fecha', 'Encuestador', 'Equipo', 'Latitud', 'Longitud', ...cols.map(c => c.texto)]
+    const rows = (datosExport.filas || []).map(f => [
+      f.sesion_id,
+      f.fecha ? new Date(f.fecha).toLocaleString('es-AR') : '',
+      f.encuestador || '',
+      f.equipo || '',
+      f.lat || '',
+      f.lng || '',
+      ...cols.map(c => (f.respuestas || {})[c.id] || ''),
+    ])
+    const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a'); a.href = url
+    a.download = `${selected.nombre.replace(/\s+/g,'_')}_datos.csv`
+    a.click(); URL.revokeObjectURL(url)
   }
 
   async function aplicarFiltros() {
@@ -349,25 +576,45 @@ export default function Reportes() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* Selector de encuesta */}
-            <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Encuesta</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {/* Lista de encuestas — cards con dos acciones */}
+            {!selected && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>
+                  Seleccioná una encuesta para ver sus reportes
+                </div>
                 {encuestas.map(enc => (
-                  <button key={enc.id} onClick={() => cargarEncuesta(enc)} style={{
-                    padding: '8px 16px', borderRadius: 'var(--r)', cursor: 'pointer',
-                    fontFamily: 'DM Sans', fontSize: 13, fontWeight: selected?.id === enc.id ? 700 : 500,
-                    border: `1.5px solid ${selected?.id === enc.id ? 'var(--accent)' : 'var(--border2)'}`,
-                    background: selected?.id === enc.id ? 'var(--accent-light)' : 'var(--surface)',
-                    color: selected?.id === enc.id ? 'var(--accent)' : 'var(--ink2)',
-                    transition: 'all .15s',
-                  }}>{enc.nombre}</button>
+                  <div key={enc.id} style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', marginBottom: 3 }}>{enc.nombre}</div>
+                      {enc.descripcion && <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>{enc.descripcion}</div>}
+                      <div style={{ fontSize: 11, color: 'var(--ink3)' }}>Creada {new Date(enc.creado_en).toLocaleDateString('es-AR')}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      <button onClick={() => { cargarEncuesta(enc); setVistaActiva('preguntas') }}
+                        style={{ padding: '7px 14px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <BarChart2 size={13} /> Gráficos
+                      </button>
+                      <button onClick={() => { cargarEncuesta(enc); setVistaActiva('datos') }}
+                        style={{ padding: '7px 14px', background: 'var(--surface)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans', color: 'var(--ink2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <FileText size={13} /> Datos crudos
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
-            </div>
+            )}
 
             {selected && (
               <>
+                {/* Header con botón Volver */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <button onClick={() => { setSelected(null); setData(null); setDatosExport(null); setSesionesCruce([]) }}
+                    style={{ background: 'none', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', padding: '5px 12px', fontSize: 12, cursor: 'pointer', color: 'var(--ink3)', fontFamily: 'DM Sans' }}>
+                    ← Volver
+                  </button>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>{selected.nombre}</span>
+                </div>
+
                 {/* Filtros */}
                 <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
                   <button onClick={() => setFiltrosAbiertos(o=>!o)} style={{ width: '100%', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'DM Sans' }}>
@@ -449,69 +696,91 @@ export default function Reportes() {
 
                     {/* Tabs */}
                     <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', background: 'var(--paper)', borderRadius: 'var(--r2) var(--r2) 0 0', padding: '0 8px' }}>
-                      {[['dashboard','📊 Dashboard'],['preguntas','📋 Por pregunta'],['comparar','🔀 Comparar'],['encuestadores','👥 Encuestadores']].map(([v, label]) => (
-                        <button key={v} onClick={() => setVistaActiva(v)} style={tabStyle(vistaActiva === v)}>{label}</button>
+                      {[
+                        ['preguntas',    '📋 Por pregunta'],
+                        ['comparar',     '🔀 Cruzar datos'],
+                        ['encuestadores','👥 Encuestadores'],
+                        ['datos',        '📁 Datos crudos'],
+                      ].map(([v, label]) => (
+                        <button key={v}
+                          onClick={() => { setVistaActiva(v); if (v === 'datos' && !datosExport) cargarDatosCrudos() }}
+                          style={tabStyle(vistaActiva === v)}>
+                          {label}
+                        </button>
                       ))}
                     </div>
 
-                    {/* Vista Dashboard */}
-                    {vistaActiva === 'dashboard' && (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-                        {preguntas.filter(p => p.clave_base !== 'participa' && p.tipo !== 'texto_libre').slice(0, 6).map((p, i) => (
-                          <div key={p.id} style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: 20 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 4, lineHeight: 1.4 }}>{p.texto}</div>
-                            <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 12 }}>
-                              {respuestasMap[p.id]?.reduce((s,f) => s + Number(f.cantidad), 0) || 0} respuestas
-                            </div>
-                            <MiniChart pregunta={p} filas={respuestasMap[p.id] || []} tipo={p.tipo === 'si_no' ? 'doughnut' : p.tipo === 'opcion_multiple' ? 'horizontal' : 'bar'} color={PALETA[i % PALETA.length]} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
                     {/* Vista Preguntas — todas */}
                     {vistaActiva === 'preguntas' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                        {preguntas.filter(p => p.clave_base !== 'participa').map((p, i) => (
-                          <div key={p.id} style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '20px', borderLeft: `3px solid ${PALETA[i % PALETA.length]}` }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 12 }}>
-                              <div>
-                                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.4 }}>{p.texto}</div>
-                                <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
-                                  {p.tipo} · {respuestasMap[p.id]?.reduce((s,f) => s + Number(f.cantidad), 0) || 0} respuestas
-                                </div>
-                              </div>
-                            </div>
-                            {p.tipo === 'texto_libre' ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                                {(respuestasMap[p.id] || []).filter(f => f.valor_texto?.trim()).map((f, j) => (
-                                  <div key={j} style={{ fontSize: 13, padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--r)', borderLeft: `3px solid ${PALETA[i%PALETA.length]}`, color: 'var(--ink2)' }}>
-                                    "{f.valor_texto}"
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <MiniChart pregunta={p} filas={respuestasMap[p.id] || []} tipo={p.tipo === 'si_no' ? 'doughnut' : 'bar'} color={PALETA[i % PALETA.length]} />
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                      <PorPregunta preguntas={preguntas} respuestasMap={respuestasMap} />
                     )}
 
-                    {/* Vista Comparaciones */}
+                    {/* Vista Cruzar datos */}
                     {vistaActiva === 'comparar' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                         <div style={{ background: 'var(--accent-light)', border: '1px solid #b7e4c7', borderRadius: 'var(--r2)', padding: '12px 16px', fontSize: 13, color: 'var(--accent2)', display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <Zap size={14} /> Comparaciones lado a lado. Seleccioná dos preguntas para comparar sus distribuciones.
-                          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--accent2)' }}>💡 La IA podrá sugerir comparaciones relevantes cuando se integre en la VPS.</span>
+                          <Zap size={14} /> Cruzá dos preguntas para ver cómo se distribuyen las respuestas de una según los valores de la otra en un único gráfico.
                         </div>
                         {comparaciones.map((c, i) => (
-                          <Comparacion key={c.id} preguntas={preguntas} respuestasMap={respuestasMap} index={i}
+                          <GraficoCruce key={c.id} preguntas={preguntas} sesiones={sesionesCruce} index={i}
                             onRemove={() => setComparaciones(prev => prev.filter(x => x.id !== c.id))} />
                         ))}
                         <button onClick={() => setComparaciones(prev => [...prev, { id: Date.now() }])} style={{ padding: '10px', border: '1.5px dashed var(--border2)', borderRadius: 'var(--r2)', background: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--ink3)', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                          <Plus size={14} /> Agregar comparación
+                          <Plus size={14} /> Agregar cruce
                         </button>
+                      </div>
+                    )}
+
+                    {/* Vista Datos Crudos */}
+                    {vistaActiva === 'datos' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ fontSize: 13, color: 'var(--ink2)' }}>Respuestas individuales con georeferencia. Cada fila es una encuesta completada.</div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={cargarDatosCrudos} disabled={loadingDatos} style={{ padding: '7px 14px', background: 'var(--surface)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans', color: 'var(--ink2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <RefreshCw size={12} /> Actualizar
+                            </button>
+                            <button onClick={exportarCSV} disabled={!datosExport?.filas?.length} style={{ padding: '7px 14px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Download size={12} /> Exportar CSV
+                            </button>
+                          </div>
+                        </div>
+                        {loadingDatos ? (
+                          <div style={{ textAlign: 'center', padding: 40 }}><Spinner size="md" /></div>
+                        ) : !datosExport?.filas?.length ? (
+                          <div style={{ textAlign: 'center', padding: 40, color: 'var(--ink3)', fontSize: 13 }}>No hay datos todavía. Hacé clic en Actualizar.</div>
+                        ) : (
+                          <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--r2)' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                              <thead>
+                                <tr style={{ background: 'var(--surface)', borderBottom: '2px solid var(--border)' }}>
+                                  <th style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>Encuestador</th>
+                                  <th style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>Equipo</th>
+                                  <th style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>Lat</th>
+                                  <th style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>Lng</th>
+                                  {(datosExport.columnas || []).map(col => (
+                                    <th key={col.id} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>{col.texto}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(datosExport.filas || []).map((fila, i) => (
+                                  <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'var(--paper)' : 'var(--surface)' }}>
+                                    <td style={{ padding: '8px 14px', fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap' }}>{fila.encuestador || '—'}</td>
+                                    <td style={{ padding: '8px 14px', color: 'var(--ink2)', whiteSpace: 'nowrap' }}>{fila.equipo || '—'}</td>
+                                    <td style={{ padding: '8px 14px', color: 'var(--ink3)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{fila.lat ? Number(fila.lat).toFixed(5) : '—'}</td>
+                                    <td style={{ padding: '8px 14px', color: 'var(--ink3)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{fila.lng ? Number(fila.lng).toFixed(5) : '—'}</td>
+                                    {(datosExport.columnas || []).map(col => (
+                                      <td key={col.id} style={{ padding: '8px 14px', color: 'var(--ink2)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {(fila.respuestas || {})[col.id] || '—'}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
                       </div>
                     )}
 
