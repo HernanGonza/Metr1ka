@@ -318,6 +318,138 @@ function GraficoCruce({ preguntas, sesiones, onRemove, index }) {
   )
 }
 
+/* ── Tabla de datos crudos con sort, filter y scroll propio ── */
+function TablaDatosCrudos({ datosExport, loadingDatos, onActualizar, onExportarCSV }) {
+  const [sortCol,   setSortCol]   = useState(null)
+  const [sortDir,   setSortDir]   = useState('asc')
+  const [filtroGlobal, setFiltroGlobal] = useState('')
+
+  const columnas = datosExport?.columnas || []
+  const filas    = datosExport?.filas    || []
+
+  const filasFiltradas = useMemo(() => {
+    let f = filas
+    if (filtroGlobal.trim()) {
+      const q = filtroGlobal.toLowerCase()
+      f = f.filter(fila =>
+        [fila.encuestador, fila.equipo, ...columnas.map(col => (fila.respuestas||{})[col.id])]
+          .some(v => v && String(v).toLowerCase().includes(q))
+      )
+    }
+    if (sortCol) {
+      f = [...f].sort((a, b) => {
+        const va = sortCol === 'encuestador' ? a.encuestador
+          : sortCol === 'equipo' ? a.equipo
+          : sortCol === 'lat' ? a.lat
+          : sortCol === 'lng' ? a.lng
+          : (a.respuestas||{})[sortCol]
+        const vb = sortCol === 'encuestador' ? b.encuestador
+          : sortCol === 'equipo' ? b.equipo
+          : sortCol === 'lat' ? b.lat
+          : sortCol === 'lng' ? b.lng
+          : (b.respuestas||{})[sortCol]
+        const na = parseFloat(va), nb = parseFloat(vb)
+        const cmp = !isNaN(na) && !isNaN(nb)
+          ? na - nb
+          : String(va||'').localeCompare(String(vb||''), 'es')
+        return sortDir === 'asc' ? cmp : -cmp
+      })
+    }
+    return f
+  }, [filas, filtroGlobal, sortCol, sortDir])
+
+  function toggleSort(col) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+
+  const thStyle = (col) => ({
+    position: 'sticky', top: 0, zIndex: 2,
+    background: 'var(--surface)',
+    padding: '9px 14px', textAlign: 'left',
+    fontSize: 10, fontWeight: 700, color: sortCol === col ? 'var(--accent)' : 'var(--ink3)',
+    textTransform: 'uppercase', letterSpacing: 0.5,
+    whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none',
+    borderBottom: '2px solid var(--border)',
+  })
+
+  const sortIndicator = (col) => sortCol === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
+
+  return (
+    <div style={{
+      /* Romper el max-width del contenedor padre con márgenes negativos */
+      marginLeft: '-28px', marginRight: '-28px',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      {/* Barra de herramientas */}
+      <div style={{ padding: '12px 28px', background: 'var(--paper)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
+        <input
+          placeholder="Buscar en todas las columnas..."
+          value={filtroGlobal}
+          onChange={e => setFiltroGlobal(e.target.value)}
+          style={{ flex: 1, padding: '7px 12px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, fontFamily: 'DM Sans', background: 'var(--surface)', color: 'var(--ink)', outline: 'none', maxWidth: 340 }}
+        />
+        {filtroGlobal && (
+          <span style={{ fontSize: 12, color: 'var(--ink3)' }}>{filasFiltradas.length} de {filas.length}</span>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button onClick={onActualizar} disabled={loadingDatos}
+            style={{ padding: '6px 12px', background: 'var(--surface)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans', color: 'var(--ink2)', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <RefreshCw size={12} /> Actualizar
+          </button>
+          <button onClick={onExportarCSV} disabled={!filas.length}
+            style={{ padding: '6px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Download size={12} /> Exportar CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Tabla */}
+      {loadingDatos ? (
+        <div style={{ textAlign: 'center', padding: 40 }}><Spinner size="md" /></div>
+      ) : !filas.length ? (
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--ink3)', fontSize: 13 }}>
+          No hay datos todavía. Hacé clic en Actualizar.
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 240px)' }}>
+          <table style={{ borderCollapse: 'collapse', fontSize: 12, width: 'max-content', minWidth: '100%' }}>
+            <thead>
+              <tr>
+                {[['encuestador','Encuestador'],['equipo','Equipo'],['lat','Lat'],['lng','Lng']].map(([col, label]) => (
+                  <th key={col} onClick={() => toggleSort(col)} style={thStyle(col)}>
+                    {label}{sortIndicator(col)}
+                  </th>
+                ))}
+                {columnas.map(col => (
+                  <th key={col.id} onClick={() => toggleSort(col.id)} style={thStyle(col.id)}>
+                    {col.texto}{sortIndicator(col.id)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filasFiltradas.map((fila, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'var(--paper)' : 'var(--surface)' }}>
+                  <td style={{ padding: '8px 14px', fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap' }}>{fila.encuestador || '—'}</td>
+                  <td style={{ padding: '8px 14px', color: 'var(--ink2)', whiteSpace: 'nowrap' }}>{fila.equipo || '—'}</td>
+                  <td style={{ padding: '8px 14px', color: 'var(--ink3)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{fila.lat ? Number(fila.lat).toFixed(5) : '—'}</td>
+                  <td style={{ padding: '8px 14px', color: 'var(--ink3)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{fila.lng ? Number(fila.lng).toFixed(5) : '—'}</td>
+                  {columnas.map(col => (
+                    <td key={col.id} style={{ padding: '8px 14px', color: 'var(--ink2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {(fila.respuestas||{})[col.id] || '—'}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── KPI Card ── */
 function KpiCard({ label, value, sub, color, icon }) {
   return (
@@ -459,6 +591,13 @@ export default function Reportes() {
     setSesionesCruce(sc?.sesiones || [])
     setLoadingEnc(false)
   }
+
+  // Cargar datos crudos automáticamente al entrar a la tab
+  useEffect(() => {
+    if (vistaActiva === 'datos' && selected && !datosExport && !loadingDatos) {
+      cargarDatosCrudos()
+    }
+  }, [vistaActiva, selected?.id])
 
   async function cargarDatosCrudos() {
     if (!selected) return
@@ -703,7 +842,7 @@ export default function Reportes() {
                         ['datos',        '📁 Datos crudos'],
                       ].map(([v, label]) => (
                         <button key={v}
-                          onClick={() => { setVistaActiva(v); if (v === 'datos' && !datosExport) cargarDatosCrudos() }}
+                          onClick={() => setVistaActiva(v)}
                           style={tabStyle(vistaActiva === v)}>
                           {label}
                         </button>
@@ -733,58 +872,12 @@ export default function Reportes() {
 
                     {/* Vista Datos Crudos */}
                     {vistaActiva === 'datos' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0, overflow: 'hidden', borderRadius: 'var(--r2)', border: '1px solid var(--border)' }}>
-                        {/* Header sticky con acciones */}
-                        <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--paper)', borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
-                            {datosExport?.filas?.length ? `${datosExport.filas.length} respuestas` : 'Respuestas individuales con georeferencia'}
-                          </div>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button onClick={cargarDatosCrudos} disabled={loadingDatos} style={{ padding: '6px 12px', background: 'var(--surface)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans', color: 'var(--ink2)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                              <RefreshCw size={12} /> Actualizar
-                            </button>
-                            <button onClick={exportarCSV} disabled={!datosExport?.filas?.length} style={{ padding: '6px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 5 }}>
-                              <Download size={12} /> Exportar CSV
-                            </button>
-                          </div>
-                        </div>
-                        {loadingDatos ? (
-                          <div style={{ textAlign: 'center', padding: 40 }}><Spinner size="md" /></div>
-                        ) : !datosExport?.filas?.length ? (
-                          <div style={{ textAlign: 'center', padding: 40, color: 'var(--ink3)', fontSize: 13 }}>No hay datos todavía. Hacé clic en Actualizar.</div>
-                        ) : (
-                          /* Contenedor con scroll horizontal Y vertical, altura fija para que no haya doble scroll */
-                          <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
-                            <table style={{ borderCollapse: 'collapse', fontSize: 12, width: 'max-content', minWidth: '100%' }}>
-                              <thead>
-                                <tr style={{ background: 'var(--surface)', borderBottom: '2px solid var(--border)' }}>
-                                  {['Encuestador', 'Equipo', 'Lat', 'Lng'].map(h => (
-                                    <th key={h} style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface)', padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap', borderBottom: '2px solid var(--border)' }}>{h}</th>
-                                  ))}
-                                  {(datosExport.columnas || []).map(col => (
-                                    <th key={col.id} style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface)', padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap', borderBottom: '2px solid var(--border)' }}>{col.texto}</th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(datosExport.filas || []).map((fila, i) => (
-                                  <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'var(--paper)' : 'var(--surface)' }}>
-                                    <td style={{ padding: '8px 14px', fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap' }}>{fila.encuestador || '—'}</td>
-                                    <td style={{ padding: '8px 14px', color: 'var(--ink2)', whiteSpace: 'nowrap' }}>{fila.equipo || '—'}</td>
-                                    <td style={{ padding: '8px 14px', color: 'var(--ink3)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{fila.lat ? Number(fila.lat).toFixed(5) : '—'}</td>
-                                    <td style={{ padding: '8px 14px', color: 'var(--ink3)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{fila.lng ? Number(fila.lng).toFixed(5) : '—'}</td>
-                                    {(datosExport.columnas || []).map(col => (
-                                      <td key={col.id} style={{ padding: '8px 14px', color: 'var(--ink2)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {(fila.respuestas || {})[col.id] || '—'}
-                                      </td>
-                                    ))}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
+                      <TablaDatosCrudos
+                        datosExport={datosExport}
+                        loadingDatos={loadingDatos}
+                        onActualizar={cargarDatosCrudos}
+                        onExportarCSV={exportarCSV}
+                      />
                     )}
 
                     {/* Vista Encuestadores */}
