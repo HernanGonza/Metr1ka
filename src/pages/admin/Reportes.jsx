@@ -733,14 +733,17 @@ export default function Reportes() {
 
                     {/* Vista Datos Crudos */}
                     {vistaActiva === 'datos' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ fontSize: 13, color: 'var(--ink2)' }}>Respuestas individuales con georeferencia. Cada fila es una encuesta completada.</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0, overflow: 'hidden', borderRadius: 'var(--r2)', border: '1px solid var(--border)' }}>
+                        {/* Header sticky con acciones */}
+                        <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--paper)', borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
+                            {datosExport?.filas?.length ? `${datosExport.filas.length} respuestas` : 'Respuestas individuales con georeferencia'}
+                          </div>
                           <div style={{ display: 'flex', gap: 8 }}>
-                            <button onClick={cargarDatosCrudos} disabled={loadingDatos} style={{ padding: '7px 14px', background: 'var(--surface)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans', color: 'var(--ink2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <button onClick={cargarDatosCrudos} disabled={loadingDatos} style={{ padding: '6px 12px', background: 'var(--surface)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans', color: 'var(--ink2)', display: 'flex', alignItems: 'center', gap: 5 }}>
                               <RefreshCw size={12} /> Actualizar
                             </button>
-                            <button onClick={exportarCSV} disabled={!datosExport?.filas?.length} style={{ padding: '7px 14px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <button onClick={exportarCSV} disabled={!datosExport?.filas?.length} style={{ padding: '6px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 5 }}>
                               <Download size={12} /> Exportar CSV
                             </button>
                           </div>
@@ -750,16 +753,16 @@ export default function Reportes() {
                         ) : !datosExport?.filas?.length ? (
                           <div style={{ textAlign: 'center', padding: 40, color: 'var(--ink3)', fontSize: 13 }}>No hay datos todavía. Hacé clic en Actualizar.</div>
                         ) : (
-                          <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--r2)' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                          /* Contenedor con scroll horizontal Y vertical, altura fija para que no haya doble scroll */
+                          <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
+                            <table style={{ borderCollapse: 'collapse', fontSize: 12, width: 'max-content', minWidth: '100%' }}>
                               <thead>
                                 <tr style={{ background: 'var(--surface)', borderBottom: '2px solid var(--border)' }}>
-                                  <th style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>Encuestador</th>
-                                  <th style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>Equipo</th>
-                                  <th style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>Lat</th>
-                                  <th style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>Lng</th>
+                                  {['Encuestador', 'Equipo', 'Lat', 'Lng'].map(h => (
+                                    <th key={h} style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface)', padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap', borderBottom: '2px solid var(--border)' }}>{h}</th>
+                                  ))}
                                   {(datosExport.columnas || []).map(col => (
-                                    <th key={col.id} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>{col.texto}</th>
+                                    <th key={col.id} style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface)', padding: '9px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap', borderBottom: '2px solid var(--border)' }}>{col.texto}</th>
                                   ))}
                                 </tr>
                               </thead>
