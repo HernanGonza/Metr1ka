@@ -3,6 +3,8 @@
 }
 .main {
   flex: 1;
+  min-width: 0;
+  overflow-x: hidden;
   margin-left: var(--sidebar-w);
   min-height: 100vh;
   background: var(--surface);
