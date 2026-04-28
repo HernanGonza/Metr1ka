@@ -151,7 +151,7 @@ function PorPregunta({ preguntas, respuestasMap }) {
 }
 
 /* ── Cruce de datos entre dos preguntas en un único gráfico ── */
-function GraficoCruce({ preguntas, sesiones, onRemove, index }) {
+function GraficoCruce({ preguntas, sesiones, onRemove, onCruceChange, index }) {
   const [pregA, setPregA] = useState('')
   const [pregB, setPregB] = useState('')
   const [tipoGrafico, setTipoGrafico] = useState('stacked')
@@ -252,6 +252,13 @@ function GraficoCruce({ preguntas, sesiones, onRemove, index }) {
       })
     }
   }, [datosCruce])
+
+  // Notificar al padre cuando cambia el cruce para que pueda exportarlo
+  useEffect(() => {
+    if (onCruceChange) {
+      onCruceChange({ pA, pB, datosCruce })
+    }
+  }, [pA?.id, pB?.id, datosCruce])
 
   // Cleanup solo al desmontar
   useEffect(() => {
@@ -464,7 +471,7 @@ function KpiCard({ label, value, sub, color, icon }) {
 }
 
 /* ── Exportar HTML/PDF ── */
-function generarHTML(encuesta, preguntas, respuestas, resumen, filtros) {
+function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrudos, sesiones) {
   const filasPorPregunta = {}
   preguntas.forEach(p => { filasPorPregunta[String(p.id)] = [] })
   respuestas.forEach(f => { if (filasPorPregunta[String(f.pregunta_id)]) filasPorPregunta[String(f.pregunta_id)].push(f) })
@@ -557,6 +564,13 @@ export default function Reportes() {
   const [loadingEnc,  setLoadingEnc]  = useState(false)
   const [data,        setData]        = useState(null)
   const [generando,   setGenerando]   = useState(false)
+  const [modalExport, setModalExport] = useState(false)
+  const [exportConfig, setExportConfig] = useState({
+    kpis:        true,
+    preguntas:   {},   // { [pregunta_id]: true/false }
+    cruces:      true,
+    datosCrudos: false,
+  })
   const [vistaActiva, setVistaActiva] = useState('dashboard')
   const [comparaciones, setComparaciones] = useState([{ id: 1 }])
   const [sesionesCruce, setSesionesCruce] = useState([])
@@ -649,13 +663,23 @@ export default function Reportes() {
     setData(d); setLoadingEnc(false)
   }
 
-  function generarPDF() {
+  function generarPDF(cfg) {
     if (!data || !selected) return
     setGenerando(true)
-    const html = generarHTML(data.encuesta || selected, data.preguntas || [], data.respuestas || [], data.resumen || null, {})
+    const pregsFiltradas = (data.preguntas || []).filter(p => cfg.preguntas[p.id])
+    const crucesSel = cfg.cruces ? comparaciones : []
+    const html = generarHTML(
+      data.encuesta || selected,
+      pregsFiltradas,
+      data.respuestas || [],
+      cfg.kpis ? (data.resumen || null) : null,
+      crucesSel,
+      cfg.datosCrudos ? datosExport : null,
+      sesionesCruce,
+    )
     const win = window.open('', '_blank')
     win.document.write(html); win.document.close(); win.focus()
-    setTimeout(() => { win.print(); setGenerando(false) }, 600)
+    setTimeout(() => { win.print(); setGenerando(false); setModalExport(false) }, 600)
   }
 
   const preguntas = data?.preguntas || []
@@ -707,7 +731,13 @@ export default function Reportes() {
   return (
     <div className={styles.page}>
       <Topbar title="Reportes"
-        action={data ? { label: generando ? '⏳ Generando...' : '⬇ Exportar PDF', onClick: generarPDF } : null} />
+        action={data ? { label: '⬇ Exportar PDF', onClick: () => {
+          // Inicializar selección de preguntas con todas activas
+          const cfg = {}
+          ;(data?.preguntas || []).filter(p => p.clave_base !== 'participa').forEach(p => { cfg[p.id] = true })
+          setExportConfig(prev => ({ ...prev, preguntas: cfg }))
+          setModalExport(true)
+        }} : null} />
       <div className={styles.content}>
 
         {loading ? <Spinner center size="lg" /> : encuestas.length === 0 ? (
@@ -860,9 +890,15 @@ export default function Reportes() {
                         <div style={{ background: 'var(--accent-light)', border: '1px solid #b7e4c7', borderRadius: 'var(--r2)', padding: '12px 16px', fontSize: 13, color: 'var(--accent2)', display: 'flex', gap: 8, alignItems: 'center' }}>
                           <Zap size={14} /> Cruzá dos preguntas para ver cómo se distribuyen las respuestas de una según los valores de la otra en un único gráfico.
                         </div>
-                        {comparaciones.map((c, i) => (
-                          <GraficoCruce key={c.id} preguntas={preguntas} sesiones={sesionesCruce} index={i}
-                            onRemove={() => setComparaciones(prev => prev.filter(x => x.id !== c.id))} />
+                        {comparaciones.map((comp, i) => (
+                          <GraficoCruce key={comp.id} preguntas={preguntas} sesiones={sesionesCruce} index={i}
+                            onRemove={() => setComparaciones(prev => prev.filter(x => x.id !== comp.id))}
+                            onCruceChange={({ pA, pB, datosCruce }) => {
+                              setComparaciones(prev => prev.map(x => x.id === comp.id
+                                ? { ...x, _pA: pA, _pB: pB, _datos: datosCruce }
+                                : x
+                              ))
+                            }} />
                         ))}
                         <button onClick={() => setComparaciones(prev => [...prev, { id: Date.now() }])} style={{ padding: '10px', border: '1.5px dashed var(--border2)', borderRadius: 'var(--r2)', background: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--ink3)', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                           <Plus size={14} /> Agregar cruce
@@ -912,6 +948,99 @@ export default function Reportes() {
           </div>
         )}
       </div>
+
+      {/* Modal de configuración de export */}
+      {modalExport && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 20 }}>
+          <div style={{ background: 'var(--paper)', borderRadius: 'var(--r2)', width: '100%', maxWidth: 520, maxHeight: '85vh', overflow: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,.2)' }}>
+            {/* Header */}
+            <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontFamily: 'Syne', fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>⬇ Configurar exportación PDF</div>
+              <button onClick={() => setModalExport(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--ink3)', lineHeight: 1 }}>×</button>
+            </div>
+
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* KPIs */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                <input type="checkbox" checked={exportConfig.kpis} onChange={e => setExportConfig(p => ({ ...p, kpis: e.target.checked }))}
+                  style={{ width: 16, height: 16, accentColor: 'var(--accent)', cursor: 'pointer' }} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>Resumen general (KPIs)</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink3)' }}>Total respuestas, encuestadores, promedios</div>
+                </div>
+              </label>
+
+              {/* Preguntas */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>Preguntas a incluir</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => {
+                      const all = {}
+                      preguntas.filter(p => p.clave_base !== 'participa').forEach(p => { all[p.id] = true })
+                      setExportConfig(prev => ({ ...prev, preguntas: all }))
+                    }} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans' }}>Todas</button>
+                    <button onClick={() => {
+                      const none = {}
+                      preguntas.filter(p => p.clave_base !== 'participa').forEach(p => { none[p.id] = false })
+                      setExportConfig(prev => ({ ...prev, preguntas: none }))
+                    }} style={{ fontSize: 11, color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans' }}>Ninguna</button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
+                  {preguntas.filter(p => p.clave_base !== 'participa').map((p, i) => (
+                    <label key={p.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '6px 10px', borderRadius: 'var(--r)', background: exportConfig.preguntas[p.id] ? 'var(--accent-light)' : 'var(--surface)', border: `1px solid ${exportConfig.preguntas[p.id] ? 'var(--accent)' : 'var(--border)'}`, transition: 'all .1s' }}>
+                      <input type="checkbox" checked={!!exportConfig.preguntas[p.id]}
+                        onChange={e => setExportConfig(prev => ({ ...prev, preguntas: { ...prev.preguntas, [p.id]: e.target.checked } }))}
+                        style={{ width: 15, height: 15, accentColor: 'var(--accent)', cursor: 'pointer', marginTop: 1, flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.4 }}>{p.texto}</div>
+                        <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 2 }}>{p.tipo}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cruces */}
+              {comparaciones.length > 0 && sesionesCruce.length > 0 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={exportConfig.cruces} onChange={e => setExportConfig(p => ({ ...p, cruces: e.target.checked }))}
+                    style={{ width: 16, height: 16, accentColor: 'var(--accent)', cursor: 'pointer' }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>Gráficos cruzados</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink3)' }}>{comparaciones.length} cruce{comparaciones.length !== 1 ? 's' : ''} configurado{comparaciones.length !== 1 ? 's' : ''} — se exportan como tablas de contingencia</div>
+                  </div>
+                </label>
+              )}
+
+              {/* Datos crudos */}
+              {datosExport?.filas?.length > 0 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={exportConfig.datosCrudos} onChange={e => setExportConfig(p => ({ ...p, datosCrudos: e.target.checked }))}
+                    style={{ width: 16, height: 16, accentColor: 'var(--accent)', cursor: 'pointer' }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>Datos crudos</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink3)' }}>{datosExport.filas.length} filas — tabla completa con georeferencia</div>
+                  </div>
+                </label>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setModalExport(false)}
+                style={{ padding: '9px 18px', background: 'var(--surface)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, cursor: 'pointer', fontFamily: 'DM Sans', color: 'var(--ink2)' }}>
+                Cancelar
+              </button>
+              <button onClick={() => generarPDF(exportConfig)} disabled={generando}
+                style={{ padding: '9px 18px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 6 }}>
+                {generando ? '⏳ Generando...' : '⬇ Exportar PDF'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
