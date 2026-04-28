@@ -132,3 +132,15 @@
 [data-theme="dark"] .encuestaCardPublicada {
   background: linear-gradient(135deg, var(--paper) 0%, rgba(74,222,128,0.08) 100%);
 }
+
+/* Pills */
+.pill {
+  transition: all 0.25s ease;
+  cursor: default;
+  user-select: none;
+}
+
+.pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
