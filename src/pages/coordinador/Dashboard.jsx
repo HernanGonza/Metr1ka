@@ -32,21 +32,19 @@ function iconEnc(nombre, activo) {
 function SelectorEquipo({ equipos, equipoId, onChange }) {
   if (equipos.length <= 1) return null
   return (
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
-      {equipos.map(eq => (
-        <button key={eq.id}
-          onClick={() => onChange(eq.id)}
-          style={{
-            padding: '6px 16px', borderRadius: 100, fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', fontFamily: 'DM Sans', border: '1.5px solid',
-            transition: 'all .15s',
-            background: equipoId === eq.id ? 'var(--accent)' : 'var(--paper)',
-            color:      equipoId === eq.id ? '#fff' : 'var(--ink3)',
-            borderColor: equipoId === eq.id ? 'var(--accent)' : 'var(--border2)',
-          }}>
-          {eq.nombre}
-        </button>
-      ))}
+    <div style={{ marginBottom: 20 }}>
+      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>
+        Equipo
+      </label>
+      <select
+        value={equipoId || ''}
+        onChange={e => onChange(e.target.value)}
+        style={{ padding: '9px 12px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--paper)', color: 'var(--ink)', outline: 'none', cursor: 'pointer', width: 240 }}
+      >
+        {equipos.map(eq => (
+          <option key={eq.id} value={eq.id}>{eq.nombre}</option>
+        ))}
+      </select>
     </div>
   )
 }
@@ -282,6 +280,7 @@ export default function DashboardCoord() {
         const eqs = (ecs || []).map(ec => ec.equipos).filter(Boolean)
         setEquipos(eqs)
         if (eqs.length) setEquipoId(eqs[0].id)
+        else setLoading(false) // Sin equipos — no quedarse en spinner
       })
   }, [perfil?.id])
 
@@ -378,28 +377,36 @@ export default function DashboardCoord() {
             {/* Mapa en vivo */}
             <MapaEquipo equipoId={equipoId} orgId={perfil?.organizacion_id} />
 
-            {/* Encuestadores del equipo */}
+            {/* Encuestadores del equipo — tarjetas */}
             {data.encuestadores.length > 0 && (
-              <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden', marginBottom: 20 }}>
-                <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontFamily: 'Syne', fontSize: 14, fontWeight: 800, color: 'var(--ink)' }}>Encuestadores</div>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontFamily: 'Syne', fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}>
+                    Encuestadores del equipo
+                  </div>
                   <button onClick={() => navigate('/coord/equipo')}
                     style={{ fontSize: 12, color: 'var(--accent2)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
                     Ver detalle →
                   </button>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
                   {data.encuestadores.map((e, i) => {
                     const activo = e.perfiles?.activo !== false
                     const ini = (e.perfiles?.nombre_completo || '?').split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase()
+                    const PALETA = ['#1a472a','#0369a1','#7c3aed','#b45309','#be185d']
+                    const BGSPALETA = ['#d8f3dc','#e0f2fe','#f3e8ff','#fef3c7','#fce7f3']
+                    const color = PALETA[i % PALETA.length]
+                    const bg    = BGSPALETA[i % BGSPALETA.length]
                     return (
-                      <div key={i} style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 9, borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)', opacity: activo ? 1 : 0.55 }}>
-                        <div style={{ width: 30, height: 30, borderRadius: '50%', background: activo ? 'var(--accent-light)' : 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: activo ? 'var(--accent2)' : 'var(--ink3)', flexShrink: 0 }}>
+                      <div key={i} style={{ background: 'var(--paper)', border: `1.5px solid ${activo ? '#a7f3d0' : 'var(--border)'}`, borderRadius: 'var(--r2)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, opacity: activo ? 1 : 0.6 }}>
+                        <div style={{ width: 38, height: 38, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color, flexShrink: 0 }}>
                           {ini}
                         </div>
                         <div>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{e.perfiles?.nombre_completo || '—'}</div>
-                          <div style={{ fontSize: 11, color: activo ? 'var(--accent2)' : 'var(--ink3)', fontWeight: 600 }}>{activo ? '● Activo' : '○ Inactivo'}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>{e.perfiles?.nombre_completo || '—'}</div>
+                          <div style={{ fontSize: 11, color: activo ? '#16a34a' : 'var(--ink3)', fontWeight: 600, marginTop: 2 }}>
+                            {activo ? '● Activo' : '○ Inactivo'}
+                          </div>
                         </div>
                       </div>
                     )
@@ -408,30 +415,48 @@ export default function DashboardCoord() {
               </div>
             )}
 
-            {/* Encuestas */}
+            {/* Encuestas — tarjetas */}
             {data.encuestas.length > 0 && (
-              <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
-                <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontFamily: 'Syne', fontSize: 14, fontWeight: 800, color: 'var(--ink)' }}>Encuestas asignadas</div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontFamily: 'Syne', fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}>
+                    Encuestas del equipo
+                  </div>
                   <button onClick={() => navigate('/coord/encuestas')}
                     style={{ fontSize: 12, color: 'var(--accent2)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
                     Ver todas →
                   </button>
                 </div>
-                {data.encuestas.map((ee, i) => {
-                  const enc = ee.encuestas
-                  if (!enc) return null
-                  const cfg = { publicada: { label: 'Publicada', color: '#1a472a', bg: 'var(--accent-light)' }, en_proceso: { label: 'En proceso', color: '#0369a1', bg: 'var(--info-light)' }, pendiente: { label: 'Pendiente', color: '#b45309', bg: 'var(--warning-light)' } }[enc.estado_produccion] || { label: enc.estado_produccion, color: 'var(--ink3)', bg: 'var(--surface)' }
-                  return (
-                    <div key={i} style={{ padding: '12px 20px', borderBottom: i < data.encuestas.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>{enc.nombre}</div>
-                        {enc.descripcion && <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 1 }}>{enc.descripcion}</div>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {data.encuestas.map((ee, i) => {
+                    const enc = ee.encuestas
+                    if (!enc) return null
+                    const hoy = new Date().toISOString().slice(0, 10)
+                    const fechaFin = enc.fecha_fin
+                    const fechaInicio = enc.fecha_inicio
+                    let estadoLabel = 'Pendiente', estadoColor = '#b45309', estadoBg = 'var(--warning-light)'
+                    if (enc.estado_produccion === 'publicada') {
+                      if (fechaFin && fechaFin < hoy) { estadoLabel = 'Finalizada'; estadoColor = '#6b7280'; estadoBg = 'var(--surface)' }
+                      else if (fechaInicio && fechaInicio > hoy) { estadoLabel = 'Próximamente'; estadoColor = '#0369a1'; estadoBg = 'var(--info-light)' }
+                      else { estadoLabel = 'Activa'; estadoColor = '#1a472a'; estadoBg = 'var(--accent-light)' }
+                    }
+                    return (
+                      <div key={i} style={{ background: 'var(--paper)', border: `1.5px solid ${estadoColor === '#1a472a' ? '#a7f3d0' : 'var(--border)'}`, borderRadius: 'var(--r2)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{enc.nombre}</div>
+                          {enc.descripcion && <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{enc.descripcion}</div>}
+                          {(fechaInicio || fechaFin) && (
+                            <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 6 }}>
+                              {fechaInicio && `Desde ${new Date(fechaInicio + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}`}
+                              {fechaFin && ` · Hasta ${new Date(fechaFin + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}`}
+                            </div>
+                          )}
+                        </div>
+                        <span style={{ padding: '4px 12px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: estadoBg, color: estadoColor, whiteSpace: 'nowrap', flexShrink: 0 }}>{estadoLabel}</span>
                       </div>
-                      <span style={{ padding: '3px 10px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: cfg.bg, color: cfg.color, whiteSpace: 'nowrap' }}>{cfg.label}</span>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
             )}
           </>
