@@ -33,6 +33,8 @@ import EquiposAdmin       from './pages/admin/Equipos'
 import CoordinadoresAdmin from './pages/admin/Coordinadores'
 import EncuestadoresAdmin from './pages/admin/Encuestadores'
 import ReportesAdmin      from './pages/admin/Reportes'
+import DescargarApp       from './pages/DescargarApp'
+import DashboardEnc       from './pages/encuestador/Dashboard'
 import ConfiguracionAdmin from './pages/admin/Configuracion'
 import SuscripcionAdmin   from './pages/admin/Suscripcion'
 
@@ -100,6 +102,23 @@ export default function App() {
               <Route path="/coord/dashboard" element={<DashboardCoord />} />
               <Route path="/coord/equipo"    element={<EquipoCoord />} />
               <Route path="/coord/encuestas" element={<EncuestasCoord />} />
+            </Route>
+          </Route>
+
+          {/* Encuestador routes */}
+          <Route element={<ProtectedRoute roles={['encuestador']} />}>
+            <Route element={<DashboardLayout />}>
+              <Route path="/encuestador"                   element={<DashboardEnc />} />
+              <Route path="/encuestador/configuracion"     element={<ConfiguracionAdmin />} />
+              <Route path="/encuestador/descargar-app"     element={<DescargarApp />} />
+            </Route>
+          </Route>
+
+          {/* Descargar App — accesible para todos los roles */}
+          <Route element={<ProtectedRoute roles={['admin','gestor','coordinador','encuestador']} />}>
+            <Route element={<DashboardLayout />}>
+              <Route path="/descargar-app"       element={<DescargarApp />} />
+              <Route path="/coord/descargar-app" element={<DescargarApp />} />
             </Route>
           </Route>
 

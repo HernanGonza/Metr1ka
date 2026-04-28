@@ -5,6 +5,7 @@ import { Spinner } from '../ui'
 function homeByRol(rol) {
   if (rol === 'superadmin' || rol === 'editor') return '/superadmin'
   if (rol === 'coordinador') return '/coord/dashboard'
+  if (rol === 'encuestador') return '/encuestador'
   return '/dashboard'
 }
 export function ProtectedRoute({ roles = null }) {

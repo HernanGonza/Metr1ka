@@ -7,7 +7,7 @@ import styles from './Sidebar.module.css'
 import {
   LayoutDashboard, Map, FileText, Users, UserCheck, User,
   BarChart2, Settings, CreditCard, ChevronLeft, ChevronRight,
-  LogOut, Sun, Moon, Menu
+  LogOut, Sun, Moon, Menu, Download
 } from 'lucide-react'
 
 // Logo SVG inline — color según tema
@@ -42,6 +42,7 @@ const NAV_ADMIN = [
     { to: '/reportes',      icon: BarChart2,       label: 'Reportes' },
     { to: '/configuracion', icon: Settings,        label: 'Configuración' },
     { to: '/suscripcion',   icon: CreditCard,      label: 'Suscripción' },
+    { to: '/descargar-app', icon: Download,        label: 'Descargar App' },
   ]},
 ]
 
@@ -59,6 +60,7 @@ const NAV_GESTOR = [
   { group: 'Herramientas', items: [
     { to: '/reportes',      icon: BarChart2,       label: 'Reportes' },
     { to: '/configuracion', icon: Settings,        label: 'Configuración' },
+    { to: '/descargar-app', icon: Download,        label: 'Descargar App' },
   ]},
 ]
 
@@ -70,6 +72,9 @@ const NAV_COORDINADOR = [
     { to: '/coord/equipo',    icon: Users,           label: 'Mi equipo' },
     { to: '/coord/encuestas', icon: FileText,        label: 'Encuestas' },
   ]},
+  { group: 'Herramientas', items: [
+    { to: '/coord/descargar-app', icon: Download,   label: 'Descargar App' },
+  ]},
 ]
 
 export function Sidebar() {
@@ -79,7 +84,14 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const nav = rol === 'coordinador' ? NAV_COORDINADOR : rol === 'gestor' ? NAV_GESTOR : NAV_ADMIN
+const NAV_ENCUESTADOR = [
+  { group: 'Mi cuenta', items: [
+    { to: '/encuestador/configuracion', icon: Settings,  label: 'Configuración' },
+    { to: '/encuestador/descargar-app', icon: Download,  label: 'Descargar App' },
+  ]},
+]
+
+  const nav = rol === 'encuestador' ? NAV_ENCUESTADOR : rol === 'coordinador' ? NAV_COORDINADOR : rol === 'gestor' ? NAV_GESTOR : NAV_ADMIN
 
   const initials = perfil
     ? (perfil.nombre_completo || '').split(' ').slice(0,2).map(n => n[0]).join('').toUpperCase()

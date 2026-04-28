@@ -184,6 +184,8 @@ export default function CompletarPerfil() {
         navigate('/superadmin', { replace: true })
       } else if (perfil?.rol === 'coordinador') {
         navigate('/coord/dashboard', { replace: true })
+      } else if (perfil?.rol === 'encuestador') {
+        navigate('/encuestador', { replace: true })
       } else {
         navigate('/dashboard', { replace: true })
       }
