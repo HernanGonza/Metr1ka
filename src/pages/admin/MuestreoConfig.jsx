@@ -1132,16 +1132,6 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                 </div>
               )}
 
-              {/* Razones de no respuesta — siempre visible */}
-              <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '18px 20px', marginBottom: 20 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Razones de no respuesta</div>
-                <RazonesSelector
-                  organizacionId={encuesta?.organizacion_id}
-                  seleccionadas={config.razones_seleccionadas || []}
-                  onChangeSel={ids => setConfig(c => ({ ...c, razones_seleccionadas: ids }))}
-                />
-              </div>
-
               {/* Config domiciliaria — solo domiciliaria */}
               {encuesta?.tipo_encuesta === 'domiciliaria' && (
                 <PanelConfig config={config} onChange={setConfig} organizacionId={encuesta?.organizacion_id} />

@@ -364,7 +364,7 @@ export default function EncuestaBuilder() {
   const [bloqueado, setBloqueado]   = useState(false)
 
   const [meta, setMeta] = useState({
-    nombre: '', descripcion: '', pedido_por: '', estado_produccion: 'pendiente',
+    nombre: '', descripcion: '', pedido_por: '', estado_produccion: 'pendiente', tipo_encuesta: 'domiciliaria',
   })
   const [preguntas, setPreguntas] = useState([])
 
@@ -400,6 +400,7 @@ export default function EncuestaBuilder() {
         nombre:             enc.nombre             || '',
         descripcion:        enc.descripcion        || '',
         pedido_por:         enc.pedido_por         || '',
+        tipo_encuesta:      enc.tipo_encuesta       || 'domiciliaria',
         estado_produccion:  enc.estado_produccion  || 'pendiente',
       })
 
@@ -445,6 +446,7 @@ export default function EncuestaBuilder() {
         const { error: e } = await supabase.from('encuestas').update({
           nombre: meta.nombre, descripcion: meta.descripcion || null,
           pedido_por: meta.pedido_por || null, estado_produccion: meta.estado_produccion,
+          tipo_encuesta: meta.tipo_encuesta || 'domiciliaria',
         }).eq('id', id)
         if (e) throw e
       } else {
@@ -452,6 +454,7 @@ export default function EncuestaBuilder() {
           nombre: meta.nombre, descripcion: meta.descripcion || null,
           pedido_por: meta.pedido_por || null, estado_produccion: meta.estado_produccion,
           organizacion_id: meta.pedido_por || null,
+          tipo_encuesta: meta.tipo_encuesta || 'domiciliaria',
         }).select().single()
         if (e) throw e
         encuestaId = data.id
@@ -587,6 +590,16 @@ export default function EncuestaBuilder() {
                     style={inputStyle} disabled={bloqueado || esPublicada}>
                     <option value="">Sin asignar</option>
                     {orgs.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Tipo de encuesta</label>
+                  <select value={meta.tipo_encuesta || 'domiciliaria'} onChange={e => setMeta(m => ({ ...m, tipo_encuesta: e.target.value }))}
+                    style={inputStyle} disabled={bloqueado || esPublicada}>
+                    <option value="domiciliaria">Domiciliaria</option>
+                    <option value="callejera">Callejera</option>
+                    <option value="telefonica">Telefónica</option>
+                    <option value="online">Online</option>
                   </select>
                 </div>
                 <div>
