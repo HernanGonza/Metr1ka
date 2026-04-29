@@ -142,7 +142,7 @@ export default function Usuarios() {
     setLoading(true)
     const [usuariosRes, orgsRes] = await Promise.all([
       supabase.from('perfiles').select(`
-        id, rol, nombre_completo, activo, creado_en, perfil_completo,
+        id, rol, nombre_completo, activo, creado_en, perfil_completo, email,
         organizaciones(id, nombre)
       `).order('creado_en', { ascending: false }),
       supabase.from('organizaciones').select('id, nombre').order('nombre'),
@@ -163,7 +163,7 @@ export default function Usuarios() {
   }
 
   const filtered = usuarios.filter(u => {
-    const matchSearch = !search || u.nombre_completo?.toLowerCase().includes(search.toLowerCase())
+    const matchSearch = !search || u.nombre_completo?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase())
     const matchRol = filterRol === 'todos' || u.rol === filterRol
     const matchOrg = filterOrg === 'todas' || u.organizaciones?.id === filterOrg
     return matchSearch && matchRol && matchOrg
@@ -231,6 +231,7 @@ export default function Usuarios() {
                         </div>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 13 }}>{u.nombre_completo || <span style={{ color: 'var(--ink3)', fontStyle: 'italic' }}>Sin nombre</span>}</div>
+                          <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 1 }}>{u.email}</div>
                           <div style={{ fontSize: 11, color: 'var(--ink3)', fontFamily: 'monospace' }}>{u.id.substring(0, 8)}...</div>
                         </div>
                       </div>
