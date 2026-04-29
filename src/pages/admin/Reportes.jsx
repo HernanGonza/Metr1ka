@@ -87,6 +87,77 @@ function MiniChart({ pregunta, filas, tipo = 'bar', color = '#1a472a' }) {
 }
 
 /* ── Vista Por Pregunta con selector de tipo de gráfico ── */
+/* ── Tabla de resultados para preguntas de tipo matriz ── */
+function MatrizTabla({ pregunta, filas, color }) {
+  const filasDef   = (pregunta.config_matriz?.filas    || []).map(f => typeof f === 'string' ? f : f.texto)
+  const columnasDef = (pregunta.config_matriz?.columnas || []).map(c => typeof c === 'string' ? c : c.texto)
+
+  // Contar respuestas: cada respuesta es un JSON con { fila: columna }
+  const conteo = {}
+  filasDef.forEach(f => { conteo[f] = {}; columnasDef.forEach(c => { conteo[f][c] = 0 }) })
+
+  filas.forEach(resp => {
+    try {
+      const val = typeof resp.valor_texto === 'string' ? JSON.parse(resp.valor_texto) : resp.valor_texto
+      if (val && typeof val === 'object') {
+        Object.entries(val).forEach(([fi, col]) => {
+          // fi puede ser índice numérico o texto de fila
+          const filaTexto = isNaN(Number(fi)) ? fi : filasDef[Number(fi)]
+          if (filaTexto && conteo[filaTexto] && columnasDef.includes(col)) {
+            conteo[filaTexto][col] = (conteo[filaTexto][col] || 0) + 1
+          }
+        })
+      }
+    } catch {}
+  })
+
+  if (!filasDef.length || !columnasDef.length) return (
+    <div style={{ color: 'var(--ink3)', fontSize: 13 }}>Sin configuración de matriz</div>
+  )
+
+  const totalesFila = filasDef.map(f => columnasDef.reduce((s, c) => s + (conteo[f]?.[c] || 0), 0))
+  const maxTotal = Math.max(...totalesFila, 1)
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%', minWidth: `${columnasDef.length * 80 + 180}px` }}>
+        <thead>
+          <tr style={{ background: 'var(--surface)', borderBottom: '2px solid var(--border)' }}>
+            <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, width: 180 }} />
+            {columnasDef.map(col => (
+              <th key={col} style={{ padding: '8px 10px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{col}</th>
+            ))}
+            <th style={{ padding: '8px 10px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filasDef.map((fila, fi) => {
+            const totalFila = totalesFila[fi]
+            return (
+              <tr key={fi} style={{ borderBottom: '1px solid var(--border)', background: fi % 2 === 0 ? 'var(--paper)' : 'var(--surface)' }}>
+                <td style={{ padding: '9px 12px', fontSize: 13, fontWeight: 600, color: 'var(--ink)', verticalAlign: 'middle' }}>{fila}</td>
+                {columnasDef.map(col => {
+                  const n = conteo[fila]?.[col] || 0
+                  const pct = totalFila > 0 ? Math.round(n / totalFila * 100) : 0
+                  return (
+                    <td key={col} style={{ padding: '9px 10px', textAlign: 'center', verticalAlign: 'middle' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: n > 0 ? color : 'var(--ink3)' }}>{n}</div>
+                      {n > 0 && <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>{pct}%</div>}
+                    </td>
+                  )
+                })}
+                <td style={{ padding: '9px 10px', textAlign: 'center', verticalAlign: 'middle' }}>
+                  <span style={{ fontFamily: 'Syne', fontSize: 14, fontWeight: 800, color: 'var(--ink2)' }}>{totalFila}</span>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function PorPregunta({ preguntas, respuestasMap }) {
   const [tiposGrafico, setTiposGrafico] = useState({})
 
@@ -140,6 +211,8 @@ function PorPregunta({ preguntas, respuestasMap }) {
                   </div>
                 ))}
               </div>
+            ) : p.tipo === 'matriz' ? (
+              <MatrizTabla pregunta={p} filas={respuestasMap[p.id] || []} color={PALETA[i % PALETA.length]} />
             ) : (
               <MiniChart pregunta={p} filas={respuestasMap[p.id] || []} tipo={tipoActual} color={PALETA[i % PALETA.length]} />
             )}
@@ -442,11 +515,30 @@ function TablaDatosCrudos({ datosExport, loadingDatos, onActualizar, onExportarC
                   <td style={{ padding: '8px 14px', color: 'var(--ink2)', whiteSpace: 'nowrap' }}>{fila.equipo || '—'}</td>
                   <td style={{ padding: '8px 14px', color: 'var(--ink3)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{fila.lat ? Number(fila.lat).toFixed(5) : '—'}</td>
                   <td style={{ padding: '8px 14px', color: 'var(--ink3)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{fila.lng ? Number(fila.lng).toFixed(5) : '—'}</td>
-                  {columnas.map(col => (
-                    <td key={col.id} style={{ padding: '8px 14px', color: 'var(--ink2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {(fila.respuestas||{})[col.id] || '—'}
-                    </td>
-                  ))}
+                  {columnas.map(col => {
+                    const val = (fila.respuestas||{})[col.id]
+                    // Si es una matriz (JSON), mostrar "Fila: Columna" resumido
+                    let display = val || '—'
+                    if (col.tipo === 'matriz' && val) {
+                      try {
+                        const parsed = typeof val === 'string' ? JSON.parse(val) : val
+                        if (typeof parsed === 'object') {
+                          const filasDef = (col.config_matriz?.filas || []).map(f => typeof f === 'string' ? f : f.texto)
+                          display = Object.entries(parsed)
+                            .map(([fi, respuesta]) => {
+                              const filaTexto = isNaN(Number(fi)) ? fi : (filasDef[Number(fi)] || fi)
+                              return `${filaTexto}: ${respuesta}`
+                            }).join(' | ')
+                        }
+                      } catch { display = val }
+                    }
+                    return (
+                      <td key={col.id} style={{ padding: '8px 14px', color: 'var(--ink2)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        title={typeof display === 'string' ? display : ''}>
+                        {display}
+                      </td>
+                    )
+                  })}
                 </tr>
               ))}
             </tbody>
