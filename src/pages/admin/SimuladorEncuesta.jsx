@@ -6,7 +6,11 @@ function evaluarCondicionales(pregunta, respuesta) {
   const cond = pregunta?.condicionales
   if (!cond?.reglas?.length) return null
   const logica = cond.logica || 'OR'
-  const matches = cond.reglas.map(r => r.respuesta && String(respuesta) === String(r.respuesta))
+  // Para opcion_multiple la respuesta es {opcionId, texto} — comparar por texto
+  const valorComparar = respuesta !== null && typeof respuesta === 'object' && 'texto' in respuesta
+    ? respuesta.texto
+    : respuesta
+  const matches = cond.reglas.map(r => r.respuesta && String(valorComparar) === String(r.respuesta))
   const aplica = logica === 'AND' ? matches.every(Boolean) : matches.some(Boolean)
   if (!aplica) return null
   return cond.reglas[matches.findIndex(Boolean)] || null
