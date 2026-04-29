@@ -468,6 +468,10 @@ export default function EncuestaBuilder() {
           requerida: p.requerida, orden: i + 1,
           es_base: p.es_base || false, clave_base: p.clave_base || null,
           condicionales: null, // se actualiza en segundo paso
+          config_matriz: p.tipo === 'matriz' ? {
+            filas:    (p.filas    || []).filter(f => f.texto?.trim()).map(f => ({ texto: f.texto.trim() })),
+            columnas: (p.columnas || []).filter(c => c.texto?.trim()).map(c => ({ texto: c.texto.trim() })),
+          } : null,
         }).select().single()
         if (pErr) throw pErr
         preguntasGuardadas.push({ ...p, _nuevoId: pData.id })
