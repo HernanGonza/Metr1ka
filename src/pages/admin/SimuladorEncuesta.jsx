@@ -19,8 +19,14 @@ const PreguntaScreen = memo(function PreguntaScreen({
     [...(pregunta.opciones_pregunta || [])].sort((a, b) => a.orden - b.orden),
     [pregunta.opciones_pregunta]
   )
-  const puedeAvanzar = !pregunta.requerida ||
-    (respuesta !== null && respuesta !== undefined && respuesta !== '')
+  const puedeAvanzar = !pregunta.requerida || (() => {
+    if (pregunta.tipo === 'matriz') {
+      // Todas las filas tienen respuesta
+      const filas = pregunta.config_matriz?.filas || pregunta.filas || []
+      return filas.length > 0 && filas.every((_, fi) => (respuesta || {})[fi] !== undefined)
+    }
+    return respuesta !== null && respuesta !== undefined && respuesta !== ''
+  })()
 
   const btnOpcion = (activo) => ({
     display: 'block', width: '100%', padding: '14px 16px', marginBottom: 8,
@@ -71,6 +77,54 @@ const PreguntaScreen = memo(function PreguntaScreen({
             style={{ width: '100%', padding: '12px', border: '2px solid var(--border2)', borderRadius: 12, fontSize: 15, fontFamily: 'DM Sans', resize: 'none', boxSizing: 'border-box', outline: 'none', background: 'var(--surface)', color: 'var(--ink)' }}
           />
         )}
+        {pregunta.tipo === 'matriz' && (() => {
+          const filas    = (pregunta.config_matriz?.filas    || pregunta.filas    || []).map(f => typeof f === 'string' ? f : f.texto)
+          const columnas = (pregunta.config_matriz?.columnas || pregunta.columnas || []).map(c => typeof c === 'string' ? c : c.texto)
+          if (!filas.length || !columnas.length) return null
+          const val = respuesta || {}
+          const colW = Math.max(64, Math.floor(220 / columnas.length))
+          return (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: filas.length > 0 ? `${colW * columnas.length + 180}px` : 'auto' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 180, padding: '0 8px 10px 0', textAlign: 'left' }} />
+                    {columnas.map((col, ci) => (
+                      <th key={ci} style={{ width: colW, padding: '0 4px 10px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--ink3)', lineHeight: 1.3, borderBottom: '1.5px solid var(--border)' }}>
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filas.map((fila, fi) => (
+                    <tr key={fi} style={{ background: fi % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.02)' }}>
+                      <td style={{ padding: '10px 8px 10px 0', fontSize: 13, color: 'var(--ink)', lineHeight: 1.4, borderBottom: '1px solid var(--border)', verticalAlign: 'middle' }}>
+                        {fila}
+                      </td>
+                      {columnas.map((col, ci) => {
+                        const activo = val[fi] === col
+                        return (
+                          <td key={ci} style={{ textAlign: 'center', borderBottom: '1px solid var(--border)', verticalAlign: 'middle', padding: '10px 4px' }}>
+                            <button onClick={() => onChange({ ...val, [fi]: col })} style={{
+                              width: 26, height: 26, borderRadius: '50%', cursor: 'pointer',
+                              border: `2px solid ${activo ? '#1a472a' : 'var(--border2)'}`,
+                              background: activo ? '#1a472a' : 'var(--surface)',
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              padding: 0,
+                            }}>
+                              {activo && <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#fff' }} />}
+                            </button>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        })()}
       </div>
 
       <div style={{ display: 'flex', gap: 10, padding: '16px 0 20px' }}>

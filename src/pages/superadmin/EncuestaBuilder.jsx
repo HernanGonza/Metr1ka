@@ -10,8 +10,10 @@ const TIPOS = [
   { value: 'escala',          label: 'Escala 1-10' },
   { value: 'texto_libre',     label: 'Texto libre' },
   { value: 'desplegable',     label: 'Desplegable' },
+  { value: 'matriz',          label: 'Matriz (tabla de opciones)' },
 ]
 const TIPOS_CON_OPCIONES = ['opcion_multiple', 'checkbox', 'desplegable']
+const TIPOS_MATRIZ = ['matriz']
 const ESTADO_CONFIG = {
   pendiente:    { label: 'Pendiente',    color: '#b45309', bg: '#fef3c7' },
   en_proceso:   { label: 'En proceso',   color: '#0369a1', bg: '#e0f2fe' },
@@ -31,6 +33,7 @@ function getOpcionesPregunta(pregunta) {
   if (pregunta.tipo === 'si_no') return ['Sí', 'No']
   if (pregunta.tipo === 'escala') return Array.from({ length: 10 }, (_, i) => String(i + 1))
   if (TIPOS_CON_OPCIONES.includes(pregunta.tipo)) return (pregunta.opciones || []).map(o => o.texto).filter(Boolean)
+  if (pregunta.tipo === 'matriz') return (pregunta.columnas || []).map(c => c.texto).filter(Boolean)
   return [] // texto_libre no tiene opciones predefinidas
 }
 
@@ -161,6 +164,18 @@ function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDele
   const [expanded, setExpanded]         = useState(true)
   const [showCond, setShowCond]         = useState(false)
   const tieneOpciones = TIPOS_CON_OPCIONES.includes(pregunta.tipo)
+  const esMatriz      = pregunta.tipo === 'matriz'
+  // Para matrices: filas y columnas en condicionales.matriz_config
+  const matrizConfig  = pregunta.condicionales?.matriz_config || { filas: [], columnas: [] }
+  function setMatrizConfig(key, valor) {
+    onUpdate({
+      ...pregunta,
+      condicionales: {
+        ...(pregunta.condicionales || {}),
+        matriz_config: { ...matrizConfig, [key]: valor }
+      }
+    })
+  }
   const tieneCondicionales = pregunta.condicionales?.reglas?.length > 0
 
   function addOpcion() {
@@ -210,7 +225,16 @@ function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDele
             <div style={{ flex: 1, minWidth: 180 }}>
               <label style={labelStyle}>Tipo</label>
               <select value={pregunta.tipo}
-                onChange={e => onUpdate({ ...pregunta, tipo: e.target.value, opciones: TIPOS_CON_OPCIONES.includes(e.target.value) ? (pregunta.opciones || []) : [] })}
+                onChange={e => {
+                  const nuevo = e.target.value
+                  onUpdate({
+                    ...pregunta,
+                    tipo: nuevo,
+                    opciones: TIPOS_CON_OPCIONES.includes(nuevo) ? (pregunta.opciones || []) : [],
+                    filas: TIPOS_MATRIZ.includes(nuevo) ? (pregunta.filas || [{ texto: '' }]) : undefined,
+                    columnas: TIPOS_MATRIZ.includes(nuevo) ? (pregunta.columnas || [{ texto: '' }]) : undefined,
+                  })
+                }}
                 style={inputStyle}>
                 {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
@@ -222,6 +246,61 @@ function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDele
               </label>
             </div>
           </div>
+
+          {pregunta.tipo === 'matriz' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 8 }}>
+              {/* Filas */}
+              <div>
+                <label style={labelStyle}>Filas (ítems a evaluar)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {(pregunta.filas || []).map((fila, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: 'var(--ink3)', fontWeight: 700, width: 18, textAlign: 'center' }}>{i + 1}</span>
+                      <input value={fila.texto || ''} onChange={e => {
+                        const nuevas = [...(pregunta.filas || [])]
+                        nuevas[i] = { ...nuevas[i], texto: e.target.value }
+                        onUpdate({ ...pregunta, filas: nuevas })
+                      }} placeholder={`Fila ${i + 1}`}
+                        style={{ ...inputStyle, flex: 1, marginBottom: 0 }} />
+                      <button onClick={() => {
+                        const nuevas = (pregunta.filas || []).filter((_, j) => j !== i)
+                        onUpdate({ ...pregunta, filas: nuevas })
+                      }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>×</button>
+                    </div>
+                  ))}
+                  <button onClick={() => onUpdate({ ...pregunta, filas: [...(pregunta.filas || []), { texto: '' }] })}
+                    style={{ padding: '7px', border: '1.5px dashed var(--border2)', borderRadius: 'var(--r)', background: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--ink3)', fontFamily: 'DM Sans' }}>
+                    + Agregar fila
+                  </button>
+                </div>
+              </div>
+              {/* Columnas */}
+              <div>
+                <label style={labelStyle}>Columnas (opciones de respuesta)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {(pregunta.columnas || []).map((col, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: 'var(--ink3)', fontWeight: 700, width: 18, textAlign: 'center' }}>{String.fromCharCode(65+i)}</span>
+                      <input value={col.texto || ''} onChange={e => {
+                        const nuevas = [...(pregunta.columnas || [])]
+                        nuevas[i] = { ...nuevas[i], texto: e.target.value }
+                        onUpdate({ ...pregunta, columnas: nuevas })
+                      }} placeholder={`Opción ${String.fromCharCode(65+i)}`}
+                        style={{ ...inputStyle, flex: 1, marginBottom: 0 }} />
+                      <button onClick={() => {
+                        const nuevas = (pregunta.columnas || []).filter((_, j) => j !== i)
+                        onUpdate({ ...pregunta, columnas: nuevas })
+                      }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>×</button>
+                    </div>
+                  ))}
+                  <button onClick={() => onUpdate({ ...pregunta, columnas: [...(pregunta.columnas || []), { texto: '' }] })}
+                    style={{ padding: '7px', border: '1.5px dashed var(--border2)', borderRadius: 'var(--r)', background: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--ink3)', fontFamily: 'DM Sans' }}>
+                    + Agregar columna
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {tieneOpciones && (
             <div>
@@ -328,6 +407,8 @@ export default function EncuestaBuilder() {
       const pqs = (data.preguntas || []).map(p => ({
         ...p,
         opciones: (p.opciones_pregunta || []),
+        filas:    p.config_matriz?.filas    || (p.tipo === 'matriz' ? [{ texto: '' }] : undefined),
+        columnas: p.config_matriz?.columnas || (p.tipo === 'matriz' ? [{ texto: '' }] : undefined),
       }))
       setPreguntas(pqs)
 
