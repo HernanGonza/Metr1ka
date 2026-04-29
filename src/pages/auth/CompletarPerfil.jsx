@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePerfil } from '../../hooks/usePerfil'
+import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase'
 import { Spinner } from '../../components/ui'
 import styles from './CompletarPerfil.module.css'
@@ -85,6 +86,7 @@ const PROVINCIAS = ['Buenos Aires','CABA','Catamarca','Chaco','Chubut','Córdoba
 
 export default function CompletarPerfil() {
   const { updatePerfil } = usePerfil()
+  const { refreshPerfil } = useAuth()
   const navigate = useNavigate()
 
   const [sessionLoading, setSessionLoading] = useState(true)
@@ -175,9 +177,10 @@ export default function CompletarPerfil() {
       const ok = await updatePerfil({ ...form, perfil_completo: true })
       if (!ok) throw new Error('No se pudo guardar el perfil')
 
-      // La sesión ya está activa después de updateUser
-      // Redirigir directo al dashboard según rol — sin cerrar sesión
-      // (el usuario ya completó el perfil, no tiene sentido pedirle login de nuevo)
+      // Refrescar el contexto para que perfilCompleto sea true antes de navegar
+      await refreshPerfil()
+
+      // Redirigir según rol
       const { data: { user } } = await supabase.auth.getUser()
       const { data: perfil }   = await supabase.from('perfiles').select('rol').eq('id', user.id).single()
       if (perfil?.rol === 'superadmin' || perfil?.rol === 'editor') {
@@ -350,7 +353,7 @@ export default function CompletarPerfil() {
               ))}
             </div>
             <p style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 12, lineHeight: 1.5 }}>
-              Te vamos a enviar un email de confirmación. Tocá el link del email para activar tu cuenta e ingresar.
+              Al confirmar vas a entrar directo al sistema.
             </p>
           </Step>
         )}
