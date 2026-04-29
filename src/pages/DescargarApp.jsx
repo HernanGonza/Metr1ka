@@ -20,7 +20,7 @@ export default function DescargarApp() {
       limit: 20, sortBy: { column: 'created_at', order: 'desc' }
     })
     if (err) { setError(err.message); setLoading(false); return }
-    setApks(data || [])
+    setApks((data || []).filter(f => f.name.endsWith('.apk')))
     setLoading(false)
   }
 
