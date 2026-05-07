@@ -5,7 +5,9 @@ import { Topbar } from '../../components/layout'
 import { Spinner } from '../../components/ui'
 import Chart from 'chart.js/auto'
 import styles from './Page.module.css'
-import { BarChart2, PieChart, FileText, Download, Filter, RefreshCw, ChevronDown, ChevronUp, Zap, Plus, Trash2 } from 'lucide-react'
+import { BarChart2, PieChart, FileText, Download, Filter, RefreshCw, ChevronDown, ChevronUp, Zap, Plus, Trash2, MapPin } from 'lucide-react'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 
 const PALETA = ['#1a472a','#0369a1','#7c3aed','#b45309','#be185d','#047857','#2d6a4f','#0284c7','#dc2626','#d97706']
 
@@ -647,6 +649,175 @@ ${preguntasHTML}
 </body></html>`
 }
 
+/* ── Mapa de respuestas georreferenciadas con filtro por pregunta ── */
+const PALETA_MAPA = [
+  '#1a472a','#0369a1','#7c3aed','#b45309','#be185d',
+  '#047857','#dc2626','#d97706','#0891b2','#6d28d9',
+  '#059669','#c2410c','#1d4ed8','#db2777','#0284c7',
+]
+
+function MapaRespuestas({ sesiones, columnas }) {
+  const mapRef      = useRef(null)
+  const instRef     = useRef(null)
+  const markersRef  = useRef(null)
+  const [filtroCol, setFiltroCol] = useState('')
+  const [capas,     setCapas]     = useState({})
+
+  // Solo columnas de tipo opcion_multiple o si_no para filtrar
+  const colsFiltro = useMemo(() =>
+    (columnas || []).filter(c => ['opcion_multiple','si_no'].includes(c.tipo) && c.clave_base !== 'participa'),
+    [columnas]
+  )
+
+  // Valores únicos de la columna seleccionada
+  const valoresUnicos = useMemo(() => {
+    if (!filtroCol) return []
+    const vals = (sesiones || [])
+      .map(s => s.respuestas?.[filtroCol])
+      .filter(Boolean)
+    return [...new Set(vals)].sort()
+  }, [filtroCol, sesiones])
+
+  // Inicializar capas cuando cambia la pregunta
+  useEffect(() => {
+    const estado = {}
+    valoresUnicos.forEach(v => { estado[v] = true })
+    setCapas(estado)
+  }, [valoresUnicos.join('|')])
+
+  const colorPorValor = useMemo(() => {
+    const map = {}
+    valoresUnicos.forEach((v, i) => { map[v] = PALETA_MAPA[i % PALETA_MAPA.length] })
+    return map
+  }, [valoresUnicos.join('|')])
+
+  useEffect(() => {
+    if (!mapRef.current) return
+    if (!instRef.current) {
+      instRef.current = L.map(mapRef.current, { zoomControl: true }).setView([-27.5, -55.8], 12)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap', maxZoom: 19,
+      }).addTo(instRef.current)
+      markersRef.current = L.layerGroup().addTo(instRef.current)
+    }
+
+    markersRef.current.clearLayers()
+    const puntos = (sesiones || []).filter(s => s.lat && s.lng)
+    if (!puntos.length) return
+
+    const visibles = []
+
+    puntos.forEach(s => {
+      const respuesta = filtroCol ? (s.respuestas?.[filtroCol] || null) : null
+      const color = filtroCol
+        ? (colorPorValor[respuesta] || '#9ca3af')
+        : '#1a472a'
+
+      // Ocultar si la capa está apagada
+      if (filtroCol && respuesta && capas[respuesta] === false) return
+      if (filtroCol && !respuesta) return // sin respuesta = ocultar
+
+      visibles.push(s)
+
+      const icono = L.divIcon({
+        className: '',
+        html: `<div style="width:13px;height:13px;border-radius:50%;background:${color};border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>`,
+        iconSize: [13,13], iconAnchor: [6,6],
+      })
+
+      const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;min-width:170px;line-height:1.6">
+        <div style="font-weight:700;font-size:13px;margin-bottom:3px">${s.encuestador || '—'}</div>
+        ${respuesta ? `<div style="display:inline-block;background:${color}22;color:${color};border:1.5px solid ${color}66;border-radius:100px;padding:2px 9px;font-size:11px;font-weight:700;margin-bottom:4px">${respuesta}</div><br>` : ''}
+        <span style="color:#6b7280;font-size:11px">${s.equipo || ''}</span>
+        <div style="color:#9ca3af;font-size:10px;margin-top:2px">${s.fecha ? new Date(s.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</div>
+      </div>`
+
+      L.marker([s.lat, s.lng], { icon: icono }).bindPopup(popup).addTo(markersRef.current)
+    })
+
+    if (visibles.length > 0) {
+      const bounds = L.latLngBounds(visibles.map(s => [s.lat, s.lng]))
+      instRef.current.fitBounds(bounds, { padding: [40,40], maxZoom: 16 })
+    }
+  }, [sesiones, filtroCol, capas, colorPorValor])
+
+  useEffect(() => () => {
+    if (instRef.current) { instRef.current.remove(); instRef.current = null }
+  }, [])
+
+  const puntos = (sesiones || []).filter(s => s.lat && s.lng)
+  const sinGPS = (sesiones || []).length - puntos.length
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Barra de controles */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 16px' }}>
+        <div style={{ flex: 1, minWidth: 280 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 5 }}>
+            Colorear por respuesta a
+          </label>
+          <select value={filtroCol} onChange={e => { setFiltroCol(e.target.value); setCapas({}) }}
+            style={{ width: '100%', padding: '8px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--surface)', color: 'var(--ink)', outline: 'none' }}>
+            <option value="">— Todos los puntos (un color) —</option>
+            {colsFiltro.map(c => (
+              <option key={c.id} value={c.id}>{c.texto?.slice(0,68)}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, paddingBottom: 2 }}>
+          <MapPin size={14} color="var(--accent)" />
+          <span style={{ color: 'var(--ink2)' }}><strong>{puntos.length}</strong> con GPS</span>
+          {sinGPS > 0 && <span style={{ color: 'var(--ink4)' }}>· {sinGPS} sin GPS</span>}
+        </div>
+      </div>
+
+      {/* Leyenda con toggle por respuesta */}
+      {filtroCol && valoresUnicos.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+          {valoresUnicos.map(v => {
+            const color = colorPorValor[v] || '#9ca3af'
+            const activo = capas[v] !== false
+            const cant = (sesiones || []).filter(s => s.respuestas?.[filtroCol] === v && s.lat).length
+            return (
+              <button key={v} onClick={() => setCapas(p => ({ ...p, [v]: !activo }))}
+                title={`${activo ? 'Ocultar' : 'Mostrar'} "${v}"`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '5px 11px', borderRadius: 100, cursor: 'pointer',
+                  fontFamily: 'DM Sans', fontSize: 12, transition: 'all .15s',
+                  border: `1.5px solid ${activo ? color : 'var(--border)'}`,
+                  background: activo ? `${color}15` : 'var(--surface)',
+                  color: activo ? color : 'var(--ink3)', opacity: activo ? 1 : 0.5,
+                }}>
+                <div style={{ width: 9, height: 9, borderRadius: '50%', background: activo ? color : '#ccc', flexShrink: 0 }} />
+                <span style={{ fontWeight: 600 }}>{v}</span>
+                <span style={{ fontWeight: 400, fontSize: 11, background: activo ? `${color}25` : 'var(--surface)', borderRadius: 100, padding: '0 5px' }}>{cant}</span>
+              </button>
+            )
+          })}
+          <button onClick={() => {
+            const allOn = valoresUnicos.every(v => capas[v] !== false)
+            const nuevo = {}
+            valoresUnicos.forEach(v => { nuevo[v] = !allOn })
+            setCapas(nuevo)
+          }} style={{ padding: '5px 11px', borderRadius: 100, fontSize: 11, fontFamily: 'DM Sans', cursor: 'pointer', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--ink3)' }}>
+            {valoresUnicos.every(v => capas[v] !== false) ? 'Ocultar todo' : 'Mostrar todo'}
+          </button>
+        </div>
+      )}
+
+      {/* Mapa */}
+      {puntos.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 64, color: 'var(--ink3)', fontSize: 14, background: 'var(--paper)', borderRadius: 'var(--r2)', border: '1px solid var(--border)' }}>
+          📍 No hay respuestas con coordenadas GPS todavía
+        </div>
+      ) : (
+        <div ref={mapRef} style={{ height: 520, borderRadius: 'var(--r2)', border: '1px solid var(--border)', overflow: 'hidden' }} />
+      )}
+    </div>
+  )
+}
+
 /* ── PANTALLA PRINCIPAL ── */
 export default function Reportes() {
   const { perfil } = useAuth()
@@ -700,7 +871,7 @@ export default function Reportes() {
 
   // Cargar datos crudos automáticamente al entrar a la tab
   useEffect(() => {
-    if (vistaActiva === 'datos' && selected && !datosExport && !loadingDatos) {
+    if ((vistaActiva === 'datos' || vistaActiva === 'mapa') && selected && !datosExport && !loadingDatos) {
       cargarDatosCrudos()
     }
   }, [vistaActiva, selected?.id])
@@ -960,6 +1131,7 @@ export default function Reportes() {
                       {[
                         ['preguntas',    '📋 Por pregunta'],
                         ['comparar',     '🔀 Cruzar datos'],
+                        ['mapa',         '🗺️ Mapa'],
                         ['encuestadores','👥 Encuestadores'],
                         ['datos',        '📁 Datos crudos'],
                       ].map(([v, label]) => (
@@ -1005,6 +1177,14 @@ export default function Reportes() {
                         loadingDatos={loadingDatos}
                         onActualizar={cargarDatosCrudos}
                         onExportarCSV={exportarCSV}
+                      />
+                    )}
+
+                    {/* Vista Mapa */}
+                    {vistaActiva === 'mapa' && (
+                      <MapaRespuestas
+                        sesiones={datosExport?.filas || []}
+                        columnas={datosExport?.columnas || []}
                       />
                     )}
 
