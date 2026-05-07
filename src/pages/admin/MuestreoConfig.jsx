@@ -198,7 +198,7 @@ const MapaZona = forwardRef(function MapaZona(
       map.on('pm:create', async (e) => {
         if (!mounted) return
         if (zonaRef.current && map.hasLayer(zonaRef.current)) map.removeLayer(zonaRef.current)
-        if (manzGrpRef.current) { map.removeLayer(manzGrpRef.current); manzGrpRef.current = null }
+        if (manzGrpRef.current) { try { manzGrpRef.current.eachLayer(l => { if (l?.pm) l.pm.disable() }) } catch {} map.removeLayer(manzGrpRef.current); manzGrpRef.current = null }
         e.layer.setStyle({ color: '#1a472a', fillColor: '#1a472a', fillOpacity: 0.08, weight: 2, dashArray: '8,5' })
         zonaRef.current = e.layer
         selRef.current = new Set(); setNSel(0); setNManz(0)
@@ -236,7 +236,14 @@ const MapaZona = forwardRef(function MapaZona(
   }
 
   function renderManzanas(L, map, features, selSet) {
-    if (manzGrpRef.current) { map.removeLayer(manzGrpRef.current); manzGrpRef.current = null }
+    if (manzGrpRef.current) {
+      // Deshabilitar pm en cada layer antes de remover para evitar error de classList con canvas renderer
+      try {
+        manzGrpRef.current.eachLayer(l => { if (l?.pm) l.pm.disable() })
+      } catch {}
+      map.removeLayer(manzGrpRef.current)
+      manzGrpRef.current = null
+    }
     const grp = L.geoJSON(features, {
       renderer: L.canvas(),
       pmIgnore: true,
@@ -349,7 +356,7 @@ const MapaZona = forwardRef(function MapaZona(
 
   function borrarZona() {
     if (!mapInst.current) return
-    if (manzGrpRef.current) { mapInst.current.removeLayer(manzGrpRef.current); manzGrpRef.current = null }
+    if (manzGrpRef.current) { try { manzGrpRef.current.eachLayer(l => { if (l?.pm) l.pm.disable() }) } catch {} mapInst.current.removeLayer(manzGrpRef.current); manzGrpRef.current = null }
     if (zonaRef.current)    { mapInst.current.removeLayer(zonaRef.current);     zonaRef.current = null }
     manzFeatRef.current = []; parcelaRef.current = []
     selRef.current = new Set()
