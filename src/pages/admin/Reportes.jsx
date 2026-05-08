@@ -6,8 +6,6 @@ import { Spinner } from '../../components/ui'
 import Chart from 'chart.js/auto'
 import styles from './Page.module.css'
 import { BarChart2, PieChart, FileText, Download, Filter, RefreshCw, ChevronDown, ChevronUp, Zap, Plus, Trash2, MapPin } from 'lucide-react'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 
 const PALETA = ['#1a472a','#0369a1','#7c3aed','#b45309','#be185d','#047857','#2d6a4f','#0284c7','#dc2626','#d97706']
 
@@ -565,7 +563,7 @@ function KpiCard({ label, value, sub, color, icon }) {
 }
 
 /* ── Exportar HTML/PDF ── */
-function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrudos, sesiones) {
+function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrudos, sesiones, mapaImgSrc) {
   const filasPorPregunta = {}
   preguntas.forEach(p => { filasPorPregunta[String(p.id)] = [] })
   respuestas.forEach(f => { if (filasPorPregunta[String(f.pregunta_id)]) filasPorPregunta[String(f.pregunta_id)].push(f) })
@@ -584,8 +582,51 @@ function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrud
     const filas = filasPorPregunta[String(p.id)] || []
     const color = PALETA[idx % PALETA.length]
     const opciones = p.opciones_pregunta || []
-    const conteo = {}
 
+    // ── Texto libre ──
+    if (p.tipo === 'texto_libre') {
+      const textos = filas.filter(f => f.valor_texto?.trim()).slice(0, 8)
+      return `<div class="preg"><div class="preg-h" style="border-color:${color}"><b>${p.texto}</b> <span class="badge">Texto libre · ${filas.length} resp.</span></div>${textos.map(f => `<div class="txt" style="border-color:${color}">"${f.valor_texto}"</div>`).join('')}${filas.length > 8 ? `<p style="font-size:10px;color:#999;margin-top:6px">... y ${filas.length - 8} respuestas más</p>` : ''}</div>`
+    }
+
+    // ── Matriz ──
+    if (p.tipo === 'matriz') {
+      const filasDef = (p.config_matriz?.filas || []).map(f => typeof f === 'string' ? f : f.texto)
+      const colsDef  = (p.config_matriz?.columnas || []).map(c => typeof c === 'string' ? c : c.texto)
+      const cont = {}
+      filasDef.forEach(f => { cont[f] = {}; colsDef.forEach(c => { cont[f][c] = 0 }) })
+      filas.forEach(r => {
+        try {
+          const v = typeof r.valor_texto === 'string' ? JSON.parse(r.valor_texto) : r.valor_texto
+          if (v && typeof v === 'object') {
+            Object.entries(v).forEach(([fi, col]) => {
+              const ft = isNaN(Number(fi)) ? fi : (filasDef[Number(fi)] || fi)
+              if (ft && cont[ft] && colsDef.includes(col)) cont[ft][col] = (cont[ft][col] || 0) + 1
+            })
+          }
+        } catch {}
+      })
+      const total = Object.values(cont).reduce((s, row) => s + Object.values(row).reduce((a,b)=>a+b, 0), 0)
+      const thCols = colsDef.map(c => `<th style="padding:6px 10px;font-size:10px;color:#666;text-align:center;background:#f9fafb">${c}</th>`).join('')
+      const rows = filasDef.map(f => {
+        const rowTot = colsDef.reduce((s, c) => s + (cont[f]?.[c] || 0), 0)
+        const celdas = colsDef.map(c => {
+          const n = cont[f]?.[c] || 0
+          const pct = rowTot > 0 ? Math.round(n / rowTot * 100) : 0
+          const bg = pct > 50 ? `${color}22` : pct > 25 ? `${color}11` : 'transparent'
+          return `<td style="padding:6px 10px;text-align:center;background:${bg};font-size:12px">${n > 0 ? `<b>${n}</b> <span style="font-size:10px;color:#999">${pct}%</span>` : '—'}</td>`
+        }).join('')
+        return `<tr><td style="padding:6px 10px;font-size:12px;font-weight:600;border-right:1px solid #e5e7eb">${f}</td>${celdas}</tr>`
+      }).join('')
+      return `<div class="preg"><div class="preg-h" style="border-color:${color}"><b>${p.texto}</b> <span class="badge">Matriz · ${total} respuestas</span></div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr><th style="padding:6px 10px;background:#f9fafb"></th>${thCols}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div></div>`
+    }
+
+    // ── Opciones / Si-No / Escala ──
+    const conteo = {}
     if (p.tipo === 'si_no') {
       filas.forEach(f => {
         const k = f.valor_texto === 'Sí' || f.valor_booleano === true ? 'Sí' : 'No'
@@ -596,29 +637,146 @@ function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrud
         const f = filas.find(r => Number(r.valor_numero) === i)
         if (f) conteo[String(i)] = Number(f.cantidad)
       }
-    } else if (p.tipo === 'opcion_multiple') {
+    } else {
       opciones.forEach(op => {
         const f = filas.find(r => r.opcion_id === op.id || r.valor_texto === op.texto || r.opcion_texto === op.texto)
         conteo[op.texto] = f ? Number(f.cantidad) : 0
       })
-    } else if (p.tipo === 'texto_libre') {
-      const textos = filas.filter(f => f.valor_texto?.trim()).slice(0, 6)
-      return `<div class="preg"><div class="preg-h" style="border-color:${color}"><b>${p.texto}</b> <span class="badge">Texto libre</span></div>${textos.map(f => `<div class="txt" style="border-color:${color}">"${f.valor_texto}"</div>`).join('')}</div>`
     }
 
     const total = Object.values(conteo).reduce((a,b)=>a+b, 0)
     if (!total) return `<div class="preg"><div class="preg-h" style="border-color:${color}"><b>${p.texto}</b></div><p class="empty">Sin respuestas</p></div>`
 
-    const barras = Object.entries(conteo).map(([l, v]) => {
-      const pct = Math.round(v / total * 100)
-      return `<div class="row"><span class="lbl">${l}</span><div class="track"><div class="fill" style="width:${pct}%;background:${color}"></div></div><span class="pct">${pct}% (${v})</span></div>`
-    }).join('')
+    const barras = Object.entries(conteo)
+      .filter(([,v]) => v > 0)
+      .sort((a,b) => b[1]-a[1])
+      .map(([l, v]) => {
+        const pct = Math.round(v / total * 100)
+        return `<div class="row"><span class="lbl">${l}</span><div class="track"><div class="fill" style="width:${pct}%;background:${color}"></div></div><span class="pct">${pct}% <span style="color:#999">(${v})</span></span></div>`
+      }).join('')
 
     return `<div class="preg"><div class="preg-h" style="border-color:${color}"><b>${p.texto}</b> <span class="badge">${p.tipo} · ${total} resp.</span></div><div class="barras">${barras}</div></div>`
   }).join('')
 
-  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte — ${encuesta.nombre}</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;color:#1a1a1a;background:#fff;padding:40px;font-size:13px}
+  // ── Cruces ──
+  const crucesHTML = (() => {
+    const activos = (cruces || []).filter(c => c._pA && c._pB && c._datos)
+    if (!activos.length) return ''
+    const COLS_CRUCE = ['#1a472a','#0369a1','#7c3aed','#b45309','#be185d','#047857','#dc2626','#d97706','#0891b2','#6d28d9']
+    const items = activos.map(c => {
+      const { labelsX, seriesY, matriz } = c._datos
+      if (!labelsX?.length || !seriesY?.length) return ''
+
+      // ── Tabla de contingencia ──
+      const thX = labelsX.map(l => `<th style="padding:5px 8px;font-size:10px;color:#666;text-align:center;max-width:80px;word-break:break-word">${l}</th>`).join('')
+      const rows = seriesY.map(vy => {
+        const celdas = labelsX.map(vx => {
+          const n = matriz?.[vx]?.[vy] || 0
+          const tot = labelsX.reduce((s, x) => s + (matriz?.[x]?.[vy] || 0), 0)
+          const pct = tot > 0 ? Math.round(n / tot * 100) : 0
+          const bg = pct > 40 ? 'rgba(26,71,42,0.12)' : pct > 20 ? 'rgba(26,71,42,0.06)' : 'transparent'
+          return `<td style="padding:5px 8px;text-align:center;font-size:11px;background:${bg}">${n > 0 ? `<b>${n}</b><br><span style="font-size:9px;color:#999">${pct}%</span>` : '—'}</td>`
+        }).join('')
+        return `<tr><td style="padding:5px 8px;font-size:11px;font-weight:600;border-right:1px solid #e5e7eb;max-width:120px">${vy}</td>${celdas}</tr>`
+      }).join('')
+
+      // ── Gráfico de barras agrupadas SVG ──
+      const barW = 18
+      const gap = 4
+      const groupW = seriesY.length * (barW + gap) + 12
+      const chartW = Math.min(labelsX.length * (groupW + 16) + 60, 700)
+      const chartH = 180
+      const maxVal = Math.max(...labelsX.flatMap(vx => seriesY.map(vy => matriz?.[vx]?.[vy] || 0)), 1)
+      const scaleY = (chartH - 50) / maxVal
+
+      // Leyenda
+      const leyenda = seriesY.map((vy, si) => {
+        const col = COLS_CRUCE[si % COLS_CRUCE.length]
+        return `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:10px;color:#555">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${col}"></span>${vy}
+        </span>`
+      }).join('')
+
+      // Barras
+      const barsGrp = labelsX.map((vx, xi) => {
+        const x0 = 50 + xi * (groupW + 16)
+        const bars = seriesY.map((vy, si) => {
+          const n = matriz?.[vx]?.[vy] || 0
+          const h = Math.max(n * scaleY, n > 0 ? 3 : 0)
+          const y = chartH - 30 - h
+          const col = COLS_CRUCE[si % COLS_CRUCE.length]
+          const bx = x0 + si * (barW + gap)
+          return `<rect x="${bx}" y="${y}" width="${barW}" height="${h}" fill="${col}" rx="2"/>
+          ${n > 0 ? `<text x="${bx + barW/2}" y="${y - 3}" text-anchor="middle" font-size="9" fill="#555">${n}</text>` : ''}`
+        }).join('')
+        // Etiqueta eje X
+        const label = vx.length > 12 ? vx.slice(0,11)+'…' : vx
+        const labelX = x0 + (groupW - gap) / 2
+        return `${bars}<text x="${labelX}" y="${chartH - 8}" text-anchor="middle" font-size="9" fill="#888">${label}</text>`
+      }).join('')
+
+      // Líneas de guía
+      const guias = [0.25, 0.5, 0.75, 1].map(f => {
+        const y = chartH - 30 - f * (chartH - 50)
+        const v = Math.round(maxVal * f)
+        return `<line x1="44" y1="${y}" x2="${chartW}" y2="${y}" stroke="#f0f0f0" stroke-width="1"/>
+        <text x="40" y="${y + 3}" text-anchor="end" font-size="8" fill="#bbb">${v}</text>`
+      }).join('')
+
+      const svgGrafico = `<svg xmlns="http://www.w3.org/2000/svg" width="${chartW}" height="${chartH}" style="overflow:visible">
+        ${guias}${barsGrp}
+        <line x1="44" y1="${chartH-30}" x2="${chartW}" y2="${chartH-30}" stroke="#ddd" stroke-width="1"/>
+      </svg>`
+
+      return `<div class="preg" style="page-break-inside:avoid">
+        <div class="preg-h" style="border-color:#1a472a">
+          <b>${c._pA.texto}</b> <span style="color:#999;margin:0 4px">×</span> <b>${c._pB.texto}</b>
+        </div>
+        <div style="margin-bottom:10px;overflow-x:auto">${svgGrafico}</div>
+        <div style="margin-bottom:10px;line-height:1.8">${leyenda}</div>
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead><tr><th style="padding:5px 8px;background:#f9fafb;font-size:10px;color:#666"></th>${thX}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+      </div>`
+    }).join('')
+    return `<div class="sec" style="margin-top:28px">Cruzamientos de datos</div>${items}`
+  })()
+
+  // ── Mapa ──
+  const mapaHTML = mapaImgSrc?.img
+    ? (() => {
+        const ley = (mapaImgSrc.leyenda||[])
+          .filter(l => l.cant > 0)
+          .map(l => `<span style="display:inline-flex;align-items:center;gap:6px;margin:3px 8px 3px 0;font-size:11px;color:#333">
+            <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${l.color};flex-shrink:0"></span>
+            <b>${l.valor}</b> <span style="color:#999">(${l.cant})</span>
+          </span>`).join('')
+        const titulo = mapaImgSrc.titulo ? `<div style="font-size:11px;color:#666;margin-bottom:10px"><b>Filtro:</b> ${mapaImgSrc.titulo}</div>` : ''
+        return `<div class="sec" style="margin-top:28px;page-break-before:always">Mapa de respuestas georreferenciadas</div>
+          <div class="preg">
+            ${titulo}
+            ${ley ? `<div style="margin-bottom:12px;line-height:2">${ley}</div>` : ''}
+            <img src="${mapaImgSrc.img}" style="width:100%;border-radius:8px;max-height:500px;object-fit:contain" />
+          </div>`
+      })()
+    : ''
+
+  // ── Datos crudos ──
+  const datosHTML = (() => {
+    if (!datosCrudos?.filas?.length) return ''
+    const cols = datosCrudos.columnas || []
+    const filas = datosCrudos.filas.slice(0, 50)
+    const header = `<tr><th>Fecha</th><th>Encuestador</th><th>Equipo</th>${cols.map(c=>`<th>${c.texto?.slice(0,25)}</th>`).join('')}</tr>`
+    const rows = filas.map(f => `<tr><td>${f.fecha?new Date(f.fecha).toLocaleDateString('es-AR'):''}</td><td>${f.encuestador||''}</td><td>${f.equipo||''}</td>${cols.map(c=>`<td>${(f.respuestas||{})[c.id]||''}</td>`).join('')}</tr>`).join('')
+    return `<div class="sec" style="margin-top:28px;page-break-before:always">Datos crudos (${filas.length} de ${datosCrudos.filas.length} filas)</div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:10px">
+      <thead style="background:#f9fafb;position:sticky;top:0">${header}</thead>
+      <tbody>${rows}</tbody>
+    </table></div>`
+  })()
+
+  const css = `*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;color:#1a1a1a;background:#fff;padding:40px;font-size:13px}
 .header{border-bottom:3px solid #1a472a;padding-bottom:20px;margin-bottom:28px}
 h1{font-size:22px;font-weight:800;color:#1a472a;margin:8px 0 4px}
 .meta{font-size:12px;color:#888;display:flex;gap:16px;flex-wrap:wrap;margin-top:8px}
@@ -628,23 +786,32 @@ h1{font-size:22px;font-weight:800;color:#1a472a;margin:8px 0 4px}
 .sec{font-size:13px;font-weight:700;color:#1a472a;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #e5e7eb}
 .preg{margin-bottom:20px;padding:16px;border:1px solid #e5e7eb;border-radius:10px;page-break-inside:avoid}
 .preg-h{padding-left:10px;border-left:3px solid;margin-bottom:12px}.badge{font-size:10px;color:#888;background:#f3f4f6;padding:2px 8px;border-radius:100px}
-.row{display:flex;align-items:center;gap:8px;margin-bottom:7px}.lbl{font-size:11px;width:120px;flex-shrink:0}
+.row{display:flex;align-items:center;gap:8px;margin-bottom:7px}.lbl{font-size:11px;width:160px;flex-shrink:0}
 .track{flex:1;height:14px;background:#f3f4f6;border-radius:4px;overflow:hidden}.fill{height:100%;border-radius:4px}
 .pct{font-size:11px;font-weight:700;width:80px;text-align:right}.txt{font-size:11px;padding:7px 10px;background:#fafaf8;border-left:3px solid;margin-bottom:5px;border-radius:0 4px 4px 0}
 .empty{font-size:12px;color:#bbb;font-style:italic}
+table td,table th{border:1px solid #e5e7eb;padding:6px 8px;text-align:left}
 footer{margin-top:32px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#bbb;display:flex;justify-content:space-between}
-@media print{body{padding:20px}.preg{page-break-inside:avoid}}</style></head><body>
-<div class="header"><div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#1a472a;text-transform:uppercase">METR1KA · Reporte</div>
-<h1>${encuesta.nombre}</h1>
-<div class="meta"><span>📅 ${fecha}</span>${resumen?.total_sesiones ? `<span>📊 ${resumen.total_sesiones} respuestas</span>` : ''}</div></div>
+@media print{body{padding:20px}.preg{page-break-inside:avoid}img{max-width:100%!important}}`
+
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte — ${encuesta.nombre}</title>
+<style>${css}</style></head><body>
+<div class="header">
+  <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#1a472a;text-transform:uppercase">METR1KA · Reporte</div>
+  <h1>${encuesta.nombre}</h1>
+  <div class="meta"><span>📅 ${fecha}</span>${resumen?.total_sesiones ? `<span>📊 ${resumen.total_sesiones} respuestas</span>` : ''}</div>
+</div>
 <div class="kpis">
-<div class="kpi" style="border-top-color:#1a472a"><div class="kpi-v" style="color:#1a472a">${resumen?.total_sesiones||0}</div><div class="kpi-l">Total respuestas</div></div>
-<div class="kpi" style="border-top-color:#0369a1"><div class="kpi-v" style="color:#0369a1">${resumen?.encuestadores||0}</div><div class="kpi-l">Encuestadores</div></div>
-<div class="kpi" style="border-top-color:#7c3aed"><div class="kpi-v" style="color:#7c3aed">${promedioEscala}</div><div class="kpi-l">Promedio escalas</div></div>
-<div class="kpi" style="border-top-color:#b45309"><div class="kpi-v" style="color:#b45309">${resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—'}</div><div class="kpi-l">Última respuesta</div></div>
+  <div class="kpi" style="border-top-color:#1a472a"><div class="kpi-v" style="color:#1a472a">${resumen?.total_sesiones||0}</div><div class="kpi-l">Total respuestas</div></div>
+  <div class="kpi" style="border-top-color:#0369a1"><div class="kpi-v" style="color:#0369a1">${resumen?.encuestadores||0}</div><div class="kpi-l">Encuestadores</div></div>
+  <div class="kpi" style="border-top-color:#7c3aed"><div class="kpi-v" style="color:#7c3aed">${promedioEscala}</div><div class="kpi-l">Promedio escalas</div></div>
+  <div class="kpi" style="border-top-color:#b45309"><div class="kpi-v" style="color:#b45309">${resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—'}</div><div class="kpi-l">Última respuesta</div></div>
 </div>
 <div class="sec">Resultados por pregunta</div>
 ${preguntasHTML}
+${crucesHTML}
+${mapaHTML}
+${datosHTML}
 <footer><span>METR1KA — metr1ka.com</span><span>${fecha}</span></footer>
 </body></html>`
 }
@@ -656,97 +823,252 @@ const PALETA_MAPA = [
   '#059669','#c2410c','#1d4ed8','#db2777','#0284c7',
 ]
 
-function MapaRespuestas({ sesiones, columnas }) {
-  const mapRef      = useRef(null)
-  const instRef     = useRef(null)
-  const markersRef  = useRef(null)
+// Cargar Leaflet.markercluster dinámicamente
+function cargarMarkerCluster() {
+  return new Promise(resolve => {
+    if (window.L?.MarkerClusterGroup) return resolve()
+    const css = document.createElement('link')
+    css.rel = 'stylesheet'
+    css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css'
+    document.head.appendChild(css)
+    const css2 = document.createElement('link')
+    css2.rel = 'stylesheet'
+    css2.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css'
+    document.head.appendChild(css2)
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js'
+    script.onload = () => resolve()
+    script.onerror = () => resolve() // fallback sin cluster
+    document.head.appendChild(script)
+  })
+}
+
+// Cargar leaflet-image para captura real del mapa
+function cargarLeafletImage() {
+  return new Promise(resolve => {
+    if (window.leafletImage) return resolve()
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet-image/0.4.0/leaflet-image.min.js'
+    script.onload = () => resolve()
+    script.onerror = () => resolve()
+    document.head.appendChild(script)
+  })
+}
+
+function MapaRespuestas({ sesiones, columnas, onCapturarMapa }) {
+  const mapRef     = useRef(null)
+  const instRef    = useRef(null)
+  const capasRef   = useRef([])   // array de layers activos para limpiar
+  const [L,        setL]        = useState(null) // leaflet lazy loaded
+  const [listo,    setListo]    = useState(0)  // incrementa cuando plugins cargan
   const [filtroCol, setFiltroCol] = useState('')
   const [capas,     setCapas]     = useState({})
 
-  // Solo columnas de tipo opcion_multiple o si_no para filtrar
   const colsFiltro = useMemo(() =>
-    (columnas || []).filter(c => ['opcion_multiple','si_no'].includes(c.tipo) && c.clave_base !== 'participa'),
+    (columnas||[]).filter(c => ['opcion_multiple','si_no'].includes(c.tipo) && c.clave_base !== 'participa'),
     [columnas]
   )
 
-  // Valores únicos de la columna seleccionada
   const valoresUnicos = useMemo(() => {
     if (!filtroCol) return []
-    const vals = (sesiones || [])
-      .map(s => s.respuestas?.[filtroCol])
-      .filter(Boolean)
-    return [...new Set(vals)].sort()
+    return [...new Set((sesiones||[]).map(s=>s.respuestas?.[filtroCol]).filter(Boolean))].sort()
   }, [filtroCol, sesiones])
 
-  // Inicializar capas cuando cambia la pregunta
   useEffect(() => {
-    const estado = {}
-    valoresUnicos.forEach(v => { estado[v] = true })
-    setCapas(estado)
+    const e = {}; valoresUnicos.forEach(v => { e[v] = true }); setCapas(e)
   }, [valoresUnicos.join('|')])
 
   const colorPorValor = useMemo(() => {
-    const map = {}
-    valoresUnicos.forEach((v, i) => { map[v] = PALETA_MAPA[i % PALETA_MAPA.length] })
-    return map
+    const m = {}
+    valoresUnicos.forEach((v,i) => { m[v] = PALETA_MAPA[i % PALETA_MAPA.length] })
+    return m
   }, [valoresUnicos.join('|')])
 
+  // ── PASO 1: lazy load leaflet (igual que GeofencingModal y Mapa.jsx) ──
   useEffect(() => {
-    if (!mapRef.current) return
-    if (!instRef.current) {
-      instRef.current = L.map(mapRef.current, { zoomControl: true }).setView([-27.5, -55.8], 12)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap', maxZoom: 19,
-      }).addTo(instRef.current)
-      markersRef.current = L.layerGroup().addTo(instRef.current)
+    let cancelled = false
+    ;(async () => {
+      const leaflet = (await import('leaflet')).default
+      await import('leaflet/dist/leaflet.css')
+      if (!cancelled) setL(leaflet)
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  // ── PASO 2: inicializar el mapa cuando leaflet cargó y el div tiene dimensiones ──
+  useEffect(() => {
+    if (!L || !mapRef.current) return
+
+    const loadScript = (url) => new Promise(res => {
+      if (document.querySelector(`script[src="${url}"]`)) return res()
+      const s = document.createElement('script')
+      s.src = url; s.onload = res; s.onerror = res
+      document.head.appendChild(s)
+    })
+    const loadCSS = (url) => {
+      if (!document.querySelector(`link[href="${url}"]`)) {
+        const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = url
+        document.head.appendChild(l)
+      }
     }
 
-    markersRef.current.clearLayers()
-    const puntos = (sesiones || []).filter(s => s.lat && s.lng)
+    loadCSS('https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css')
+    loadCSS('https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css')
+
+    const initMap = () => {
+      if (instRef.current) return  // ya inicializado
+      const rect = mapRef.current?.getBoundingClientRect()
+      if (!rect || rect.width === 0 || rect.height === 0) return  // esperar dimensiones
+
+      instRef.current = L.map(mapRef.current, { zoomControl: true })
+        .setView([-27.5, -55.8], 12)
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19,
+      }).addTo(instRef.current)
+
+      // Una vez inicializado, cargar plugins y activar markers
+      Promise.all([
+        loadScript('https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js'),
+        loadScript('https://cdnjs.cloudflare.com/ajax/libs/leaflet-image/0.4.0/leaflet-image.min.js'),
+      ]).then(() => setListo(p => p + 1))
+
+      ro.disconnect()  // ya no necesitamos observar
+    }
+
+    // ResizeObserver: dispara initMap cuando el div finalmente tiene dimensiones
+    const ro = new ResizeObserver(initMap)
+    ro.observe(mapRef.current)
+    initMap()  // intento inmediato por si ya tiene dimensiones
+
+    return () => {
+      ro.disconnect()
+      if (instRef.current) { instRef.current.remove(); instRef.current = null }
+    }
+  }, [L])
+
+  // ── PASO 2: renderizar markers cuando cambia filtro, capas o plugins ──
+  useEffect(() => {
+    const mapa = instRef.current
+    if (!mapa) return
+
+    // Limpiar layers anteriores
+    capasRef.current.forEach(lg => { try { mapa.removeLayer(lg) } catch {} })
+    capasRef.current = []
+
+    const puntos = (sesiones||[]).filter(s => s.lat && s.lng)
     if (!puntos.length) return
 
-    const visibles = []
-
+    // Agrupar puntos por respuesta para colorear clusters
+    const grupos = {}
     puntos.forEach(s => {
-      const respuesta = filtroCol ? (s.respuestas?.[filtroCol] || null) : null
-      const color = filtroCol
-        ? (colorPorValor[respuesta] || '#9ca3af')
-        : '#1a472a'
-
-      // Ocultar si la capa está apagada
-      if (filtroCol && respuesta && capas[respuesta] === false) return
-      if (filtroCol && !respuesta) return // sin respuesta = ocultar
-
-      visibles.push(s)
-
-      const icono = L.divIcon({
-        className: '',
-        html: `<div style="width:13px;height:13px;border-radius:50%;background:${color};border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>`,
-        iconSize: [13,13], iconAnchor: [6,6],
-      })
-
-      const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;min-width:170px;line-height:1.6">
-        <div style="font-weight:700;font-size:13px;margin-bottom:3px">${s.encuestador || '—'}</div>
-        ${respuesta ? `<div style="display:inline-block;background:${color}22;color:${color};border:1.5px solid ${color}66;border-radius:100px;padding:2px 9px;font-size:11px;font-weight:700;margin-bottom:4px">${respuesta}</div><br>` : ''}
-        <span style="color:#6b7280;font-size:11px">${s.equipo || ''}</span>
-        <div style="color:#9ca3af;font-size:10px;margin-top:2px">${s.fecha ? new Date(s.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</div>
-      </div>`
-
-      L.marker([s.lat, s.lng], { icon: icono }).bindPopup(popup).addTo(markersRef.current)
+      const resp = filtroCol ? (s.respuestas?.[filtroCol]||null) : '__all__'
+      if (filtroCol && !resp) return
+      if (filtroCol && resp && capas[resp] === false) return
+      if (!grupos[resp]) grupos[resp] = []
+      grupos[resp].push(s)
     })
 
-    if (visibles.length > 0) {
-      const bounds = L.latLngBounds(visibles.map(s => [s.lat, s.lng]))
-      instRef.current.fitBounds(bounds, { padding: [40,40], maxZoom: 16 })
+    const todosVisibles = []
+    const tieneCluster = !!window.L?.MarkerClusterGroup
+
+    Object.entries(grupos).forEach(([resp, pts]) => {
+      const color = (resp !== '__all__' && filtroCol)
+        ? (colorPorValor[resp] || '#9ca3af')
+        : '#1a472a'
+
+      const layer = tieneCluster
+        ? L.markerClusterGroup({
+            maxClusterRadius: 50,
+            showCoverageOnHover: false,
+            iconCreateFunction: (cluster) => {
+              const n = cluster.getChildCount()
+              const sz = n < 10 ? 34 : n < 100 ? 40 : 46
+              return L.divIcon({
+                className: '',
+                html: `<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${sz < 38 ? 12 : 14}px;border:3px solid rgba(255,255,255,.9);box-shadow:0 2px 8px rgba(0,0,0,.35);font-family:DM Sans,sans-serif">${n}</div>`,
+                iconSize: [sz, sz], iconAnchor: [sz/2, sz/2],
+              })
+            },
+          })
+        : L.layerGroup()
+
+      pts.forEach(s => {
+        todosVisibles.push(s)
+        const icono = L.divIcon({
+          className: '',
+          html: `<div style="width:13px;height:13px;border-radius:50%;background:${color};border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>`,
+          iconSize: [13,13], iconAnchor: [6,6],
+        })
+        const popup = `<div style="font-family:DM Sans,sans-serif;font-size:12px;min-width:170px;line-height:1.6">
+          <div style="font-weight:700;font-size:13px;margin-bottom:3px">${s.encuestador||'—'}</div>
+          ${resp !== '__all__' ? `<div style="display:inline-block;background:${color}22;color:${color};border:1.5px solid ${color}66;border-radius:100px;padding:2px 9px;font-size:11px;font-weight:700;margin-bottom:4px">${resp}</div><br>` : ''}
+          <span style="color:#6b7280;font-size:11px">${s.equipo||''}</span>
+          <div style="color:#9ca3af;font-size:10px;margin-top:2px">${s.fecha?new Date(s.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'}):'—'}</div>
+        </div>`
+        L.marker([s.lat, s.lng], { icon: icono }).bindPopup(popup).addTo(layer)
+      })
+
+      layer.addTo(mapa)
+      capasRef.current.push(layer)
+    })
+
+    if (todosVisibles.length > 0) {
+      const bounds = L.latLngBounds(todosVisibles.map(s => [s.lat, s.lng]))
+      mapa.fitBounds(bounds, { padding: [40,40], maxZoom: 16 })
     }
-  }, [sesiones, filtroCol, capas, colorPorValor])
+
+    // Captura del mapa para PDF
+    if (onCapturarMapa && todosVisibles.length > 0) {
+      setTimeout(() => {
+        if (window.leafletImage) {
+          window.leafletImage(mapa, (err, canvas) => {
+            if (!err && canvas) {
+              onCapturarMapa({
+                img: canvas.toDataURL('image/png'),
+                titulo: colsFiltro.find(c => c.id === filtroCol)?.texto || '',
+                leyenda: filtroCol ? Object.entries(colorPorValor).map(([v,col]) => ({ valor: v, color: col, cant: grupos[v]?.length || 0 })) : []
+              })
+              return
+            }
+            capturarFallback()
+          })
+        } else { capturarFallback() }
+
+        function capturarFallback() {
+          try {
+            const size = mapa.getSize()
+            const dots = todosVisibles.map(s => {
+              const pt = mapa.latLngToContainerPoint([s.lat, s.lng])
+              const resp = filtroCol ? (s.respuestas?.[filtroCol]||null) : null
+              const col = filtroCol ? (colorPorValor[resp]||'#9ca3af') : '#1a472a'
+              return `<circle cx="${Math.round(pt.x)}" cy="${Math.round(pt.y)}" r="6" fill="${col}" stroke="#fff" stroke-width="2"/>`
+            }).join('')
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.x}" height="${size.y}">
+              <rect width="100%" height="100%" fill="#e8f4e8"/>
+              <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#aaa">${todosVisibles.length} respuestas</text>
+              ${dots}
+            </svg>`
+            onCapturarMapa({
+              img: 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg))),
+              titulo: colsFiltro.find(c => c.id === filtroCol)?.texto || '',
+              leyenda: filtroCol ? Object.entries(colorPorValor).map(([v,col]) => ({ valor: v, color: col, cant: grupos[v]?.length || 0 })) : []
+            })
+          } catch {}
+        }
+      }, 1500)
+    }
+  }, [sesiones, filtroCol, capas, colorPorValor, listo, L])
 
   useEffect(() => () => {
+    capasRef.current.forEach(lg => { try { if (instRef.current) instRef.current.removeLayer(lg) } catch {} })
+    capasRef.current = []
     if (instRef.current) { instRef.current.remove(); instRef.current = null }
   }, [])
 
-  const puntos = (sesiones || []).filter(s => s.lat && s.lng)
-  const sinGPS = (sesiones || []).length - puntos.length
+  const puntos = (sesiones||[]).filter(s => s.lat && s.lng)
+  const sinGPS = (sesiones||[]).length - puntos.length
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -771,16 +1093,15 @@ function MapaRespuestas({ sesiones, columnas }) {
         </div>
       </div>
 
-      {/* Leyenda con toggle por respuesta */}
+      {/* Leyenda */}
       {filtroCol && valoresUnicos.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
           {valoresUnicos.map(v => {
             const color = colorPorValor[v] || '#9ca3af'
             const activo = capas[v] !== false
-            const cant = (sesiones || []).filter(s => s.respuestas?.[filtroCol] === v && s.lat).length
+            const cant = (sesiones||[]).filter(s => s.respuestas?.[filtroCol] === v && s.lat).length
             return (
               <button key={v} onClick={() => setCapas(p => ({ ...p, [v]: !activo }))}
-                title={`${activo ? 'Ocultar' : 'Mostrar'} "${v}"`}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '5px 11px', borderRadius: 100, cursor: 'pointer',
@@ -797,26 +1118,31 @@ function MapaRespuestas({ sesiones, columnas }) {
           })}
           <button onClick={() => {
             const allOn = valoresUnicos.every(v => capas[v] !== false)
-            const nuevo = {}
-            valoresUnicos.forEach(v => { nuevo[v] = !allOn })
-            setCapas(nuevo)
+            const nuevo = {}; valoresUnicos.forEach(v => { nuevo[v] = !allOn }); setCapas(nuevo)
           }} style={{ padding: '5px 11px', borderRadius: 100, fontSize: 11, fontFamily: 'DM Sans', cursor: 'pointer', border: '1.5px solid var(--border)', background: 'var(--surface)', color: 'var(--ink3)' }}>
             {valoresUnicos.every(v => capas[v] !== false) ? 'Ocultar todo' : 'Mostrar todo'}
           </button>
         </div>
       )}
 
-      {/* Mapa */}
-      {puntos.length === 0 ? (
+      {/* Mapa — el div siempre está en el DOM para que ResizeObserver funcione */}
+      {puntos.length === 0 && (
         <div style={{ textAlign: 'center', padding: 64, color: 'var(--ink3)', fontSize: 14, background: 'var(--paper)', borderRadius: 'var(--r2)', border: '1px solid var(--border)' }}>
           📍 No hay respuestas con coordenadas GPS todavía
         </div>
-      ) : (
-        <div ref={mapRef} style={{ height: 520, borderRadius: 'var(--r2)', border: '1px solid var(--border)', overflow: 'hidden' }} />
       )}
+      <div
+        ref={mapRef}
+        style={{
+          height: 520, width: '100%', position: 'relative',
+          borderRadius: 'var(--r2)', border: '1px solid var(--border)', overflow: 'hidden',
+          display: puntos.length === 0 ? 'none' : 'block',
+        }}
+      />
     </div>
   )
 }
+
 
 /* ── PANTALLA PRINCIPAL ── */
 export default function Reportes() {
@@ -830,8 +1156,9 @@ export default function Reportes() {
   const [modalExport, setModalExport] = useState(false)
   const [exportConfig, setExportConfig] = useState({
     kpis:        true,
-    preguntas:   {},   // { [pregunta_id]: true/false }
+    preguntas:   {},
     cruces:      true,
+    mapa:        true,
     datosCrudos: false,
   })
   const [vistaActiva, setVistaActiva] = useState('dashboard')
@@ -839,6 +1166,7 @@ export default function Reportes() {
   const [sesionesCruce, setSesionesCruce] = useState([])
   const [datosExport,  setDatosExport]  = useState(null)
   const [loadingDatos, setLoadingDatos] = useState(false)
+  const [mapaDatos,    setMapaDatos]    = useState(null)  // {img, titulo, leyenda}
 
   // Filtros
   const [filtroEquipo,      setFiltroEquipo]      = useState('')
@@ -929,7 +1257,7 @@ export default function Reportes() {
   function generarPDF(cfg) {
     if (!data || !selected) return
     setGenerando(true)
-    const pregsFiltradas = (data.preguntas || []).filter(p => cfg.preguntas[p.id])
+    const pregsFiltradas = (data.preguntas || []).filter(p => cfg.preguntas[p.id] !== false)
     const crucesSel = cfg.cruces ? comparaciones : []
     const html = generarHTML(
       data.encuesta || selected,
@@ -939,6 +1267,7 @@ export default function Reportes() {
       crucesSel,
       cfg.datosCrudos ? datosExport : null,
       sesionesCruce,
+      cfg.mapa ? mapaDatos : null,
     )
     const win = window.open('', '_blank')
     win.document.write(html); win.document.close(); win.focus()
@@ -1182,10 +1511,50 @@ export default function Reportes() {
 
                     {/* Vista Mapa */}
                     {vistaActiva === 'mapa' && (
-                      <MapaRespuestas
-                        sesiones={datosExport?.filas || []}
-                        columnas={datosExport?.columnas || []}
-                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {/* Botón exportar mapa separado */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                          {mapaDatos?.img && (
+                            <button onClick={() => {
+                              const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+                              const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Mapa — ${selected?.nombre}</title>
+                              <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;padding:32px;color:#1a1a1a}
+                              .header{border-bottom:3px solid #1a472a;padding-bottom:16px;margin-bottom:24px}
+                              h1{font-size:20px;font-weight:800;color:#1a472a;margin:6px 0 3px}
+                              .meta{font-size:12px;color:#888;margin-top:6px}
+                              @media print{body{padding:16px}img{max-width:100%}}</style>
+                              </head><body>
+                              <div class="header">
+                                <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#1a472a;text-transform:uppercase">METR1KA · Mapa georreferenciado</div>
+                                <h1>${selected?.nombre}</h1>
+                                <div class="meta">📅 ${fecha} · ${(datosExport?.filas||[]).filter(s=>s.lat&&s.lng).length} respuestas con GPS</div>
+                              </div>
+                              <img src="${mapaDatos.img}" style="width:100%;border-radius:8px;border:1px solid #e5e7eb" />
+                              <p style="font-size:10px;color:#bbb;margin-top:16px;text-align:right">METR1KA — metr1ka.com · ${fecha}</p>
+                              </body></html>`
+                              const win = window.open('', '_blank')
+                              win.document.write(html); win.document.close(); win.focus()
+                              setTimeout(() => win.print(), 600)
+                            }} style={{
+                              padding: '8px 16px', background: '#1a472a', color: '#fff', border: 'none',
+                              borderRadius: 'var(--r)', fontFamily: 'DM Sans', fontSize: 12, fontWeight: 700,
+                              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                            }}>
+                              🖨️ Exportar mapa PDF
+                            </button>
+                          )}
+                          {!mapaDatos?.img && (
+                            <span style={{ fontSize: 11, color: 'var(--ink3)', padding: '8px 0' }}>
+                              Cargando mapa...
+                            </span>
+                          )}
+                        </div>
+                        <MapaRespuestas
+                          sesiones={datosExport?.filas || []}
+                          columnas={datosExport?.columnas || []}
+                          onCapturarMapa={(datos) => setMapaDatos(datos)}
+                        />
+                      </div>
                     )}
 
                     {/* Vista Encuestadores */}
@@ -1284,6 +1653,22 @@ export default function Reportes() {
                     <div style={{ fontSize: 11, color: 'var(--ink3)' }}>{comparaciones.length} cruce{comparaciones.length !== 1 ? 's' : ''} configurado{comparaciones.length !== 1 ? 's' : ''} — se exportan como tablas de contingencia</div>
                   </div>
                 </label>
+              )}
+
+              {/* Mapa */}
+              {mapaDatos?.img ? (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={exportConfig.mapa !== false} onChange={e => setExportConfig(p => ({ ...p, mapa: e.target.checked }))}
+                    style={{ width: 16, height: 16, accentColor: 'var(--accent)', cursor: 'pointer' }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>🗺️ Mapa georreferenciado</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink3)' }}>Captura del mapa actual con los filtros y capas aplicados</div>
+                  </div>
+                </label>
+              ) : (
+                <div style={{ fontSize: 11, color: 'var(--ink4)', padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--r)', border: '1px dashed var(--border2)' }}>
+                  💡 Para incluir el mapa, abrí la tab <b>🗺️ Mapa</b> primero y se captura automáticamente
+                </div>
               )}
 
               {/* Datos crudos */}
