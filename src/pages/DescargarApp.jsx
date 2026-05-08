@@ -96,10 +96,21 @@ export default function DescargarApp() {
                   padding: '14px 20px',
                   borderBottom: i < apks.length - 1 ? '1px solid var(--border)' : 'none',
                   display: 'flex', alignItems: 'center', gap: 14,
+                  background: i === 0 ? 'rgba(26,71,42,0.04)' : 'transparent',
                 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', marginBottom: 3 }}>
-                      {apk.name.replace('.apk', '')}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>
+                        {apk.name.replace('.apk', '')}
+                      </span>
+                      {i === 0 && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase',
+                          background: '#1a472a', color: '#fff', borderRadius: 100, padding: '2px 8px',
+                        }}>
+                          Última versión
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--ink3)' }}>
                       {formatSize(apk.metadata?.size)} · {formatFecha(apk.created_at)}
