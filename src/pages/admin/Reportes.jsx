@@ -800,10 +800,10 @@ footer{margin-top:32px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:1
 <div class="header">
   <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#1a472a;text-transform:uppercase">METR1KA · Reporte</div>
   <h1>${encuesta.nombre}</h1>
-  <div class="meta"><span>📅 ${fecha}</span>${resumen?.total_sesiones ? `<span>📊 ${resumen.total_sesiones} respuestas</span>` : ''}</div>
+  <div class="meta"><span>📅 ${fecha}</span>${resumen?.total_participaron ? `<span>📊 ${resumen.total_participaron} respuestas</span>` : ''}</div>
 </div>
 <div class="kpis">
-  <div class="kpi" style="border-top-color:#1a472a"><div class="kpi-v" style="color:#1a472a">${resumen?.total_sesiones||0}</div><div class="kpi-l">Total respuestas</div></div>
+  <div class="kpi" style="border-top-color:#1a472a"><div class="kpi-v" style="color:#1a472a">${resumen?.total_participaron||0}</div><div class="kpi-l">Total respuestas</div></div>
   <div class="kpi" style="border-top-color:#0369a1"><div class="kpi-v" style="color:#0369a1">${resumen?.encuestadores||0}</div><div class="kpi-l">Encuestadores</div></div>
   <div class="kpi" style="border-top-color:#7c3aed"><div class="kpi-v" style="color:#7c3aed">${promedioEscala}</div><div class="kpi-l">Promedio escalas</div></div>
   <div class="kpi" style="border-top-color:#b45309"><div class="kpi-v" style="color:#b45309">${resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—'}</div><div class="kpi-l">Última respuesta</div></div>
@@ -1406,7 +1406,7 @@ export default function Reportes() {
                   <>
                     {/* KPIs */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-                      <KpiCard label="Total respuestas" value={resumen?.total_sesiones||0} color="var(--accent)" icon={<BarChart2 size={12} />} />
+                      <KpiCard label="Total respuestas" value={resumen?.total_participaron||0} color="var(--accent)" icon={<BarChart2 size={12} />} />
                       <KpiCard label="Encuestadores" value={resumen?.encuestadores||0} color="#0369a1" icon={<FileText size={12} />} />
                       <KpiCard label="Promedio escala" value={promedioEscala} color="#7c3aed" icon={<Zap size={12} />} />
                       <KpiCard label="Última respuesta" value={resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—'} color="#b45309" sub="fecha más reciente" />
