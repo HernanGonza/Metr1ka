@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import html2canvas from 'html2canvas'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { Topbar } from '../../components/layout'
@@ -843,18 +844,6 @@ function cargarMarkerCluster() {
   })
 }
 
-// Cargar leaflet-image para captura real del mapa
-function cargarLeafletImage() {
-  return new Promise(resolve => {
-    if (window.leafletImage) return resolve()
-    const script = document.createElement('script')
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet-image/0.4.0/leaflet-image.min.js'
-    script.onload = () => resolve()
-    script.onerror = () => resolve()
-    document.head.appendChild(script)
-  })
-}
-
 function MapaRespuestas({ sesiones, columnas, onCapturarMapa }) {
   const mapRef     = useRef(null)
   const instRef    = useRef(null)
@@ -928,11 +917,9 @@ function MapaRespuestas({ sesiones, columnas, onCapturarMapa }) {
         maxZoom: 19,
       }).addTo(instRef.current)
 
-      // Una vez inicializado, cargar plugins y activar markers
-      Promise.all([
-        loadScript('https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js'),
-        loadScript('https://cdnjs.cloudflare.com/ajax/libs/leaflet-image/0.4.0/leaflet-image.min.js'),
-      ]).then(() => setListo(p => p + 1))
+      // Una vez inicializado, cargar markercluster y activar markers
+      loadScript('https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js')
+        .then(() => setListo(p => p + 1))
 
       ro.disconnect()  // ya no necesitamos observar
     }
@@ -1019,45 +1006,32 @@ function MapaRespuestas({ sesiones, columnas, onCapturarMapa }) {
       mapa.fitBounds(bounds, { padding: [40,40], maxZoom: 16 })
     }
 
-    // Captura del mapa para PDF
+    // Captura del mapa con html2canvas — captura tiles + markers + clusters tal como se ven
     if (onCapturarMapa && todosVisibles.length > 0) {
-      setTimeout(() => {
-        if (window.leafletImage) {
-          window.leafletImage(mapa, (err, canvas) => {
-            if (!err && canvas) {
-              onCapturarMapa({
-                img: canvas.toDataURL('image/png'),
-                titulo: colsFiltro.find(c => c.id === filtroCol)?.texto || '',
-                leyenda: filtroCol ? Object.entries(colorPorValor).map(([v,col]) => ({ valor: v, color: col, cant: grupos[v]?.length || 0 })) : []
-              })
-              return
-            }
-            capturarFallback()
+      setTimeout(async () => {
+        try {
+          mapa.invalidateSize()
+          await new Promise(r => setTimeout(r, 1200))
+          const canvas = await html2canvas(mapRef.current, {
+            useCORS: true,
+            allowTaint: true,
+            logging: false,
+            backgroundColor: '#ffffff',
+            scale: 2,
           })
-        } else { capturarFallback() }
-
-        function capturarFallback() {
-          try {
-            const size = mapa.getSize()
-            const dots = todosVisibles.map(s => {
-              const pt = mapa.latLngToContainerPoint([s.lat, s.lng])
-              const resp = filtroCol ? (s.respuestas?.[filtroCol]||null) : null
-              const col = filtroCol ? (colorPorValor[resp]||'#9ca3af') : '#1a472a'
-              return `<circle cx="${Math.round(pt.x)}" cy="${Math.round(pt.y)}" r="6" fill="${col}" stroke="#fff" stroke-width="2"/>`
-            }).join('')
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.x}" height="${size.y}">
-              <rect width="100%" height="100%" fill="#e8f4e8"/>
-              <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#aaa">${todosVisibles.length} respuestas</text>
-              ${dots}
-            </svg>`
-            onCapturarMapa({
-              img: 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg))),
-              titulo: colsFiltro.find(c => c.id === filtroCol)?.texto || '',
-              leyenda: filtroCol ? Object.entries(colorPorValor).map(([v,col]) => ({ valor: v, color: col, cant: grupos[v]?.length || 0 })) : []
-            })
-          } catch {}
+          onCapturarMapa({
+            img: canvas.toDataURL('image/png'),
+            titulo: colsFiltro.find(col => col.id === filtroCol)?.texto || '',
+            leyenda: filtroCol
+              ? Object.entries(colorPorValor).map(([v, col]) => ({
+                  valor: v, color: col, cant: grupos[v]?.length || 0
+                }))
+              : []
+          })
+        } catch (err) {
+          console.error('captura mapa:', err)
         }
-      }, 1500)
+      }, 1800)
     }
   }, [sesiones, filtroCol, capas, colorPorValor, listo, L])
 
