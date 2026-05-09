@@ -1491,9 +1491,21 @@ export default function Reportes() {
                           {mapaDatos?.img && (
                             <button onClick={() => {
                               const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+                              const leyenda = (mapaDatos.leyenda||[]).filter(l => l.cant > 0)
+                              const leyendaHTML = leyenda.length > 0
+                                ? `<div style="margin:16px 0;display:flex;flex-wrap:wrap;gap:10px">
+                                    ${leyenda.map(l => `<span style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#333">
+                                      <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${l.color};flex-shrink:0"></span>
+                                      <b>${l.valor}</b><span style="color:#999">(${l.cant})</span>
+                                    </span>`).join('')}
+                                  </div>`
+                                : ''
+                              const tituloFiltro = mapaDatos.titulo
+                                ? `<div style="font-size:12px;color:#666;margin-top:8px"><b>Filtro:</b> ${mapaDatos.titulo}</div>`
+                                : ''
                               const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Mapa — ${selected?.nombre}</title>
                               <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;padding:32px;color:#1a1a1a}
-                              .header{border-bottom:3px solid #1a472a;padding-bottom:16px;margin-bottom:24px}
+                              .header{border-bottom:3px solid #1a472a;padding-bottom:16px;margin-bottom:20px}
                               h1{font-size:20px;font-weight:800;color:#1a472a;margin:6px 0 3px}
                               .meta{font-size:12px;color:#888;margin-top:6px}
                               @media print{body{padding:16px}img{max-width:100%}}</style>
@@ -1502,7 +1514,9 @@ export default function Reportes() {
                                 <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#1a472a;text-transform:uppercase">METR1KA · Mapa georreferenciado</div>
                                 <h1>${selected?.nombre}</h1>
                                 <div class="meta">📅 ${fecha} · ${(datosExport?.filas||[]).filter(s=>s.lat&&s.lng).length} respuestas con GPS</div>
+                                ${tituloFiltro}
                               </div>
+                              ${leyendaHTML}
                               <img src="${mapaDatos.img}" style="width:100%;border-radius:8px;border:1px solid #e5e7eb" />
                               <p style="font-size:10px;color:#bbb;margin-top:16px;text-align:right">METR1KA — metr1ka.com · ${fecha}</p>
                               </body></html>`
