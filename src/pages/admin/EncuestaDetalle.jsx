@@ -481,7 +481,7 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
   )
 
   const kpis = [
-    { label: 'Respuestas',       value: resumen?.total_sesiones   || 0, color: 'var(--accent)',  border: '#1a472a' },
+    { label: 'Respuestas',       value: resumen?.total_participaron   || 0, color: 'var(--accent)',  border: '#1a472a' },
     { label: 'Encuestadores',    value: resumen?.encuestadores    || 0, color: '#0369a1',         border: '#0369a1' },
     { label: 'Equipos activos',  value: resumen?.equipos          || 0, color: '#7c3aed',         border: '#7c3aed' },
     { label: 'Última respuesta', value: resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—', color: '#b45309', border: '#b45309' },
