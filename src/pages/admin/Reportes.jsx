@@ -159,7 +159,193 @@ function MatrizTabla({ pregunta, filas, color }) {
   )
 }
 
-function PorPregunta({ preguntas, respuestasMap }) {
+/* ── Clasificación manual de preguntas de texto libre ── */
+function TextoLibreClasificado({ pregunta, filas, color, encuestaId }) {
+  const [categorias, setCategorias]     = useState([])
+  const [loading, setLoading]           = useState(true)
+  const [nuevaCat, setNuevaCat]         = useState('')
+  const [nuevaCant, setNuevaCant]       = useState('')
+  const [editando, setEditando]         = useState(null)
+  const [saving, setSaving]             = useState(false)
+  const [mostrarRespuestas, setMostrarRespuestas] = useState(false)
+  const chartRef  = useRef(null)
+  const chartInst = useRef(null)
+
+  const textos           = filas.filter(f => f.valor_texto?.trim())
+  const totalClasificado = categorias.reduce((s, c) => s + c.cantidad, 0)
+  const totalRespuestas  = textos.length
+
+  useEffect(() => {
+    if (!encuestaId || !pregunta?.id) return
+    supabase
+      .from('clasificaciones_texto_libre')
+      .select('*')
+      .eq('encuesta_id', encuestaId)
+      .eq('pregunta_id', pregunta.id)
+      .order('orden')
+      .then(({ data }) => { setCategorias(data || []); setLoading(false) })
+  }, [encuestaId, pregunta?.id])
+
+  // Dibujar gráfico de barras horizontales con Chart.js nativo
+  useEffect(() => {
+    if (!chartRef.current || !categorias.length) return
+    if (chartInst.current) { chartInst.current.destroy(); chartInst.current = null }
+
+    const sorted = [...categorias].sort((a, b) => b.cantidad - a.cantidad)
+    const PALETA_BAR = ['#1a472a','#0369a1','#7c3aed','#b45309','#be185d','#047857','#dc2626','#d97706']
+
+    chartInst.current = new Chart(chartRef.current, {
+      type: 'bar',
+      data: {
+        labels: sorted.map(c => c.categoria),
+        datasets: [{
+          data: sorted.map(c => c.cantidad),
+          backgroundColor: sorted.map((_, i) => PALETA_BAR[i % PALETA_BAR.length] + 'cc'),
+          borderRadius: 6,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const pct = totalClasificado > 0 ? Math.round(ctx.parsed.x / totalClasificado * 100) : 0
+                return ` ${ctx.parsed.x} respuestas (${pct}%)`
+              }
+            }
+          }
+        },
+        scales: {
+          x: { beginAtZero: true, grid: { color: '#f0f0f0' }, ticks: { stepSize: 1, font: { family: 'DM Sans', size: 11 } } },
+          y: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 12 } } },
+        }
+      }
+    })
+    return () => { if (chartInst.current) { chartInst.current.destroy(); chartInst.current = null } }
+  }, [categorias, totalClasificado])
+
+  async function agregarCategoria() {
+    const cat  = nuevaCat.trim()
+    const cant = parseInt(nuevaCant)
+    if (!cat || isNaN(cant) || cant < 0) return
+    setSaving(true)
+    const { data, error } = await supabase
+      .from('clasificaciones_texto_libre')
+      .upsert({
+        encuesta_id: encuestaId,
+        pregunta_id: pregunta.id,
+        categoria: cat,
+        cantidad: cant,
+        orden: categorias.length,
+      }, { onConflict: 'encuesta_id,pregunta_id,categoria' })
+      .select().single()
+    if (!error && data) {
+      setCategorias(prev => {
+        const exists = prev.findIndex(c => c.id === data.id)
+        return exists >= 0 ? prev.map(c => c.id === data.id ? data : c) : [...prev, data]
+      })
+      setNuevaCat(''); setNuevaCant('')
+    }
+    setSaving(false)
+  }
+
+  async function actualizarCategoria(id, campo, valor) {
+    const update = { [campo]: campo === 'cantidad' ? parseInt(valor) || 0 : valor }
+    setCategorias(prev => prev.map(c => c.id === id ? { ...c, ...update } : c))
+    await supabase.from('clasificaciones_texto_libre').update(update).eq('id', id)
+  }
+
+  async function eliminarCategoria(id) {
+    setCategorias(prev => prev.filter(c => c.id !== id))
+    await supabase.from('clasificaciones_texto_libre').delete().eq('id', id)
+  }
+
+  if (loading) return <div style={{ padding: '12px 0', color: 'var(--ink3)', fontSize: 13 }}>Cargando...</div>
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+      {/* Gráfico */}
+      {categorias.length > 0 && (
+        <div style={{ height: Math.max(120, categorias.length * 44) }}>
+          <canvas ref={chartRef} />
+        </div>
+      )}
+
+      {/* Chips de categorías */}
+      {categorias.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {[...categorias].sort((a,b) => b.cantidad - a.cantidad).map(c => {
+            const pct = totalClasificado > 0 ? Math.round(c.cantidad / totalClasificado * 100) : 0
+            return (
+              <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 100, background: `${color}12`, border: `1.5px solid ${color}40` }}>
+                {editando === c.id ? (
+                  <>
+                    <input defaultValue={c.categoria} autoFocus
+                      onBlur={e => { actualizarCategoria(c.id, 'categoria', e.target.value); setEditando(null) }}
+                      style={{ border: 'none', background: 'transparent', fontSize: 12, fontWeight: 700, color, outline: 'none', width: 120 }} />
+                    <input defaultValue={c.cantidad} type="number" min="0"
+                      onBlur={e => { actualizarCategoria(c.id, 'cantidad', e.target.value); setEditando(null) }}
+                      style={{ border: 'none', background: 'transparent', fontSize: 12, fontWeight: 800, color, outline: 'none', width: 40, textAlign: 'right' }} />
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 12, fontWeight: 700, color }}>{c.categoria}</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color, fontFamily: 'Syne' }}>{c.cantidad}</span>
+                    <span style={{ fontSize: 10, color: `${color}99` }}>{pct}%</span>
+                    <button onClick={() => setEditando(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: `${color}88`, fontSize: 11, padding: '0 2px' }}>✏️</button>
+                    <button onClick={() => eliminarCategoria(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef444488', fontSize: 12, padding: '0 2px', lineHeight: 1 }}>×</button>
+                  </>
+                )}
+              </div>
+            )
+          })}
+          <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{totalClasificado} clasificadas · {totalRespuestas} total</span>
+        </div>
+      )}
+
+      {/* Formulario agregar categoría */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input value={nuevaCat} onChange={e => setNuevaCat(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && agregarCategoria()}
+          placeholder="Categoría (ej. Empleo)"
+          style={{ flex: 1, minWidth: 180, padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', outline: 'none', background: 'var(--surface)' }} />
+        <input value={nuevaCant} onChange={e => setNuevaCant(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && agregarCategoria()}
+          placeholder="Cantidad" type="number" min="0"
+          style={{ width: 90, padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', outline: 'none', background: 'var(--surface)' }} />
+        <button onClick={agregarCategoria} disabled={saving || !nuevaCat.trim() || !nuevaCant}
+          style={{ padding: '7px 16px', background: color, color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', opacity: (!nuevaCat.trim() || !nuevaCant) ? 0.5 : 1 }}>
+          {saving ? '...' : '+ Agregar'}
+        </button>
+      </div>
+
+      {/* Respuestas originales colapsables */}
+      <div>
+        <button onClick={() => setMostrarRespuestas(p => !p)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--ink3)', fontFamily: 'DM Sans', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+          {mostrarRespuestas ? '▾' : '▸'} Ver {totalRespuestas} respuestas originales
+        </button>
+        {mostrarRespuestas && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 220, overflowY: 'auto', marginTop: 8 }}>
+            {textos.map((f, j) => (
+              <div key={j} style={{ fontSize: 12, padding: '6px 10px', background: 'var(--surface)', borderRadius: 'var(--r)', borderLeft: `3px solid ${color}`, color: 'var(--ink2)' }}>
+                "{f.valor_texto}"
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PorPregunta({ preguntas, respuestasMap, encuestaId }) {
   const [tiposGrafico, setTiposGrafico] = useState({})
 
   function setTipo(pregId, tipo) {
@@ -205,13 +391,12 @@ function PorPregunta({ preguntas, respuestasMap }) {
               )}
             </div>
             {p.tipo === 'texto_libre' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                {(respuestasMap[p.id] || []).filter(f => f.valor_texto?.trim()).map((f, j) => (
-                  <div key={j} style={{ fontSize: 13, padding: '8px 12px', background: 'var(--surface)', borderRadius: 'var(--r)', borderLeft: `3px solid ${PALETA[i%PALETA.length]}`, color: 'var(--ink2)' }}>
-                    "{f.valor_texto}"
-                  </div>
-                ))}
-              </div>
+              <TextoLibreClasificado
+                pregunta={p}
+                filas={respuestasMap[p.id] || []}
+                color={PALETA[i % PALETA.length]}
+                encuestaId={encuestaId}
+              />
             ) : p.tipo === 'matriz' ? (
               <MatrizTabla pregunta={p} filas={respuestasMap[p.id] || []} color={PALETA[i % PALETA.length]} />
             ) : (
@@ -1448,7 +1633,7 @@ export default function Reportes() {
 
                     {/* Vista Preguntas — todas */}
                     {vistaActiva === 'preguntas' && (
-                      <PorPregunta preguntas={preguntas} respuestasMap={respuestasMap} />
+                      <PorPregunta preguntas={preguntas} respuestasMap={respuestasMap} encuestaId={selected?.id} />
                     )}
 
                     {/* Vista Cruzar datos */}
