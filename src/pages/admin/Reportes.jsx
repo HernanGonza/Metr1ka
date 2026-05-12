@@ -1319,12 +1319,14 @@ export default function Reportes() {
   const [filtroHasta,       setFiltroHasta]       = useState('')
   const [filtrosAbiertos,   setFiltrosAbiertos]   = useState(false)
 
+  const [vistaCompletadas, setVistaCompletadas] = useState(false)
+
   useEffect(() => {
     if (!perfil?.organizacion_id) return
     supabase.from('encuestas')
       .select('id, nombre, descripcion, estado_produccion, creado_en')
       .eq('organizacion_id', perfil.organizacion_id)
-      .eq('estado_produccion', 'publicada')
+      .in('estado_produccion', ['publicada', 'completada'])
       .order('creado_en', { ascending: false })
       .then(({ data }) => { setEncuestas(data || []); setLoading(false) })
   }, [perfil?.organizacion_id])
@@ -1505,10 +1507,28 @@ export default function Reportes() {
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>
                   Seleccioná una encuesta para ver sus reportes
                 </div>
-                {encuestas.map(enc => (
+
+                {/* Pestañas activas/completadas */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+                  <button onClick={() => setVistaCompletadas(false)}
+                    style={{ padding: '5px 14px', borderRadius: 100, fontSize: 12, fontWeight: 700, fontFamily: 'DM Sans', cursor: 'pointer', border: `1.5px solid ${!vistaCompletadas ? 'var(--accent)' : 'var(--border2)'}`, background: !vistaCompletadas ? 'var(--accent-light)' : 'var(--surface)', color: !vistaCompletadas ? 'var(--accent)' : 'var(--ink3)' }}>
+                    Activas <span style={{ fontWeight: 400 }}>({encuestas.filter(e => e.estado_produccion === 'publicada').length})</span>
+                  </button>
+                  <button onClick={() => setVistaCompletadas(true)}
+                    style={{ padding: '5px 14px', borderRadius: 100, fontSize: 12, fontWeight: 700, fontFamily: 'DM Sans', cursor: 'pointer', border: `1.5px solid ${vistaCompletadas ? 'var(--accent)' : 'var(--border2)'}`, background: vistaCompletadas ? 'var(--accent-light)' : 'var(--surface)', color: vistaCompletadas ? 'var(--accent)' : 'var(--ink3)' }}>
+                    ✓ Completadas <span style={{ fontWeight: 400 }}>({encuestas.filter(e => e.estado_produccion === 'completada').length})</span>
+                  </button>
+                </div>
+
+                {encuestas.filter(e => vistaCompletadas ? e.estado_produccion === 'completada' : e.estado_produccion === 'publicada').map(enc => (
                   <div key={enc.id} style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', marginBottom: 3 }}>{enc.nombre}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>{enc.nombre}</div>
+                        {enc.estado_produccion === 'completada' && (
+                          <span style={{ fontSize: 10, fontWeight: 700, background: '#f3f4f6', color: '#374151', padding: '2px 7px', borderRadius: 100 }}>✓ Completada</span>
+                        )}
+                      </div>
                       {enc.descripcion && <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>{enc.descripcion}</div>}
                       <div style={{ fontSize: 11, color: 'var(--ink3)' }}>Creada {new Date(enc.creado_en).toLocaleDateString('es-AR')}</div>
                     </div>

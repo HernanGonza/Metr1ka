@@ -805,7 +805,7 @@ export default function EncuestaDetalle() {
       />
       <div className={styles.content}>
         {error && <div style={{ padding: '10px 16px', background: 'var(--danger-light)', border: '1px solid #fca5a5', borderRadius: 'var(--r)', fontSize: 13, color: '#c0392b', marginBottom: 12 }}>Error: {error}</div>}
-        {encuesta.estado_produccion === 'publicada'
+        {['publicada', 'completada'].includes(encuesta.estado_produccion)
           ? <VistaResultados preguntas={preguntas} resumen={resumen} respuestas={respuestas}
               encuestadores={encuestadores} equipos={equipos} filtros={filtros}
               onFiltroChange={handleFiltroChange} loadingR={loadingR} />
