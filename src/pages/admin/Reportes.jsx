@@ -161,65 +161,40 @@ function MatrizTabla({ pregunta, filas, color }) {
 
 /* ── Clasificación manual de preguntas de texto libre ── */
 function TextoLibreClasificado({ pregunta, filas, color, encuestaId }) {
-  const [categorias, setCategorias]     = useState([])
-  const [loading, setLoading]           = useState(true)
-  const [nuevaCat, setNuevaCat]         = useState('')
-  const [nuevaCant, setNuevaCant]       = useState('')
-  const [editando, setEditando]         = useState(null)
-  const [saving, setSaving]             = useState(false)
-  const [mostrarRespuestas, setMostrarRespuestas] = useState(false)
+  const [categorias, setCategorias]   = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [nuevaCat, setNuevaCat]       = useState('')
+  const [nuevaCant, setNuevaCant]     = useState('')
+  const [editando, setEditando]       = useState(null)
+  const [saving, setSaving]           = useState(false)
+  const [mostrarResp, setMostrarResp] = useState(false)
   const chartRef  = useRef(null)
   const chartInst = useRef(null)
 
   const textos           = filas.filter(f => f.valor_texto?.trim())
   const totalClasificado = categorias.reduce((s, c) => s + c.cantidad, 0)
-  const totalRespuestas  = textos.length
 
   useEffect(() => {
     if (!encuestaId || !pregunta?.id) return
-    supabase
-      .from('clasificaciones_texto_libre')
-      .select('*')
-      .eq('encuesta_id', encuestaId)
-      .eq('pregunta_id', pregunta.id)
-      .order('orden')
+    supabase.from('clasificaciones_texto_libre').select('*')
+      .eq('encuesta_id', encuestaId).eq('pregunta_id', pregunta.id).order('orden')
       .then(({ data }) => { setCategorias(data || []); setLoading(false) })
   }, [encuestaId, pregunta?.id])
 
-  // Dibujar gráfico de barras horizontales con Chart.js nativo
   useEffect(() => {
     if (!chartRef.current || !categorias.length) return
     if (chartInst.current) { chartInst.current.destroy(); chartInst.current = null }
-
     const sorted = [...categorias].sort((a, b) => b.cantidad - a.cantidad)
-    const PALETA_BAR = ['#1a472a','#0369a1','#7c3aed','#b45309','#be185d','#047857','#dc2626','#d97706']
-
+    const COLS = ['#1a472a','#0369a1','#7c3aed','#b45309','#be185d','#047857','#dc2626','#d97706']
     chartInst.current = new Chart(chartRef.current, {
       type: 'bar',
       data: {
         labels: sorted.map(c => c.categoria),
-        datasets: [{
-          data: sorted.map(c => c.cantidad),
-          backgroundColor: sorted.map((_, i) => PALETA_BAR[i % PALETA_BAR.length] + 'cc'),
-          borderRadius: 6,
-          borderSkipped: false,
-        }]
+        datasets: [{ data: sorted.map(c => c.cantidad), backgroundColor: sorted.map((_,i) => COLS[i%COLS.length]+'cc'), borderRadius: 6, borderSkipped: false }]
       },
       options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: ctx => {
-                const pct = totalClasificado > 0 ? Math.round(ctx.parsed.x / totalClasificado * 100) : 0
-                return ` ${ctx.parsed.x} respuestas (${pct}%)`
-              }
-            }
-          }
-        },
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => { const pct = totalClasificado > 0 ? Math.round(ctx.parsed.x/totalClasificado*100) : 0; return ` ${ctx.parsed.x} (${pct}%)` } } } },
         scales: {
           x: { beginAtZero: true, grid: { color: '#f0f0f0' }, ticks: { stepSize: 1, font: { family: 'DM Sans', size: 11 } } },
           y: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 12 } } },
@@ -229,38 +204,27 @@ function TextoLibreClasificado({ pregunta, filas, color, encuestaId }) {
     return () => { if (chartInst.current) { chartInst.current.destroy(); chartInst.current = null } }
   }, [categorias, totalClasificado])
 
-  async function agregarCategoria() {
-    const cat  = nuevaCat.trim()
-    const cant = parseInt(nuevaCant)
+  async function agregar() {
+    const cat = nuevaCat.trim(); const cant = parseInt(nuevaCant)
     if (!cat || isNaN(cant) || cant < 0) return
     setSaving(true)
-    const { data, error } = await supabase
-      .from('clasificaciones_texto_libre')
-      .upsert({
-        encuesta_id: encuestaId,
-        pregunta_id: pregunta.id,
-        categoria: cat,
-        cantidad: cant,
-        orden: categorias.length,
-      }, { onConflict: 'encuesta_id,pregunta_id,categoria' })
+    const { data, error } = await supabase.from('clasificaciones_texto_libre')
+      .upsert({ encuesta_id: encuestaId, pregunta_id: pregunta.id, categoria: cat, cantidad: cant, orden: categorias.length }, { onConflict: 'encuesta_id,pregunta_id,categoria' })
       .select().single()
     if (!error && data) {
-      setCategorias(prev => {
-        const exists = prev.findIndex(c => c.id === data.id)
-        return exists >= 0 ? prev.map(c => c.id === data.id ? data : c) : [...prev, data]
-      })
+      setCategorias(prev => { const e = prev.findIndex(c => c.id === data.id); return e >= 0 ? prev.map(c => c.id === data.id ? data : c) : [...prev, data] })
       setNuevaCat(''); setNuevaCant('')
     }
     setSaving(false)
   }
 
-  async function actualizarCategoria(id, campo, valor) {
+  async function actualizar(id, campo, valor) {
     const update = { [campo]: campo === 'cantidad' ? parseInt(valor) || 0 : valor }
     setCategorias(prev => prev.map(c => c.id === id ? { ...c, ...update } : c))
     await supabase.from('clasificaciones_texto_libre').update(update).eq('id', id)
   }
 
-  async function eliminarCategoria(id) {
+  async function eliminar(id) {
     setCategorias(prev => prev.filter(c => c.id !== id))
     await supabase.from('clasificaciones_texto_libre').delete().eq('id', id)
   }
@@ -269,15 +233,13 @@ function TextoLibreClasificado({ pregunta, filas, color, encuestaId }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
       {/* Gráfico */}
       {categorias.length > 0 && (
         <div style={{ height: Math.max(120, categorias.length * 44) }}>
           <canvas ref={chartRef} />
         </div>
       )}
-
-      {/* Chips de categorías */}
+      {/* Chips */}
       {categorias.length > 0 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {[...categorias].sort((a,b) => b.cantidad - a.cantidad).map(c => {
@@ -286,12 +248,8 @@ function TextoLibreClasificado({ pregunta, filas, color, encuestaId }) {
               <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 100, background: `${color}12`, border: `1.5px solid ${color}40` }}>
                 {editando === c.id ? (
                   <>
-                    <input defaultValue={c.categoria} autoFocus
-                      onBlur={e => { actualizarCategoria(c.id, 'categoria', e.target.value); setEditando(null) }}
-                      style={{ border: 'none', background: 'transparent', fontSize: 12, fontWeight: 700, color, outline: 'none', width: 120 }} />
-                    <input defaultValue={c.cantidad} type="number" min="0"
-                      onBlur={e => { actualizarCategoria(c.id, 'cantidad', e.target.value); setEditando(null) }}
-                      style={{ border: 'none', background: 'transparent', fontSize: 12, fontWeight: 800, color, outline: 'none', width: 40, textAlign: 'right' }} />
+                    <input defaultValue={c.categoria} autoFocus onBlur={e => { actualizar(c.id, 'categoria', e.target.value); setEditando(null) }} style={{ border: 'none', background: 'transparent', fontSize: 12, fontWeight: 700, color, outline: 'none', width: 120 }} />
+                    <input defaultValue={c.cantidad} type="number" min="0" onBlur={e => { actualizar(c.id, 'cantidad', e.target.value); setEditando(null) }} style={{ border: 'none', background: 'transparent', fontSize: 12, fontWeight: 800, color, outline: 'none', width: 40, textAlign: 'right' }} />
                   </>
                 ) : (
                   <>
@@ -299,39 +257,29 @@ function TextoLibreClasificado({ pregunta, filas, color, encuestaId }) {
                     <span style={{ fontSize: 14, fontWeight: 800, color, fontFamily: 'Syne' }}>{c.cantidad}</span>
                     <span style={{ fontSize: 10, color: `${color}99` }}>{pct}%</span>
                     <button onClick={() => setEditando(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: `${color}88`, fontSize: 11, padding: '0 2px' }}>✏️</button>
-                    <button onClick={() => eliminarCategoria(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef444488', fontSize: 12, padding: '0 2px', lineHeight: 1 }}>×</button>
+                    <button onClick={() => eliminar(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef444488', fontSize: 12, padding: '0 2px', lineHeight: 1 }}>×</button>
                   </>
                 )}
               </div>
             )
           })}
-          <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{totalClasificado} clasificadas · {totalRespuestas} total</span>
+          <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{totalClasificado} clasificadas · {textos.length} total</span>
         </div>
       )}
-
-      {/* Formulario agregar categoría */}
+      {/* Formulario */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input value={nuevaCat} onChange={e => setNuevaCat(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && agregarCategoria()}
-          placeholder="Categoría (ej. Empleo)"
-          style={{ flex: 1, minWidth: 180, padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', outline: 'none', background: 'var(--surface)' }} />
-        <input value={nuevaCant} onChange={e => setNuevaCant(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && agregarCategoria()}
-          placeholder="Cantidad" type="number" min="0"
-          style={{ width: 90, padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', outline: 'none', background: 'var(--surface)' }} />
-        <button onClick={agregarCategoria} disabled={saving || !nuevaCat.trim() || !nuevaCant}
-          style={{ padding: '7px 16px', background: color, color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', opacity: (!nuevaCat.trim() || !nuevaCant) ? 0.5 : 1 }}>
+        <input value={nuevaCat} onChange={e => setNuevaCat(e.target.value)} onKeyDown={e => e.key === 'Enter' && agregar()} placeholder="Categoría (ej. Empleo)" style={{ flex: 1, minWidth: 180, padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', outline: 'none', background: 'var(--surface)' }} />
+        <input value={nuevaCant} onChange={e => setNuevaCant(e.target.value)} onKeyDown={e => e.key === 'Enter' && agregar()} placeholder="Cantidad" type="number" min="0" style={{ width: 90, padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', outline: 'none', background: 'var(--surface)' }} />
+        <button onClick={agregar} disabled={saving || !nuevaCat.trim() || !nuevaCant} style={{ padding: '7px 16px', background: color, color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', opacity: (!nuevaCat.trim() || !nuevaCant) ? 0.5 : 1 }}>
           {saving ? '...' : '+ Agregar'}
         </button>
       </div>
-
-      {/* Respuestas originales colapsables */}
+      {/* Respuestas originales */}
       <div>
-        <button onClick={() => setMostrarRespuestas(p => !p)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--ink3)', fontFamily: 'DM Sans', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-          {mostrarRespuestas ? '▾' : '▸'} Ver {totalRespuestas} respuestas originales
+        <button onClick={() => setMostrarResp(p => !p)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--ink3)', fontFamily: 'DM Sans', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+          {mostrarResp ? '▾' : '▸'} Ver {textos.length} respuestas originales
         </button>
-        {mostrarRespuestas && (
+        {mostrarResp && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 220, overflowY: 'auto', marginTop: 8 }}>
             {textos.map((f, j) => (
               <div key={j} style={{ fontSize: 12, padding: '6px 10px', background: 'var(--surface)', borderRadius: 'var(--r)', borderLeft: `3px solid ${color}`, color: 'var(--ink2)' }}>
@@ -749,7 +697,7 @@ function KpiCard({ label, value, sub, color, icon }) {
 }
 
 /* ── Exportar HTML/PDF ── */
-function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrudos, sesiones, mapaImgSrc) {
+function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrudos, sesiones, mapaImgSrc, cfg, clasificaciones) {
   const filasPorPregunta = {}
   preguntas.forEach(p => { filasPorPregunta[String(p.id)] = [] })
   respuestas.forEach(f => { if (filasPorPregunta[String(f.pregunta_id)]) filasPorPregunta[String(f.pregunta_id)].push(f) })
@@ -771,6 +719,38 @@ function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrud
 
     // ── Texto libre ──
     if (p.tipo === 'texto_libre') {
+      const clases = (clasificaciones || []).filter(c => c.pregunta_id === p.id)
+      if (clases.length > 0) {
+        // Mostrar gráfico de barras SVG + tabla de categorías
+        const sorted = [...clases].sort((a, b) => b.cantidad - a.cantidad)
+        const totalClasif = sorted.reduce((s, c) => s + c.cantidad, 0)
+        const maxVal = sorted[0]?.cantidad || 1
+        const COLS = ['#1a472a','#0369a1','#7c3aed','#b45309','#be185d','#047857','#dc2626','#d97706']
+        const barH = 28
+        const barGap = 8
+        const chartH = sorted.length * (barH + barGap)
+        const chartW = 480
+        const labelW = 160
+        const barMaxW = chartW - labelW - 60
+
+        const bars = sorted.map((c, i) => {
+          const col = COLS[i % COLS.length]
+          const pct = totalClasif > 0 ? Math.round(c.cantidad / totalClasif * 100) : 0
+          const bw = Math.round(c.cantidad / maxVal * barMaxW)
+          const y = i * (barH + barGap)
+          const label = c.categoria.length > 22 ? c.categoria.slice(0,21)+'…' : c.categoria
+          return `
+            <text x="${labelW - 6}" y="${y + barH/2 + 4}" text-anchor="end" font-family="sans-serif" font-size="11" fill="#444">${label}</text>
+            <rect x="${labelW}" y="${y}" width="${bw}" height="${barH}" fill="${col}" rx="3"/>
+            <text x="${labelW + bw + 6}" y="${y + barH/2 + 4}" font-family="sans-serif" font-size="11" fill="#555" font-weight="600">${c.cantidad} <tspan fill="#999" font-weight="400">${pct}%</tspan></text>
+          `
+        }).join('')
+
+        return `<div class="preg"><div class="preg-h" style="border-color:${color}"><b>${p.texto}</b> <span class="badge">Texto libre · ${filas.length} resp. · ${clases.length} categorías</span></div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="${chartW}" height="${chartH}" style="overflow:visible;margin-bottom:8px">${bars}</svg>
+        </div>`
+      }
+      // Sin clasificaciones: mostrar lista de respuestas
       const textos = filas.filter(f => f.valor_texto?.trim()).slice(0, 8)
       return `<div class="preg"><div class="preg-h" style="border-color:${color}"><b>${p.texto}</b> <span class="badge">Texto libre · ${filas.length} resp.</span></div>${textos.map(f => `<div class="txt" style="border-color:${color}">"${f.valor_texto}"</div>`).join('')}${filas.length > 8 ? `<p style="font-size:10px;color:#999;margin-top:6px">... y ${filas.length - 8} respuestas más</p>` : ''}</div>`
     }
@@ -980,17 +960,18 @@ table td,table th{border:1px solid #e5e7eb;padding:6px 8px;text-align:left}
 footer{margin-top:32px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#bbb;display:flex;justify-content:space-between}
 @media print{body{padding:20px}.preg{page-break-inside:avoid}img{max-width:100%!important}}`
 
-  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte — ${encuesta.nombre}</title>
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte — ${cfg?.titulo || encuesta.nombre}</title>
 <style>${css}</style></head><body>
 <div class="header">
   <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#1a472a;text-transform:uppercase">METR1KA · Reporte</div>
-  <h1>${encuesta.nombre}</h1>
-  <div class="meta"><span>📅 ${fecha}</span>${resumen?.total_participaron ? `<span>📊 ${resumen.total_participaron} respuestas</span>` : ''}</div>
+  <h1>${cfg?.titulo || encuesta.nombre}</h1>
+  ${cfg?.subtitulo ? `<div style="font-size:14px;color:#555;margin-top:4px;font-weight:500">${cfg.subtitulo}</div>` : ''}
+  <div class="meta"><span>📅 ${fecha}</span>${resumen?.total_participaron ? `<span>📊 ${resumen.total_participaron} respuestas</span>` : ''}${cfg?.poblacion ? `<span>👥 Población: ${Number(cfg.poblacion).toLocaleString('es-AR')}</span>` : ''}${cfg?.electores ? `<span>🗳️ Electores: ${Number(cfg.electores).toLocaleString('es-AR')}</span>` : ''}</div>
 </div>
 <div class="kpis">
   <div class="kpi" style="border-top-color:#1a472a"><div class="kpi-v" style="color:#1a472a">${resumen?.total_participaron||0}</div><div class="kpi-l">Total respuestas</div></div>
-  <div class="kpi" style="border-top-color:#0369a1"><div class="kpi-v" style="color:#0369a1">${resumen?.encuestadores||0}</div><div class="kpi-l">Encuestadores</div></div>
-  <div class="kpi" style="border-top-color:#7c3aed"><div class="kpi-v" style="color:#7c3aed">${promedioEscala}</div><div class="kpi-l">Promedio escalas</div></div>
+  <div class="kpi" style="border-top-color:#ef4444"><div class="kpi-v" style="color:#ef4444">${resumen?.total_no_respondieron||0}</div><div class="kpi-l">No respondieron</div></div>
+  <div class="kpi" style="border-top-color:#7c3aed"><div class="kpi-v" style="color:#7c3aed">${(resumen?.total_participaron||0)+(resumen?.total_no_respondieron||0)}</div><div class="kpi-l">Total sesiones</div></div>
   <div class="kpi" style="border-top-color:#b45309"><div class="kpi-v" style="color:#b45309">${resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—'}</div><div class="kpi-l">Última respuesta</div></div>
 </div>
 <div class="sec">Resultados por pregunta</div>
@@ -1319,6 +1300,10 @@ export default function Reportes() {
     cruces:      true,
     mapa:        true,
     datosCrudos: false,
+    titulo:      '',
+    subtitulo:   '',
+    poblacion:   '',
+    electores:   '',
   })
   const [vistaActiva, setVistaActiva] = useState('dashboard')
   const [comparaciones, setComparaciones] = useState([{ id: 1 }])
@@ -1413,24 +1398,42 @@ export default function Reportes() {
     setData(d); setLoadingEnc(false)
   }
 
-  function generarPDF(cfg) {
+  async function generarPDF(cfg) {
     if (!data || !selected) return
     setGenerando(true)
-    const pregsFiltradas = (data.preguntas || []).filter(p => cfg.preguntas[p.id] !== false)
-    const crucesSel = cfg.cruces ? comparaciones : []
-    const html = generarHTML(
-      data.encuesta || selected,
-      pregsFiltradas,
-      data.respuestas || [],
-      cfg.kpis ? (data.resumen || null) : null,
-      crucesSel,
-      cfg.datosCrudos ? datosExport : null,
-      sesionesCruce,
-      cfg.mapa ? mapaDatos : null,
-    )
-    const win = window.open('', '_blank')
-    win.document.write(html); win.document.close(); win.focus()
-    setTimeout(() => { win.print(); setGenerando(false); setModalExport(false) }, 600)
+    try {
+      // Cargar clasificaciones de texto libre para esta encuesta
+      const preguntasLibres = (data.preguntas || []).filter(p => p.tipo === 'texto_libre')
+      let clasificaciones = []
+      if (preguntasLibres.length > 0) {
+        const { data: clases } = await supabase
+          .from('clasificaciones_texto_libre')
+          .select('*')
+          .eq('encuesta_id', selected.id)
+        clasificaciones = clases || []
+      }
+
+      const pregsFiltradas = (data.preguntas || []).filter(p => cfg.preguntas[p.id] !== false)
+      const crucesSel = cfg.cruces ? comparaciones : []
+      const html = generarHTML(
+        data.encuesta || selected,
+        pregsFiltradas,
+        data.respuestas || [],
+        cfg.kpis ? (data.resumen || null) : null,
+        crucesSel,
+        cfg.datosCrudos ? datosExport : null,
+        sesionesCruce,
+        cfg.mapa ? mapaDatos : null,
+        cfg,
+        clasificaciones,
+      )
+      const win = window.open('', '_blank')
+      win.document.write(html); win.document.close(); win.focus()
+      setTimeout(() => { win.print(); setGenerando(false); setModalExport(false) }, 600)
+    } catch (e) {
+      console.error('generarPDF:', e)
+      setGenerando(false)
+    }
   }
 
   const preguntas = data?.preguntas || []
@@ -1592,8 +1595,8 @@ export default function Reportes() {
                     {/* KPIs */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
                       <KpiCard label="Total respuestas" value={resumen?.total_participaron||0} color="var(--accent)" icon={<BarChart2 size={12} />} />
-                      <KpiCard label="Encuestadores" value={resumen?.encuestadores||0} color="#0369a1" icon={<FileText size={12} />} />
-                      <KpiCard label="Promedio escala" value={promedioEscala} color="#7c3aed" icon={<Zap size={12} />} />
+                      <KpiCard label="No respondieron" value={resumen?.total_no_respondieron||0} color="#ef4444" icon={<FileText size={12} />} />
+                      <KpiCard label="Total sesiones" value={(resumen?.total_participaron||0) + (resumen?.total_no_respondieron||0)} color="#7c3aed" icon={<Zap size={12} />} />
                       <KpiCard label="Última respuesta" value={resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—'} color="#b45309" sub="fecha más reciente" />
                     </div>
 
@@ -1774,6 +1777,52 @@ export default function Reportes() {
             </div>
 
             <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Título y datos del municipio */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>Encabezado del reporte</div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: 4 }}>Título</label>
+                  <input
+                    value={exportConfig.titulo}
+                    onChange={e => setExportConfig(p => ({ ...p, titulo: e.target.value }))}
+                    placeholder={selected?.nombre || 'Título del reporte'}
+                    style={{ width: '100%', padding: '8px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', outline: 'none', background: 'var(--surface)', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: 4 }}>Subtítulo</label>
+                  <input
+                    value={exportConfig.subtitulo}
+                    onChange={e => setExportConfig(p => ({ ...p, subtitulo: e.target.value }))}
+                    placeholder="Ej: Encuesta de Humor Social — Mayo 2026"
+                    style={{ width: '100%', padding: '8px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', outline: 'none', background: 'var(--surface)', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: 4 }}>👥 Población</label>
+                    <input
+                      type="number"
+                      value={exportConfig.poblacion}
+                      onChange={e => setExportConfig(p => ({ ...p, poblacion: e.target.value }))}
+                      placeholder="Ej: 4048"
+                      style={{ width: '100%', padding: '8px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', outline: 'none', background: 'var(--surface)', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: 4 }}>🗳️ Electores</label>
+                    <input
+                      type="number"
+                      value={exportConfig.electores}
+                      onChange={e => setExportConfig(p => ({ ...p, electores: e.target.value }))}
+                      placeholder="Ej: 3226"
+                      style={{ width: '100%', padding: '8px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', outline: 'none', background: 'var(--surface)', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* KPIs */}
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                 <input type="checkbox" checked={exportConfig.kpis} onChange={e => setExportConfig(p => ({ ...p, kpis: e.target.checked }))}
