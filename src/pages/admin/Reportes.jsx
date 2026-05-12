@@ -966,12 +966,12 @@ footer{margin-top:32px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:1
   <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#1a472a;text-transform:uppercase">METR1KA · Reporte</div>
   <h1>${cfg?.titulo || encuesta.nombre}</h1>
   ${cfg?.subtitulo ? `<div style="font-size:14px;color:#555;margin-top:4px;font-weight:500">${cfg.subtitulo}</div>` : ''}
-  <div class="meta"><span>📅 ${fecha}</span>${resumen?.total_participaron ? `<span>📊 ${resumen.total_participaron} respuestas</span>` : ''}${cfg?.poblacion ? `<span>👥 Población: ${Number(cfg.poblacion).toLocaleString('es-AR')}</span>` : ''}${cfg?.electores ? `<span>🗳️ Electores: ${Number(cfg.electores).toLocaleString('es-AR')}</span>` : ''}</div>
+  <div class="meta"><span>📅 ${fecha}</span>${(resumen?.total_participaron || resumen?.total_sesiones) ? `<span>📊 ${resumen.total_participaron || resumen.total_sesiones} respuestas</span>` : ''}${cfg?.poblacion ? `<span>👥 Población: ${Number(cfg.poblacion).toLocaleString('es-AR')}</span>` : ''}${cfg?.electores ? `<span>🗳️ Electores: ${Number(cfg.electores).toLocaleString('es-AR')}</span>` : ''}</div>
 </div>
 <div class="kpis">
-  <div class="kpi" style="border-top-color:#1a472a"><div class="kpi-v" style="color:#1a472a">${resumen?.total_participaron||0}</div><div class="kpi-l">Total respuestas</div></div>
+  <div class="kpi" style="border-top-color:#1a472a"><div class="kpi-v" style="color:#1a472a">${resumen?.total_participaron || resumen?.total_sesiones || 0}</div><div class="kpi-l">Total respuestas</div></div>
   <div class="kpi" style="border-top-color:#ef4444"><div class="kpi-v" style="color:#ef4444">${resumen?.total_no_respondieron||0}</div><div class="kpi-l">No respondieron</div></div>
-  <div class="kpi" style="border-top-color:#7c3aed"><div class="kpi-v" style="color:#7c3aed">${(resumen?.total_participaron||0)+(resumen?.total_no_respondieron||0)}</div><div class="kpi-l">Total sesiones</div></div>
+  <div class="kpi" style="border-top-color:#7c3aed"><div class="kpi-v" style="color:#7c3aed">${(resumen?.total_participaron || resumen?.total_sesiones || 0)+(resumen?.total_no_respondieron||0)}</div><div class="kpi-l">Total sesiones</div></div>
   <div class="kpi" style="border-top-color:#b45309"><div class="kpi-v" style="color:#b45309">${resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—'}</div><div class="kpi-l">Última respuesta</div></div>
 </div>
 <div class="sec">Resultados por pregunta</div>
@@ -1614,9 +1614,9 @@ export default function Reportes() {
                   <>
                     {/* KPIs */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-                      <KpiCard label="Total respuestas" value={resumen?.total_participaron||0} color="var(--accent)" icon={<BarChart2 size={12} />} />
-                      <KpiCard label="No respondieron" value={resumen?.total_no_respondieron||0} color="#ef4444" icon={<FileText size={12} />} />
-                      <KpiCard label="Total sesiones" value={(resumen?.total_participaron||0) + (resumen?.total_no_respondieron||0)} color="#7c3aed" icon={<Zap size={12} />} />
+                      <KpiCard label="Total respuestas" value={resumen?.total_participaron || resumen?.total_sesiones || 0} color="var(--accent)" icon={<BarChart2 size={12} />} />
+                      <KpiCard label="No respondieron" value={(resumen?.total_sesiones||0) - (resumen?.total_participaron||resumen?.total_sesiones||0)} color="#ef4444" icon={<FileText size={12} />} />
+                      <KpiCard label="Total sesiones" value={resumen?.total_sesiones || 0} color="#7c3aed" icon={<Zap size={12} />} />
                       <KpiCard label="Última respuesta" value={resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—'} color="#b45309" sub="fecha más reciente" />
                     </div>
 
