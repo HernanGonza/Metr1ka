@@ -13,8 +13,10 @@ const ESTADO_CONFIG = {
   en_proceso:   { label: 'En proceso',   color: '#0369a1', bg: '#e0f2fe' },
   para_revisar: { label: 'Para revisar', color: '#7c3aed', bg: '#f3e8ff' },
   publicada:    { label: 'Publicada',    color: '#1a472a', bg: '#d8f3dc' },
+  completada:   { label: 'Completada',   color: '#374151', bg: '#f3f4f6' },
 }
-const FILTROS = ['todas', 'pendiente', 'en_proceso', 'para_revisar', 'publicada']
+const FILTROS         = ['todas', 'pendiente', 'en_proceso', 'para_revisar', 'publicada']
+const FILTROS_ACTIVAS = ['todas', 'pendiente', 'en_proceso', 'para_revisar', 'publicada']
 
 const TIPO_CONFIG = {
   domiciliaria: { label: 'Domiciliaria', icon: '🏠', color: '#1a472a', bg: '#d8f3dc' },
@@ -182,10 +184,11 @@ function Btn({ onClick, bg, color, border, icon, label, tooltip }) {
   )
 }
 
-function EncuestaCard({ encuesta, equipos, onApprove, onZonas, onSimular, onView, mostrarOrg, orgNombre }) {
+function EncuestaCard({ encuesta, equipos, onApprove, onZonas, onSimular, onView, onCompletar, mostrarOrg, orgNombre }) {
   const cfg = ESTADO_CONFIG[encuesta.estado_produccion] || ESTADO_CONFIG.pendiente
   const tipo = TIPO_CONFIG[encuesta.tipo_encuesta]
   const esPublicada    = encuesta.estado_produccion === 'publicada'
+  const esCompletada   = encuesta.estado_produccion === 'completada'
   const paraRevisar    = encuesta.estado_produccion === 'para_revisar'
   const enProduccion   = ['pendiente', 'en_proceso'].includes(encuesta.estado_produccion)
   const cantZonas      = encuesta.encuesta_zonas?.length || 0
@@ -246,7 +249,17 @@ function EncuestaCard({ encuesta, equipos, onApprove, onZonas, onSimular, onView
               bg="#f3e8ff" color="#7c3aed" border="#c4b5fd"
               icon="📱" label="Simular encuesta"
               tooltip="Previsualizá cómo se ve la encuesta en la app móvil del encuestador" />
+            <Btn onClick={onCompletar}
+              bg="#f3f4f6" color="#374151" border="#d1d5db"
+              icon="✓" label="Completar encuesta"
+              tooltip="Finalizar la encuesta — dejará de aparecer en la app móvil" />
           </>
+        )}
+
+        {esCompletada && (
+          <span style={{ fontSize: 12, color: 'var(--ink3)', fontStyle: 'italic' }}>
+            ✓ Encuesta finalizada
+          </span>
         )}
 
         {enProduccion && (
@@ -271,6 +284,8 @@ export default function Encuestas() {
   const [busqueda,       setBusqueda]       = useState('')
   const [simulando,      setSimulando]      = useState(null)
   const [zonasModal,     setZonasModal]     = useState(null)
+  const [vistaCompletadas, setVistaCompletadas] = useState(false)
+  const [confirmModal, setConfirmModal] = useState(null) // { id, nombre }
 
   const esSuperadmin = perfil?.rol === 'superadmin'
 
@@ -314,18 +329,39 @@ export default function Encuestas() {
     }
   }
 
+  async function handleCompletar(id, nombre) {
+    setConfirmModal({ id, nombre })
+  }
+
+  async function confirmarCompletar() {
+    if (!confirmModal) return
+    try {
+      await supabase.from('encuestas').update({ estado_produccion: 'completada' }).eq('id', confirmModal.id)
+      setConfirmModal(null)
+      fetchData()
+    } catch (err) {
+      console.error('Error completando encuesta:', err)
+      setConfirmModal(null)
+    }
+  }
+
   const filtradas = encuestas.filter(e => {
+    if (vistaCompletadas) return e.estado_produccion === 'completada'
     const matchEstado  = filtro === 'todas' || e.estado_produccion === filtro
     const matchOrg     = !filtroOrg  || e.organizacion_id === filtroOrg
     const matchTipo    = !filtroTipo || e.tipo_encuesta === filtroTipo
     const matchBusq    = !busqueda   || e.nombre.toLowerCase().includes(busqueda.toLowerCase())
-    return matchEstado && matchOrg && matchTipo && matchBusq
+    const noCompletada = e.estado_produccion !== 'completada'
+    return matchEstado && matchOrg && matchTipo && matchBusq && noCompletada
   })
 
   const conteo = FILTROS.reduce((acc, f) => {
-    acc[f] = f === 'todas' ? encuestas.length : encuestas.filter(e => e.estado_produccion === f).length
+    acc[f] = f === 'todas'
+      ? encuestas.filter(e => e.estado_produccion !== 'completada').length
+      : encuestas.filter(e => e.estado_produccion === f).length
     return acc
   }, {})
+  const conteoCompletadas = encuestas.filter(e => e.estado_produccion === 'completada').length
 
   const hayFiltrosExtra = filtroOrg || filtroTipo || busqueda
   const inp = { padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--paper)' }
@@ -393,17 +429,59 @@ export default function Encuestas() {
           )}
         </div>
 
-        {/* Tabs de estado */}
+        {/* Modal confirmar completar */}
+        {confirmModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <div style={{ background: 'var(--paper)', borderRadius: 'var(--r2)', padding: '28px 32px', maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
+              <div style={{ fontSize: 32, marginBottom: 12, textAlign: 'center' }}>✓</div>
+              <h3 style={{ fontFamily: 'Syne', fontSize: 18, fontWeight: 800, margin: '0 0 10px', textAlign: 'center' }}>Completar encuesta</h3>
+              <p style={{ fontSize: 14, color: 'var(--ink2)', textAlign: 'center', marginBottom: 8, lineHeight: 1.5 }}>
+                <strong>"{confirmModal.nombre}"</strong>
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--ink3)', textAlign: 'center', marginBottom: 24, lineHeight: 1.5 }}>
+                La encuesta dejará de aparecer en la app móvil y pasará al archivo de completadas. Esta acción no se puede deshacer.
+              </p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setConfirmModal(null)} style={{ flex: 1, padding: '10px 0', borderRadius: 'var(--r)', border: '1.5px solid var(--border2)', background: 'var(--surface)', fontSize: 14, fontFamily: 'DM Sans', cursor: 'pointer', fontWeight: 600, color: 'var(--ink2)' }}>
+                  Cancelar
+                </button>
+                <button onClick={confirmarCompletar} style={{ flex: 1, padding: '10px 0', borderRadius: 'var(--r)', border: 'none', background: '#374151', color: '#fff', fontSize: 14, fontFamily: 'DM Sans', cursor: 'pointer', fontWeight: 700 }}>
+                  ✓ Completar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className={styles.filtroBar}>
-          {FILTROS.map(f => (
-            <button key={f}
-              className={`${styles.filtroBtn} ${filtro === f ? styles.filtroBtnActivo : ''}`}
-              onClick={() => setFiltro(f)}>
-              {f === 'todas' ? 'Todas' : ESTADO_CONFIG[f].label}
-              <span className={styles.filtroCount}>{conteo[f]}</span>
-            </button>
-          ))}
+          <button
+            className={`${styles.filtroBtn} ${!vistaCompletadas ? styles.filtroBtnActivo : ''}`}
+            onClick={() => { setVistaCompletadas(false); setFiltro('todas') }}
+            style={{ fontWeight: !vistaCompletadas ? 700 : 400 }}>
+            Activas
+            <span className={styles.filtroCount}>{encuestas.filter(e => e.estado_produccion !== 'completada').length}</span>
+          </button>
+          <button
+            className={`${styles.filtroBtn} ${vistaCompletadas ? styles.filtroBtnActivo : ''}`}
+            onClick={() => { setVistaCompletadas(true); setFiltro('todas') }}
+            style={{ fontWeight: vistaCompletadas ? 700 : 400 }}>
+            ✓ Completadas
+            <span className={styles.filtroCount}>{conteoCompletadas}</span>
+          </button>
         </div>
+
+        {/* Sub-filtros por estado — solo en vista activas */}
+        {!vistaCompletadas && (
+          <div className={styles.filtroBar} style={{ marginTop: 6 }}>
+            {FILTROS.map(f => (
+              <button key={f}
+                className={`${styles.filtroBtn} ${filtro === f && !vistaCompletadas ? styles.filtroBtnActivo : ''}`}
+                onClick={() => setFiltro(f)}>
+                {f === 'todas' ? 'Todas' : ESTADO_CONFIG[f].label}
+                <span className={styles.filtroCount}>{conteo[f]}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {hayFiltrosExtra && !loading && (
           <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 8 }}>
@@ -435,6 +513,7 @@ export default function Encuestas() {
                 onApprove={() => handleApprove(enc.id)}
                 onZonas={() => setZonasModal(enc)}
                 onSimular={() => setSimulando(enc.id)}
+                onCompletar={() => handleCompletar(enc.id, enc.nombre)}
                 onView={() => navigate(`/encuestas/${enc.id}`)}
               />
             ))}
