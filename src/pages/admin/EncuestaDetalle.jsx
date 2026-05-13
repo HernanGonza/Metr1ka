@@ -19,7 +19,6 @@ const ESTADO_CONFIG = {
   en_proceso:   { label: 'En proceso',   color: '#0369a1', bg: 'var(--info-light)' },
   para_revisar: { label: 'Para revisar', color: '#7c3aed', bg: 'rgba(124,58,237,0.1)' },
   publicada:    { label: 'Publicada',    color: '#1a472a', bg: 'var(--accent-light)' },
-  completada: { label: 'Completada', color: '#374151', bg: '#f3f4f6' },
 }
 
 // Paleta variada — cada índice de pregunta recibe colores distintos
@@ -806,7 +805,7 @@ export default function EncuestaDetalle() {
       />
       <div className={styles.content}>
         {error && <div style={{ padding: '10px 16px', background: 'var(--danger-light)', border: '1px solid #fca5a5', borderRadius: 'var(--r)', fontSize: 13, color: '#c0392b', marginBottom: 12 }}>Error: {error}</div>}
-        {['publicada', 'completada'].includes(encuesta.estado_produccion)
+        {encuesta.estado_produccion === 'publicada'
           ? <VistaResultados preguntas={preguntas} resumen={resumen} respuestas={respuestas}
               encuestadores={encuestadores} equipos={equipos} filtros={filtros}
               onFiltroChange={handleFiltroChange} loadingR={loadingR} />
