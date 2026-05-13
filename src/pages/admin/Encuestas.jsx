@@ -184,7 +184,7 @@ function Btn({ onClick, bg, color, border, icon, label, tooltip }) {
   )
 }
 
-function EncuestaCard({ encuesta, equipos, onApprove, onZonas, onSimular, onView, onCompletar, mostrarOrg, orgNombre }) {
+function EncuestaCard({ encuesta, equipos, onApprove, onZonas, onSimular, onView, onCompletar, onEliminar, mostrarOrg, orgNombre }) {
   const cfg = ESTADO_CONFIG[encuesta.estado_produccion] || ESTADO_CONFIG.pendiente
   const tipo = TIPO_CONFIG[encuesta.tipo_encuesta]
   const esPublicada    = encuesta.estado_produccion === 'publicada'
@@ -265,6 +265,11 @@ function EncuestaCard({ encuesta, equipos, onApprove, onZonas, onSimular, onView
         {enProduccion && (
           <span className={styles.encuestaNote}>Nuestro equipo esta trabajando en tu encuesta.</span>
         )}
+
+        <Btn onClick={onEliminar}
+          bg="#fef2f2" color="#dc2626" border="#fca5a5"
+          icon="🗑️" label="Eliminar"
+          tooltip="Eliminar esta encuesta permanentemente" />
       </div>
     </div>
   )
@@ -286,6 +291,7 @@ export default function Encuestas() {
   const [zonasModal,     setZonasModal]     = useState(null)
   const [vistaCompletadas, setVistaCompletadas] = useState(false)
   const [confirmModal, setConfirmModal] = useState(null) // { id, nombre }
+  const [eliminarModal, setEliminarModal] = useState(null) // { id, nombre }
 
   const esSuperadmin = perfil?.rol === 'superadmin'
 
@@ -342,6 +348,19 @@ export default function Encuestas() {
     } catch (err) {
       console.error('Error completando encuesta:', err)
       setConfirmModal(null)
+    }
+  }
+
+  async function confirmarEliminar() {
+    if (!eliminarModal) return
+    try {
+      await supabase.from('encuestas').delete().eq('id', eliminarModal.id)
+      setEliminarModal(null)
+      fetchData()
+    } catch (err) {
+      console.error('Error eliminando encuesta:', err)
+      alert('Error al eliminar la encuesta')
+      setEliminarModal(null)
     }
   }
 
@@ -452,6 +471,29 @@ export default function Encuestas() {
             </div>
           </div>
         )}
+
+        {eliminarModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <div style={{ background: 'var(--paper)', borderRadius: 'var(--r2)', padding: '28px 32px', maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}>
+              <div style={{ fontSize: 32, marginBottom: 12, textAlign: 'center' }}>🗑️</div>
+              <h3 style={{ fontFamily: 'Syne', fontSize: 18, fontWeight: 800, margin: '0 0 10px', textAlign: 'center', color: '#dc2626' }}>Eliminar encuesta</h3>
+              <p style={{ fontSize: 14, color: 'var(--ink2)', textAlign: 'center', marginBottom: 8, lineHeight: 1.5 }}>
+                <strong>"{eliminarModal.nombre}"</strong>
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--ink3)', textAlign: 'center', marginBottom: 24, lineHeight: 1.5 }}>
+                Esta acción es permanente y no se puede deshacer. Se eliminarán la encuesta y todos sus datos.
+              </p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setEliminarModal(null)} style={{ flex: 1, padding: '10px 0', borderRadius: 'var(--r)', border: '1.5px solid var(--border2)', background: 'var(--surface)', fontSize: 14, fontFamily: 'DM Sans', cursor: 'pointer', fontWeight: 600, color: 'var(--ink2)' }}>
+                  Cancelar
+                </button>
+                <button onClick={confirmarEliminar} style={{ flex: 1, padding: '10px 0', borderRadius: 'var(--r)', border: 'none', background: '#dc2626', color: '#fff', fontSize: 14, fontFamily: 'DM Sans', cursor: 'pointer', fontWeight: 700 }}>
+                  🗑️ Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className={styles.filtroBar}>
           <button
             className={`${styles.filtroBtn} ${!vistaCompletadas ? styles.filtroBtnActivo : ''}`}
@@ -514,6 +556,7 @@ export default function Encuestas() {
                 onZonas={() => setZonasModal(enc)}
                 onSimular={() => setSimulando(enc.id)}
                 onCompletar={() => handleCompletar(enc.id, enc.nombre)}
+                onEliminar={() => setEliminarModal({ id: enc.id, nombre: enc.nombre })}
                 onView={() => navigate(`/encuestas/${enc.id}`)}
               />
             ))}
