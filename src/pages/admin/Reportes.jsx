@@ -105,7 +105,7 @@ function MatrizTabla({ pregunta, filas, color }) {
           // fi puede ser índice numérico o texto de fila
           const filaTexto = isNaN(Number(fi)) ? fi : filasDef[Number(fi)]
           if (filaTexto && conteo[filaTexto] && columnasDef.includes(col)) {
-            conteo[filaTexto][col] = (conteo[filaTexto][col] || 0) + 1
+            conteo[filaTexto][col] = (conteo[filaTexto][col] || 0) + Number(resp.cantidad || 1)
           }
         })
       }
@@ -767,7 +767,7 @@ function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrud
           if (v && typeof v === 'object') {
             Object.entries(v).forEach(([fi, col]) => {
               const ft = isNaN(Number(fi)) ? fi : (filasDef[Number(fi)] || fi)
-              if (ft && cont[ft] && colsDef.includes(col)) cont[ft][col] = (cont[ft][col] || 0) + 1
+              if (ft && cont[ft] && colsDef.includes(col)) cont[ft][col] = (cont[ft][col] || 0) + Number(r.cantidad || 1)
             })
           }
         } catch {}
@@ -1721,7 +1721,7 @@ export default function Reportes() {
                               <div class="header">
                                 <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#1a472a;text-transform:uppercase">METR1KA · Mapa georreferenciado</div>
                                 <h1>${selected?.nombre}</h1>
-                                <div class="meta">📅 ${fecha} · ${(datosExport?.filas||[]).filter(s=>s.lat&&s.lng).length} respuestas con GPS</div>
+                                <div class="meta">📅 ${fecha} · ${(datosExport?.filas||[]).filter(s=>s.lat&&s.lng&&s.respuestas&&Object.keys(s.respuestas).length>0).length} respuestas con GPS</div>
                                 ${tituloFiltro}
                               </div>
                               ${leyendaHTML}
@@ -1746,7 +1746,7 @@ export default function Reportes() {
                           )}
                         </div>
                         <MapaRespuestas
-                          sesiones={datosExport?.filas || []}
+                          sesiones={(datosExport?.filas || []).filter(f => f.respuestas && Object.keys(f.respuestas).length > 0)}
                           columnas={datosExport?.columnas || []}
                           onCapturarMapa={(datos) => setMapaDatos(datos)}
                         />
@@ -1759,8 +1759,8 @@ export default function Reportes() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                           <thead>
                             <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                              {['Encuestador', 'Equipo', 'Respuestas'].map(h => (
-                                <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>
+                              {['Encuestador', 'Equipo', 'Completadas', 'No respuesta', 'Total'].map(h => (
+                                <th key={h} style={{ padding: '10px 16px', textAlign: h === 'Encuestador' || h === 'Equipo' ? 'left' : 'right', fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>
                               ))}
                             </tr>
                           </thead>
@@ -1769,8 +1769,14 @@ export default function Reportes() {
                               <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                                 <td style={{ padding: '10px 16px', fontWeight: 600, color: 'var(--ink)' }}>{e.nombre_completo}</td>
                                 <td style={{ padding: '10px 16px', color: 'var(--ink3)' }}>{e.equipo_nombre}</td>
-                                <td style={{ padding: '10px 16px' }}>
-                                  <span style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 800, color: 'var(--accent)' }}>{e.total}</span>
+                                <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                                  <span style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 800, color: 'var(--accent)' }}>{e.completadas ?? e.total}</span>
+                                </td>
+                                <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                                  <span style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 800, color: '#ef4444' }}>{e.no_respuesta ?? 0}</span>
+                                </td>
+                                <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                                  <span style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 800, color: 'var(--ink2)' }}>{e.total}</span>
                                 </td>
                               </tr>
                             ))}

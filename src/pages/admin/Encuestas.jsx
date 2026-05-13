@@ -217,7 +217,10 @@ function EncuestaCard({ encuesta, equipos, onApprove, onZonas, onSimular, onView
 
       <div className={styles.encuestaMeta}>
         {mostrarOrg && orgNombre && <span style={{ fontWeight: 600, color: 'var(--accent2)', marginRight: 8 }}>🏢 {orgNombre}</span>}
-        Solicitada: {new Date(encuesta.creado_en).toLocaleDateString('es-AR')}
+        {esCompletada
+          ? <>Completada: {encuesta.encuesta_stats?.ultima_sesion_en ? new Date(encuesta.encuesta_stats.ultima_sesion_en).toLocaleDateString('es-AR') : new Date(encuesta.creado_en).toLocaleDateString('es-AR')}</>
+          : <>Solicitada: {new Date(encuesta.creado_en).toLocaleDateString('es-AR')}</>
+        }
         {cantZonas > 0 && (
           <span style={{ marginLeft: 10, padding: '1px 7px', borderRadius: 100, fontSize: 11, background: 'var(--accent-light)', color: 'var(--accent2)', fontWeight: 600 }}>
             {cantZonas} zona{cantZonas !== 1 ? 's' : ''}{equiposAsignados > 0 ? ` · ${equiposAsignados} equipos` : ''}
@@ -266,10 +269,12 @@ function EncuestaCard({ encuesta, equipos, onApprove, onZonas, onSimular, onView
           <span className={styles.encuestaNote}>Nuestro equipo esta trabajando en tu encuesta.</span>
         )}
 
-        <Btn onClick={onEliminar}
-          bg="#fef2f2" color="#dc2626" border="#fca5a5"
-          icon="🗑️" label="Eliminar"
-          tooltip="Eliminar esta encuesta permanentemente" />
+        {!esCompletada && (
+          <Btn onClick={onEliminar}
+            bg="#fef2f2" color="#dc2626" border="#fca5a5"
+            icon="🗑️" label="Eliminar"
+            tooltip="Eliminar esta encuesta permanentemente" />
+        )}
       </div>
     </div>
   )
@@ -300,7 +305,7 @@ export default function Encuestas() {
     setLoading(true)
     try {
       let encQ = supabase.from('encuestas')
-        .select('*, area_geojson, config_muestreo, encuesta_zonas(id, nombre, equipo_id, area_geojson, geofencing_activo, orden)')
+        .select('*, area_geojson, config_muestreo, encuesta_zonas(id, nombre, equipo_id, area_geojson, geofencing_activo, orden), encuesta_stats(ultima_sesion_en)')
         .order('creado_en', { ascending: false })
       if (!esSuperadmin) encQ = encQ.eq('organizacion_id', perfil.organizacion_id)
 
