@@ -8,20 +8,25 @@ const COLS = [
   { key: 'en_proceso',   label: 'En proceso',   color: '#0369a1', bg: '#e0f2fe', border: '#7dd3fc' },
   { key: 'para_revisar', label: 'Para revisar', color: '#7c3aed', bg: '#f3e8ff', border: '#c4b5fd' },
   { key: 'publicada',    label: 'Publicadas',   color: '#1a472a', bg: '#d8f3dc', border: '#86efac' },
+  { key: 'completada',   label: 'Completadas',  color: '#374151', bg: '#f3f4f6', border: '#d1d5db' },
 ]
 
 const PASOS = {
   pendiente:    ['en_proceso'],
   en_proceso:   ['para_revisar', 'pendiente'],
   para_revisar: ['publicada', 'en_proceso'],
-  publicada:    ['en_proceso'],
+  publicada:    ['en_proceso', 'completada'],
+  completada:   ['publicada'],
 }
 
 export default function Encuestas() {
   const [encuestas, setEncuestas]   = useState([])
+  const [organizaciones, setOrganizaciones] = useState([])
   const [loading, setLoading]       = useState(true)
   const [draggingId, setDraggingId] = useState(null)
   const [dragOver, setDragOver]     = useState(null)
+  const [busqueda, setBusqueda]     = useState('')
+  const [filtroOrg, setFiltroOrg]   = useState('')
   const navigate = useNavigate()
 
   async function fetchData() {
@@ -63,6 +68,7 @@ export default function Encuestas() {
     }))
     
     setEncuestas(dataEnriquecida)
+    setOrganizaciones(Object.values(organizacionesMap))
     setLoading(false)
   }
 
@@ -99,7 +105,13 @@ export default function Encuestas() {
     setDragOver(null)
   }
 
-  const byEstado = key => encuestas.filter(e => e.estado_produccion === key)
+  const encuestasFiltradas = encuestas.filter(e => {
+    const matchBusq = !busqueda || e.nombre.toLowerCase().includes(busqueda.toLowerCase())
+    const matchOrg  = !filtroOrg || e.organizacion_id === filtroOrg
+    return matchBusq && matchOrg
+  })
+
+  const byEstado = key => encuestasFiltradas.filter(e => e.estado_produccion === key)
 
   return (
     <div className="sa-page">
@@ -116,8 +128,44 @@ export default function Encuestas() {
       </div>
 
       <div className="sa-content">
+        {/* Filtros */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+            <input
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre..."
+              style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--surface)', color: 'var(--ink)', outline: 'none', boxSizing: 'border-box' }}
+            />
+            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink3)', fontSize: 13, pointerEvents: 'none' }}>🔍</span>
+            {busqueda && (
+              <button onClick={() => setBusqueda('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink3)', fontSize: 16, lineHeight: 1 }}>×</button>
+            )}
+          </div>
+          <select
+            value={filtroOrg}
+            onChange={e => setFiltroOrg(e.target.value)}
+            style={{ padding: '8px 12px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--surface)', color: 'var(--ink)', outline: 'none', minWidth: 200 }}>
+            <option value="">Todas las organizaciones</option>
+            {organizaciones.sort((a,b) => a.nombre.localeCompare(b.nombre, 'es')).map(o => (
+              <option key={o.id} value={o.id}>{o.nombre}</option>
+            ))}
+          </select>
+          {(busqueda || filtroOrg) && (
+            <button onClick={() => { setBusqueda(''); setFiltroOrg('') }}
+              style={{ padding: '8px 14px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--surface)', color: 'var(--ink3)', cursor: 'pointer' }}>
+              Limpiar
+            </button>
+          )}
+          {(busqueda || filtroOrg) && (
+            <span style={{ fontSize: 12, color: 'var(--ink3)', alignSelf: 'center' }}>
+              {encuestasFiltradas.length} de {encuestas.length} encuestas
+            </span>
+          )}
+        </div>
+
         {loading ? <Spinner center size="lg" /> : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, alignItems: 'start' }}>
             {COLS.map(col => (
               <div
                 key={col.key}
