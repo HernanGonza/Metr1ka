@@ -24,9 +24,12 @@ export default function SuperadminDashboard() {
         orgsTotal:    orgsData.length,
         orgsActivas:  orgsData.filter(o => o.activo).length,
         usersTotal:   users.count || 0,
-        encuestasTotal:    encuestasData.length,
+        encuestasTotal:      encuestasData.length,
         encuestasPendientes: encuestasData.filter(e => e.estado_produccion === 'pendiente').length,
+        encuestasEnProceso:  encuestasData.filter(e => e.estado_produccion === 'en_proceso').length,
+        encuestasParaRevisar:encuestasData.filter(e => e.estado_produccion === 'para_revisar').length,
         encuestasPublicadas: encuestasData.filter(e => e.estado_produccion === 'publicada').length,
+        encuestasCompletadas:encuestasData.filter(e => e.estado_produccion === 'completada').length,
         suscActivas:  suscData.filter(s => s.estado === 'activa').length,
         suscVencidas: suscData.filter(s => s.estado === 'vencida').length,
       })
@@ -100,10 +103,11 @@ export default function SuperadminDashboard() {
                 </div>
                 <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {[
-                    { label: 'Pendientes',    value: stats?.encuestasPendientes || 0, color: '#b45309', bg: '#fef3c7' },
-                    { label: 'En proceso',    value: 0, color: '#0369a1', bg: '#e0f2fe' },
-                    { label: 'Para revisar',  value: 0, color: '#7c3aed', bg: '#f3e8ff' },
-                    { label: 'Publicadas',    value: stats?.encuestasPublicadas || 0, color: '#1a472a', bg: '#d8f3dc' },
+                    { label: 'Pendientes',    value: stats?.encuestasPendientes  || 0, color: '#b45309', bg: '#fef3c7' },
+                    { label: 'En proceso',    value: stats?.encuestasEnProceso   || 0, color: '#0369a1', bg: '#e0f2fe' },
+                    { label: 'Para revisar',  value: stats?.encuestasParaRevisar || 0, color: '#7c3aed', bg: '#f3e8ff' },
+                    { label: 'Publicadas',    value: stats?.encuestasPublicadas  || 0, color: '#1a472a', bg: '#d8f3dc' },
+                    { label: 'Completadas',   value: stats?.encuestasCompletadas || 0, color: '#374151', bg: '#f3f4f6' },
                   ].map((s, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, background: s.bg }}>
                       <span style={{ fontSize: 13, fontWeight: 500, color: s.color }}>{s.label}</span>
