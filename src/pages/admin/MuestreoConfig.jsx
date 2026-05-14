@@ -165,6 +165,16 @@ function MapaCompleto({ zonas, fullSize = false }) {
           },
         }).addTo(instRef.current);
 
+        // Manzanas seleccionadas
+        const manzanasSel = (zona.geojson.features || []).filter(
+          f => f.properties?.tipo === "manzana" && f.properties?.seleccionada === true
+        );
+        if (manzanasSel.length > 0) {
+          L.geoJSON({ type: "FeatureCollection", features: manzanasSel }, {
+            style: { color: zona.color, fillColor: zona.color, fillOpacity: 0.4, weight: 1.5 },
+          }).addTo(instRef.current);
+        }
+
         // Centroide para encuestadores
         const coords = zonaFeat.geometry?.coordinates?.[0];
         if (coords?.length) {
@@ -251,6 +261,7 @@ const MapaZona = forwardRef(function MapaZona(
     sinManzanas = false,
     colorZona = "#1a472a",
     todasLasZonas = [],
+    encuestadoresAsignados = [], // [{ id, nombre }]
   },
   ref,
 ) {
@@ -273,6 +284,66 @@ const MapaZona = forwardRef(function MapaZona(
   const [errorMap, setErrorMap] = useState("");
   const [nManz, setNManz] = useState(0);
   const [nSel, setNSel] = useState(selRef.current.size);
+
+  // Capa de pins de encuestadores asignados
+  const pinsEncRef = useRef(null);
+
+  // Actualizar pins de encuestadores cuando cambian las asignaciones o el mapa está listo
+  useEffect(() => {
+    const L = Lref.current;
+    const map = mapInst.current;
+    if (!L || !map) return;
+
+    // Limpiar pins anteriores
+    if (pinsEncRef.current) {
+      map.removeLayer(pinsEncRef.current);
+      pinsEncRef.current = null;
+    }
+    if (!encuestadoresAsignados.length) return;
+
+    // Calcular centroide — desde zonaRef o desde zonaActual prop
+    let centroide = null;
+    const zonaFeat = zonaRef.current?.toGeoJSON?.();
+    if (zonaFeat) {
+      centroide = getCentroid(zonaFeat);
+    }
+    if (!centroide && zonaActual?.features) {
+      const zf = zonaActual.features.find(f => f.properties?.tipo === "zona");
+      if (zf) centroide = getCentroid(zf);
+    }
+    if (!centroide) return;
+
+    const grupo = L.layerGroup();
+    const n = encuestadoresAsignados.length;
+
+    encuestadoresAsignados.forEach((enc, i) => {
+      // Distribuir pins en círculo alrededor del centroide
+      const angulo = (2 * Math.PI * i) / Math.max(n, 1);
+      const radio = n > 1 ? 0.00015 : 0;
+      const lat = centroide[1] + radio * Math.cos(angulo);
+      const lng = centroide[0] + radio * Math.sin(angulo);
+
+      const iniciales = enc.nombre.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase();
+      const icono = L.divIcon({
+        className: "",
+        html: `<div style="
+          width:32px;height:32px;border-radius:50%;
+          background:${colorZona};color:#fff;
+          display:flex;align-items:center;justify-content:center;
+          font-weight:800;font-size:12px;font-family:DM Sans,sans-serif;
+          border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);
+          cursor:default;
+        ">${iniciales}</div>`,
+        iconSize: [32, 32], iconAnchor: [16, 16],
+      });
+      L.marker([lat, lng], { icon: icono })
+        .bindTooltip(enc.nombre, { permanent: false, direction: "top", offset: [0, -18] })
+        .addTo(grupo);
+    });
+
+    grupo.addTo(map);
+    pinsEncRef.current = grupo;
+  }, [encuestadoresAsignados, listo]);
 
   // Exponer getZonaActual al padre via ref
   useImperativeHandle(ref, () => ({
@@ -572,13 +643,8 @@ const MapaZona = forwardRef(function MapaZona(
         east: bounds.getEast() + lngPad,
       };
       const zonaGeoJSON = zonaLayer.toGeoJSON();
-      // Solo traemos manzanas — las parcelas las guarda la edge function guardar-parcelas
+      // Traemos manzanas para todos los tipos de encuesta
       const todasManzanas = await fetchManzanasCatastro(bbox);
-      // Si es encuesta callejera, no cargar manzanas
-      if (sinManzanas) {
-        setLoading(false);
-        return;
-      }
       const manzanas = filtrarDentroDeZona(todasManzanas, zonaGeoJSON);
       if (!manzanas.length) {
         setErrorMap(
@@ -1447,106 +1513,151 @@ function PanelConfig({ config, onChange, organizacionId }) {
 // ════════════════════════════════════════════════
 // MODAL UNIFICADO: ZONAS + MUESTREO + DRAG&DROP
 // ════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════
+// MODAL UNIFICADO: ZONAS POR EQUIPO + MUESTREO
+// Nueva lógica: equipo → zonas → encuestadores arrastrados al mapa
+// ════════════════════════════════════════════════
 export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
-  const COLORES_ZONA = [
-    "#1a472a",
-    "#7c3aed",
-    "#b45309",
-    "#1e40af",
-    "#9f1239",
-    "#065f46",
-  ];
+  const COLORES_ZONA = ["#1a472a","#7c3aed","#b45309","#1e40af","#9f1239","#065f46","#0891b2","#dc2626"];
 
-  // ── Estado zonas ──
-  const [zonas, setZonas] = useState([]); // [{ id, nombre, equipo_id, area_geojson, geofencing_activo }]
-  const [zonaActiva, setZonaActiva] = useState(null); // id de la zona activa en el mapa
-  const [loadingZonas, setLoadingZonas] = useState(true);
+  // ── Vista: 'equipos' | 'mapa' ──
+  const [vista, setVista] = useState("equipos");
+  const [equipoActivo, setEquipoActivo] = useState(null); // { id, nombre }
+  const [encuestadoresEquipo, setEncuestadoresEquipo] = useState([]); // [{ id, nombre }]
 
-  // ── Estado muestreo ──
+  // ── Estado zonas del equipo activo ──
+  const [zonas, setZonas] = useState([]); // [{ id, nombre, equipo_id, area_geojson }]
+  const [zonaActiva, setZonaActiva] = useState(null);
+  const [loadingZonas, setLoadingZonas] = useState(false);
+
+  // ── Asignaciones encuestadores por zona ──
+  const [asignaciones, setAsignaciones] = useState({}); // { zona_id: [{ id, nombre }] }
+
+  // ── Muestreo ──
   const [config, setConfig] = useState(CONFIG_DEFAULT);
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
 
-  // ── Drag & drop ──
-  const [dragging, setDragging] = useState(null); // equipo_id que se está arrastrando
+  // ── Drag encuestador ──
+  const [draggingEnc, setDraggingEnc] = useState(null); // { id, nombre }
+  const [dropTarget, setDropTarget] = useState(null); // zona_id hover
 
   // ── UI ──
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState("zonas"); // 'zonas' | 'muestreo'
-  const [encuestadoresPorZona, setEncuestadoresPorZona] = useState({}); // { zona_id: [nombre, ...] }
-  const [redistribuyendoEncs, setRedistribuyendoEncs] = useState(false);
+  const [tab, setTab] = useState("zonas");
   const [toastMsg, setToastMsg] = useState("");
-  const [vistaGeneral, setVistaGeneral] = useState(false);
+
+  const [encuestasEquipoId, setEncuestasEquipoId] = useState(null);
+  const encuestasEquipoIdRef = useRef(null);
+  const mapaRef = useRef(null);
+  const zonasDataRef = useRef({});
 
   function mostrarToast(msg) {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(""), 3500);
   }
 
-  // Ref del mapa de la zona activa
-  const mapaRef = useRef(null);
-  // Snapshot GeoJSON de cada zona { [zona_id]: geojson }
-  const zonasDataRef = useRef({});
-
-  // ── Carga inicial ──
+  // Cargar config de muestreo al montar
   useEffect(() => {
-    async function load() {
-      setLoadingZonas(true);
-      try {
-        const [{ data: enc }, { data: zs }] = await Promise.all([
-          supabase
-            .from("encuestas")
-            .select("config_muestreo, fecha_inicio, fecha_fin")
-            .eq("id", encuesta.id)
-            .single(),
-          supabase
-            .from("encuesta_zonas")
-            .select("*")
-            .eq("encuesta_id", encuesta.id)
-            .order("orden"),
-        ]);
-        if (enc?.config_muestreo)
-          setConfig((c) => ({ ...c, ...enc.config_muestreo }));
-        if (enc?.fecha_inicio) setFechaInicio(enc.fecha_inicio);
-        if (enc?.fecha_fin) setFechaFin(enc.fecha_fin);
-        const lista = zs || [];
-        setZonas(lista);
-        // Precarga snapshots de cada zona
-        lista.forEach((z) => {
-          if (z.area_geojson) zonasDataRef.current[z.id] = z.area_geojson;
-        });
-        if (lista.length > 0) setZonaActiva(lista[0].id);
-        // Cargar encuestadores asignados a cada zona
-        if (lista.length > 0) {
-          const zonaIds = lista.map((z) => z.id);
-          const { data: aes } = await supabase
-            .from("asignaciones_encuesta")
-            .select(
-              "encuesta_zona_id, encuestador_id, perfiles(nombre_completo)",
-            )
-            .in("encuesta_zona_id", zonaIds);
-          if (aes) {
-            const mapa = {};
-            aes.forEach((ae) => {
-              if (!mapa[ae.encuesta_zona_id]) mapa[ae.encuesta_zona_id] = [];
-              mapa[ae.encuesta_zona_id].push(
-                ae.perfiles?.nombre_completo || ae.encuestador_id,
-              );
-            });
-            setEncuestadoresPorZona(mapa);
-          }
-        }
-      } catch {}
-      setLoadingZonas(false);
-    }
-    load();
+    supabase.from("encuestas")
+      .select("config_muestreo, fecha_inicio, fecha_fin")
+      .eq("id", encuesta.id).single()
+      .then(({ data }) => {
+        if (data?.config_muestreo) setConfig(c => ({ ...c, ...data.config_muestreo }));
+        if (data?.fecha_inicio) setFechaInicio(data.fecha_inicio);
+        if (data?.fecha_fin) setFechaFin(data.fecha_fin);
+      });
   }, [encuesta.id]);
 
-  // ── Sincronizar mapa cuando cambia la zona activa ──
-  // (el MapaZona se desmonta/remonta por key, así que tiene el estado correcto)
+  // ── Abrir mapa de un equipo ──
+  async function abrirEquipo(equipo) {
+    setEquipoActivo(equipo);
+    setLoadingZonas(true);
+    setVista("mapa");
+    zonasDataRef.current = {};
 
-  // ── Guardar snapshot del mapa antes de cambiar de zona ──
+    try {
+      const [{ data: zs }, { data: miembros }, { data: eeData }] = await Promise.all([
+        supabase.from("encuesta_zonas")
+          .select("*")
+          .eq("encuesta_id", encuesta.id)
+          .eq("equipo_id", equipo.id)
+          .order("orden"),
+        supabase.from("equipo_encuestadores")
+          .select("encuestador_id, perfiles(nombre_completo)")
+          .eq("equipo_id", equipo.id),
+        supabase.from("encuestas_equipo")
+          .select("id")
+          .eq("encuesta_id", encuesta.id)
+          .eq("equipo_id", equipo.id)
+          .maybeSingle(),
+      ]);
+
+      setEncuestasEquipoId(eeData?.id || null);
+      encuestasEquipoIdRef.current = eeData?.id || null;
+
+      const lista = zs || [];
+      setZonas(lista);
+      lista.forEach(z => { if (z.area_geojson) zonasDataRef.current[z.id] = z.area_geojson; });
+      if (lista.length > 0) setZonaActiva(lista[0].id);
+
+      const encs = (miembros || []).map(m => ({
+        id: m.encuestador_id,
+        nombre: m.perfiles?.nombre_completo || m.encuestador_id,
+      }));
+      setEncuestadoresEquipo(encs);
+
+      // Cargar asignaciones existentes
+      if (lista.length > 0) {
+        const { data: aes } = await supabase
+          .from("asignaciones_encuesta")
+          .select("encuesta_zona_id, encuestador_id")
+          .in("encuesta_zona_id", lista.map(z => z.id));
+        if (aes) {
+          const mapa = {};
+          aes.forEach(ae => {
+            const encNombre = encs.find(e => e.id === ae.encuestador_id)?.nombre || ae.encuestador_id;
+            if (!mapa[ae.encuesta_zona_id]) mapa[ae.encuesta_zona_id] = [];
+            mapa[ae.encuesta_zona_id].push({ id: ae.encuestador_id, nombre: encNombre });
+          });
+          setAsignaciones(mapa);
+        }
+      }
+    } catch (e) {
+      setError(e.message);
+    }
+    setLoadingZonas(false);
+  }
+
+  // ── Agregar nueva zona ──
+  async function agregarZona() {
+    guardarSnapshotActual();
+    const orden = zonas.length + 1;
+    const { data, error: err } = await supabase.from("encuesta_zonas")
+      .insert({ encuesta_id: encuesta.id, equipo_id: equipoActivo.id, nombre: `Zona ${orden}`, orden })
+      .select().single();
+    if (err || !data) return;
+    setZonas(prev => [...prev, data]);
+    setZonaActiva(data.id);
+  }
+
+  async function renombrarZona(id, nombre) {
+    setZonas(prev => prev.map(z => z.id === id ? { ...z, nombre } : z));
+    await supabase.from("encuesta_zonas").update({ nombre }).eq("id", id);
+  }
+
+  async function eliminarZona(id) {
+    if (!window.confirm("¿Eliminar esta zona? Se borran sus manzanas y asignaciones.")) return;
+    await supabase.from("encuesta_zonas").delete().eq("id", id);
+    delete zonasDataRef.current[id];
+    const restantes = zonas.filter(z => z.id !== id);
+    setZonas(restantes);
+    setZonaActiva(restantes.length > 0 ? restantes[0].id : null);
+    setAsignaciones(prev => { const n = { ...prev }; delete n[id]; return n; });
+  }
+
   function guardarSnapshotActual() {
     if (mapaRef.current && zonaActiva) {
       const data = mapaRef.current.getZonaActual();
@@ -1557,1230 +1668,414 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
   function cambiarZonaActiva(id) {
     guardarSnapshotActual();
     setZonaActiva(id);
-    setVistaGeneral(false);
   }
 
-  async function agregarZona() {
-    const orden = zonas.length + 1;
-    const { data, error: err } = await supabase
-      .from("encuesta_zonas")
-      .insert({ encuesta_id: encuesta.id, nombre: `Zona ${orden}`, orden })
-      .select()
-      .single();
-    if (err || !data) return;
-    guardarSnapshotActual();
-    setZonas((prev) => [...prev, data]);
-    setZonaActiva(data.id);
-  }
+  // ── Drag encuestadores al mapa ──
+  // El drop se detecta en los botones de zona del sidebar (fallback)
+  // y también via HTML5 drag sobre el mapa (detectando zona por coordenadas)
 
-  const [distribuyendo, setDistribuyendo] = useState(null); // zona_id distribuyendo
+  async function asignarEncAZona(encId, encNombre, zonaId) {
+    const yaAsignado = (asignaciones[zonaId] || []).some(e => e.id === encId);
+    if (yaAsignado) return;
 
-  async function redistribuirManzanas(zonaId) {
-    setDistribuyendo(zonaId);
-    const { data, error } = await supabase.rpc("distribuir_manzanas_zona", {
-      p_encuesta_zona_id: zonaId,
-      p_forzar: true, // redistribuye todo desde cero
+    const { error: err } = await supabase.from("asignaciones_encuesta").insert({
+      encuesta_zona_id: zonaId,
+      encuestador_id: encId,
+      activo: true,
+      ...(encuestasEquipoIdRef.current ? { encuestas_equipo_id: encuestasEquipoIdRef.current } : {}),
     });
-    setDistribuyendo(null);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    if (data?.error) {
-      setError(data.error);
-      return;
-    }
-    setError("");
-    // Mostrar resultado
-    const msg =
-      data?.manzanas_distribuidas > 0
-        ? `${data.manzanas_distribuidas} manzanas distribuidas entre ${data.encuestadores} encuestadores (~${data.promedio_por_enc} c/u)`
-        : data?.mensaje || "Sin manzanas para distribuir";
-    alert(msg);
-  }
 
-  async function renombrarZona(id, nombre) {
-    setZonas((prev) => prev.map((z) => (z.id === id ? { ...z, nombre } : z)));
-    await supabase.from("encuesta_zonas").update({ nombre }).eq("id", id);
-  }
-
-  async function eliminarZona(id) {
-    if (
-      !window.confirm("Eliminar esta zona? Se borran sus manzanas y parcelas.")
-    )
-      return;
-    await supabase.from("encuesta_zonas").delete().eq("id", id);
-    delete zonasDataRef.current[id];
-    const restantes = zonas.filter((z) => z.id !== id);
-    setZonas(restantes);
-    setZonaActiva(restantes.length > 0 ? restantes[0].id : null);
-  }
-
-  // ── Drag & drop equipos ──
-  function onDragStart(equipoId) {
-    setDragging(equipoId);
-  }
-  function onDragEnd() {
-    setDragging(null);
-  }
-
-  async function onDropEnZona(zonaId) {
-    if (!dragging) return;
-    const equipoId = dragging;
-    setZonas((prev) =>
-      prev.map((z) => (z.id === zonaId ? { ...z, equipo_id: equipoId } : z)),
-    );
-    setDragging(null);
-
-    // Asignación automática: distribuir encuestadores del equipo entre sus zonas
-    await asignarEncuestadoresAuto(equipoId, zonaId);
-  }
-
-  async function asignarEncuestadoresAuto(equipoId, zonaDropId) {
-    try {
-      // Obtener encuestadores del equipo
-      const { data: miembros } = await supabase
-        .from("equipo_encuestadores")
-        .select("encuestador_id, perfiles(nombre_completo)")
-        .eq("equipo_id", equipoId);
-      if (!miembros?.length) return;
-
-      // Obtener todas las zonas de esta encuesta con este equipo (incluyendo la nueva)
-      const zonasDelEquipo = [
-        ...zonas.filter((z) => z.equipo_id === equipoId && z.id !== zonaDropId),
-        { id: zonaDropId, equipo_id: equipoId },
-      ];
-
-      const nZonas = zonasDelEquipo.length;
-      const nEnc = miembros.length;
-
-      // Distribuir encuestadores entre zonas
-      // Si hay más zonas que encuestadores: algunos encuestadores cubren 2 zonas
-      // Si hay más encuestadores que zonas: algunas zonas tienen 2 encuestadores
-      const asignaciones = []; // [{ encuesta_zona_id, encuestador_id }]
-
-      if (nEnc >= nZonas) {
-        // Más encuestadores que zonas: distribuir en round-robin
-        zonasDelEquipo.forEach((zona, zi) => {
-          // Cuántos encuestadores le tocan a esta zona
-          const base = Math.floor(nEnc / nZonas);
-          const extra = zi < nEnc % nZonas ? 1 : 0;
-          const inicio = zonasDelEquipo.slice(0, zi).reduce((s, _, i) => {
-            return s + Math.floor(nEnc / nZonas) + (i < nEnc % nZonas ? 1 : 0);
-          }, 0);
-          for (let k = 0; k < base + extra; k++) {
-            asignaciones.push({
-              encuesta_zona_id: zona.id,
-              encuestador_id: miembros[inicio + k].encuestador_id,
-            });
-          }
-        });
-      } else {
-        // Más zonas que encuestadores: distribuir zonas en round-robin
-        zonasDelEquipo.forEach((zona, zi) => {
-          const enc = miembros[zi % nEnc];
-          asignaciones.push({
-            encuesta_zona_id: zona.id,
-            encuestador_id: enc.encuestador_id,
-          });
-        });
+    if (err) {
+      // 23505 = unique violation (ya existe) — lo ignoramos
+      if (err.code !== '23505') {
+        console.error("[asignar enc]", err);
+        return;
       }
-
-      // Borrar asignaciones previas de todas las zonas del equipo en esta encuesta
-      const zonaIds = zonasDelEquipo.map((z) => z.id);
-      await supabase
-        .from("asignaciones_encuesta")
-        .delete()
-        .in("encuesta_zona_id", zonaIds);
-
-      // Insertar nuevas asignaciones
-      if (asignaciones.length > 0) {
-        await supabase
-          .from("asignaciones_encuesta")
-          .insert(asignaciones.map((a) => ({ ...a, activo: true })));
-      }
-
-      // Actualizar estado local para mostrar en el sidebar
-      const nuevoMapa = { ...encuestadoresPorZona };
-      zonaIds.forEach((zid) => {
-        nuevoMapa[zid] = [];
-      });
-      asignaciones.forEach((a) => {
-        const nombre =
-          miembros.find((m) => m.encuestador_id === a.encuestador_id)?.perfiles
-            ?.nombre_completo || "";
-        if (!nuevoMapa[a.encuesta_zona_id]) nuevoMapa[a.encuesta_zona_id] = [];
-        nuevoMapa[a.encuesta_zona_id].push(nombre);
-      });
-      setEncuestadoresPorZona(nuevoMapa);
-    } catch (e) {
-      console.error("asignarEncuestadoresAuto:", e);
     }
+
+    setAsignaciones(prev => ({
+      ...prev,
+      [zonaId]: [...(prev[zonaId] || []), { id: encId, nombre: encNombre }],
+    }));
+    mostrarToast(`✅ ${encNombre} asignado/a a ${zonas.find(z => z.id === zonaId)?.nombre}`);
   }
 
-  function quitarEquipoDeZona(zonaId) {
-    // Solo actualizar estado local
-    setZonas((prev) =>
-      prev.map((z) => (z.id === zonaId ? { ...z, equipo_id: null } : z)),
-    );
+  async function quitarEncDeZona(encId, zonaId) {
+    await supabase.from("asignaciones_encuesta")
+      .delete()
+      .eq("encuesta_zona_id", zonaId)
+      .eq("encuestador_id", encId);
+    setAsignaciones(prev => ({
+      ...prev,
+      [zonaId]: (prev[zonaId] || []).filter(e => e.id !== encId),
+    }));
   }
 
   // ── Guardar todo ──
   async function handleSave() {
-    if ((config.razones_seleccionadas || []).length < 2) {
-      setTab("muestreo");
-      setError("Selecciona al menos 2 razones de no-respuesta");
-      return;
-    }
-    setSaving(true);
-    setError("");
+    setSaving(true); setError("");
     try {
       guardarSnapshotActual();
 
-      // Armar el payload completo — UNA sola llamada a la DB
-      const zonasPayload = zonas.map((zona) => {
+      // Guardar area_geojson de cada zona directamente
+      await Promise.all(zonas.map(zona => {
         const geojson = zonasDataRef.current[zona.id];
-        const manzanas = geojson
-          ? (geojson.features || [])
-              .filter(
-                (f) =>
-                  f.properties?.tipo === "manzana" &&
-                  f.properties?.seleccionada === true,
-              )
-              .map((f) => ({ area_geojson: JSON.stringify(f) }))
-          : [];
-        const featsPersistir = geojson
-          ? (geojson.features || []).filter(
-              (f) =>
-                f.properties?.tipo === "zona" ||
-                f.properties?.tipo === "manzana",
-            )
-          : [];
-        return {
-          id: zona.id,
-          equipo_id: zona.equipo_id ?? null,
-          geofencing_activo: featsPersistir.some(
-            (f) => f.properties?.tipo === "zona",
-          ),
-          area_geojson:
-            featsPersistir.length > 0
-              ? { type: "FeatureCollection", features: featsPersistir }
-              : null,
-          manzanas, // vacío si la zona no se tocó
-        };
-      });
+        if (!geojson) return Promise.resolve();
+        return supabase.from("encuesta_zonas").update({
+          area_geojson: geojson,
+          geofencing_activo: !!(geojson.features || []).find(f => f.properties?.tipo === "zona"),
+        }).eq("id", zona.id);
+      }));
 
-      // Guardar config de muestreo + zonas
-      const { data, error } = await supabase.rpc("guardar_config_encuesta", {
-        p_payload: {
-          encuesta_id: encuesta.id,
-          config_muestreo: config,
-          zonas: zonasPayload,
-        },
-      });
-      if (error) throw error;
+      // Guardar config muestreo y fechas
+      await supabase.from("encuestas").update({
+        config_muestreo: config,
+        fecha_inicio: fechaInicio || null,
+        fecha_fin: fechaFin || null,
+      }).eq("id", encuesta.id);
 
-      // Guardar fechas directamente en encuestas
-      await supabase
-        .from("encuestas")
-        .update({
-          fecha_inicio: fechaInicio || null,
-          fecha_fin: fechaFin || null,
-        })
-        .eq("id", encuesta.id);
-
-      // Disparar parcelas y distribución en background para cada zona que tuvo manzanas
-      zonas.forEach((zona) => {
-        const tuvoCambios = zonasDataRef.current[zona.id] != null;
-        if (tuvoCambios) {
-          supabase.functions
-            .invoke("guardar-parcelas", { body: { encuesta_zona_id: zona.id } })
-            .then(({ error: e }) => {
-              if (e) console.error("[guardar-parcelas]", zona.id, e);
-            });
-          if (zona.equipo_id) {
-            supabase
-              .rpc("distribuir_manzanas_zona", {
-                p_encuesta_zona_id: zona.id,
-                p_forzar: false,
-              })
-              .then(({ data: d }) =>
-                console.log("[distribuir]", zona.nombre, d),
-              );
+      // Disparar parcelas en background (solo domiciliaria)
+      if (encuesta.tipo_encuesta !== "callejera") {
+        zonas.forEach(zona => {
+          if (zonasDataRef.current[zona.id]) {
+            supabase.functions.invoke("guardar-parcelas", { body: { encuesta_zona_id: zona.id } })
+              .then(({ error: e }) => { if (e) console.error("[guardar-parcelas]", e); });
           }
-        }
-      });
+        });
+      }
 
-      onSaved();
-      onClose();
+      onSaved(); onClose();
     } catch (err) {
       setError(err.message);
     }
     setSaving(false);
   }
 
-  // ── Estilos helpers ──
-  const COLOR_ZONA = (idx) => COLORES_ZONA[idx % COLORES_ZONA.length];
-
-  const zonaActivaObj = zonas.find((z) => z.id === zonaActiva);
-  const zonaActivaIdx = zonas.findIndex((z) => z.id === zonaActiva);
+  const COLOR_ZONA = idx => COLORES_ZONA[idx % COLORES_ZONA.length];
+  const zonaActivaIdx = zonas.findIndex(z => z.id === zonaActiva);
   const todasLasZonasData = zonas.map((z, zi) => ({
-  id: z.id,
-  nombre: z.nombre,
-  color: COLOR_ZONA(zi),
-  geojson: zonasDataRef.current[z.id] || z.area_geojson || null,
-  encuestadores: encuestadoresPorZona[z.id] || [],
-}))
+    id: z.id, nombre: z.nombre, color: COLOR_ZONA(zi),
+    geojson: zonasDataRef.current[z.id] || z.area_geojson || null,
+    encuestadores: (asignaciones[z.id] || []).map(e => e.nombre),
+  }));
+
+  const [vistaGeneral, setVistaGeneral] = useState(false);
 
   const tabBtn = (key, label) => ({
-    padding: "6px 18px",
-    cursor: "pointer",
-    fontFamily: "DM Sans",
-    fontSize: 13,
-    fontWeight: 600,
-    border: "none",
-    background: "none",
+    padding: "6px 18px", cursor: "pointer", fontFamily: "DM Sans", fontSize: 13, fontWeight: 600,
+    border: "none", background: "none",
     borderBottom: `2.5px solid ${tab === key ? "var(--accent)" : "transparent"}`,
-    color: tab === key ? "var(--accent)" : "var(--ink3)",
-    transition: "all .15s",
+    color: tab === key ? "var(--accent)" : "var(--ink3)", transition: "all .15s",
   });
 
-  if (loadingZonas)
-    return (
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,.6)",
-          zIndex: 500,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Spinner center size="lg" />
-      </div>
-    );
-
+  // ════════ RENDER ════════
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,.65)",
-        zIndex: 500,
-        display: "flex",
-        alignItems: "stretch",
-        justifyContent: "center",
-        padding: 12,
-      }}
-    >
-      <div
-        style={{
-          background: "var(--paper)",
-          borderRadius: "var(--r2)",
-          width: "100%",
-          maxWidth: 1200,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          boxShadow: "0 24px 80px rgba(0,0,0,.3)",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: "12px 20px",
-            borderBottom: "1px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            flexShrink: 0,
-            background: "var(--surface)",
-          }}
-        >
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 500, display: "flex", alignItems: "stretch", justifyContent: "center", padding: 12 }}>
+      <div style={{ background: "var(--paper)", borderRadius: "var(--r2)", width: "100%", maxWidth: 1200, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 80px rgba(0,0,0,.3)" }}>
+
+        {/* ── Header ── */}
+        <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12, flexShrink: 0, background: "var(--surface)" }}>
+          {vista === "mapa" && (
+            <button onClick={() => { guardarSnapshotActual(); setVista("equipos"); setZonas([]); setZonaActiva(null); setAsignaciones({}); }}
+              style={{ padding: "5px 12px", background: "none", border: "1.5px solid var(--border2)", borderRadius: "var(--r)", cursor: "pointer", fontSize: 13, fontFamily: "DM Sans", color: "var(--ink3)" }}>
+              ← Equipos
+            </button>
+          )}
           <div style={{ flex: 1 }}>
-            <h3
-              style={{
-                fontFamily: "Syne",
-                fontSize: 15,
-                fontWeight: 700,
-                margin: 0,
-              }}
-            >
-              {encuesta.nombre}
-            </h3>
-            <p
-              style={{ fontSize: 11, color: "var(--ink3)", margin: "2px 0 0" }}
-            >
-              Definir zonas, manzanas y configuracion de muestreo
+            <h3 style={{ fontFamily: "Syne", fontSize: 15, fontWeight: 700, margin: 0 }}>{encuesta.nombre}</h3>
+            <p style={{ fontSize: 11, color: "var(--ink3)", margin: "2px 0 0" }}>
+              {vista === "mapa" && equipoActivo ? `🟢 ${equipoActivo.nombre}` : "Seleccioná un equipo para configurar sus zonas"}
             </p>
           </div>
-          {error && (
-            <span
-              style={{ fontSize: 12, color: "var(--danger)", fontWeight: 500 }}
-            >
-              Error: {error}
-            </span>
-          )}
-          <button
-            onClick={onClose}
-            style={{
-              padding: "6px 14px",
-              background: "none",
-              border: "1.5px solid var(--border2)",
-              borderRadius: "var(--r)",
-              cursor: "pointer",
-              fontSize: 13,
-              fontFamily: "DM Sans",
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={async () => {
-              setRedistribuyendoEncs(true);
-              try {
-                const { data, error } = await supabase.rpc(
-                  "distribuir_zonas_encuestadores",
-                  { p_encuesta_id: encuesta.id },
-                );
-                if (error) throw error;
-                // Recargar encuestadoresPorZona
-                const zonaIds = zonas.map((z) => z.id);
-                const { data: aes } = await supabase
-                  .from("asignaciones_encuesta")
-                  .select(
-                    "encuesta_zona_id, encuestador_id, perfiles(nombre_completo)",
-                  )
-                  .in("encuesta_zona_id", zonaIds);
-                if (aes) {
-                  const mapa = {};
-                  aes.forEach((ae) => {
-                    if (!mapa[ae.encuesta_zona_id])
-                      mapa[ae.encuesta_zona_id] = [];
-                    mapa[ae.encuesta_zona_id].push(
-                      ae.perfiles?.nombre_completo || ae.encuestador_id,
-                    );
-                  });
-                  setEncuestadoresPorZona(mapa);
-                }
-                // Contar total de asignaciones
-                const total = (data?.equipos || []).reduce(
-                  (s, e) => s + (e.asignaciones || 0),
-                  0,
-                );
-                mostrarToast(`✅ ${total} asignaciones creadas correctamente`);
-              } catch (e) {
-                mostrarToast(`❌ Error: ${e.message}`);
-              } finally {
-                setRedistribuyendoEncs(false);
-              }
-            }}
-            disabled={redistribuyendoEncs}
-            style={{
-              padding: "6px 14px",
-              background: "none",
-              border: "1.5px solid var(--accent)",
-              borderRadius: "var(--r)",
-              cursor: redistribuyendoEncs ? "not-allowed" : "pointer",
-              fontSize: 13,
-              fontFamily: "DM Sans",
-              color: "var(--accent)",
-              fontWeight: 600,
-              opacity: redistribuyendoEncs ? 0.6 : 1,
-            }}
-          >
-            {redistribuyendoEncs
-              ? "⏳ Redistribuyendo..."
-              : "👥 Redistribuir encuestadores"}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{
-              padding: "6px 20px",
-              background: saving ? "var(--surface2)" : "var(--accent)",
-              color: "#fff",
-              border: "none",
-              borderRadius: "var(--r)",
-              cursor: saving ? "not-allowed" : "pointer",
-              fontSize: 13,
-              fontWeight: 700,
-              fontFamily: "DM Sans",
-              opacity: saving ? 0.6 : 1,
-            }}
-          >
+          {error && <span style={{ fontSize: 12, color: "var(--danger)", fontWeight: 500 }}>Error: {error}</span>}
+          <button onClick={onClose} style={{ padding: "6px 14px", background: "none", border: "1.5px solid var(--border2)", borderRadius: "var(--r)", cursor: "pointer", fontSize: 13, fontFamily: "DM Sans" }}>Cancelar</button>
+          <button onClick={handleSave} disabled={saving} style={{ padding: "6px 20px", background: saving ? "var(--surface2)" : "var(--accent)", color: "#fff", border: "none", borderRadius: "var(--r)", cursor: saving ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 700, fontFamily: "DM Sans", opacity: saving ? 0.6 : 1 }}>
             {saving ? "Guardando..." : "Guardar todo"}
           </button>
         </div>
 
-        {/* Tabs */}
-        <div
-          style={{
-            display: "flex",
-            borderBottom: "1px solid var(--border)",
-            paddingLeft: 20,
-            flexShrink: 0,
-            background: "var(--surface)",
-          }}
-        >
-          {encuesta.tipo_encuesta !== "telefonica" && (
-            <button
-              style={tabBtn("zonas", "Zonas")}
-              onClick={() => setTab("zonas")}
-            >
-              {encuesta.tipo_encuesta === "callejera"
-                ? "Zonas y geofencing"
-                : "Zonas y manzanas"}
-            </button>
-          )}
-          <button
-            style={tabBtn("muestreo", "Muestreo")}
-            onClick={() => setTab("muestreo")}
-          >
-            Configuracion de muestreo
-          </button>
-        </div>
+        {/* ── Tabs (solo en vista mapa, solo zonas) ── */}
+        {vista === "mapa" && (
+          <div style={{ display: "flex", borderBottom: "1px solid var(--border)", paddingLeft: 20, flexShrink: 0, background: "var(--surface)" }}>
+            {encuesta.tipo_encuesta !== "telefonica" && (
+              <button style={tabBtn("zonas", "Zonas")} onClick={() => setTab("zonas")}>
+                {encuesta.tipo_encuesta === "callejera" ? "Zonas y geofencing" : "Zonas y manzanas"}
+              </button>
+            )}
+          </div>
+        )}
 
-        {/* Cuerpo */}
-        <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            display: tab === "zonas" ? "flex" : "block",
-            overflow: tab === "zonas" ? "hidden" : "auto",
-          }}
-        >
-          {/* ── Toast ── */}
-          {toastMsg && (
-            <div
-              style={{
-                position: "fixed",
-                bottom: 32,
-                left: "50%",
-                transform: "translateX(-50%)",
-                background: "#1a1a1a",
-                color: "#fff",
-                padding: "10px 20px",
-                borderRadius: 100,
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "DM Sans",
-                zIndex: 9999,
-                boxShadow: "0 4px 20px rgba(0,0,0,.3)",
-                pointerEvents: "none",
-              }}
-            >
-              {toastMsg}
+        {/* ── Toast ── */}
+        {toastMsg && (
+          <div style={{ position: "fixed", bottom: 32, left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", color: "#fff", padding: "10px 20px", borderRadius: 100, fontSize: 13, fontWeight: 600, fontFamily: "DM Sans", zIndex: 9999, boxShadow: "0 4px 20px rgba(0,0,0,.3)", pointerEvents: "none" }}>
+            {toastMsg}
+          </div>
+        )}
+
+        {/* ════ VISTA: LISTA DE EQUIPOS ════ */}
+        {vista === "equipos" && (
+          <div style={{ flex: 1, overflow: "auto", padding: 28 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 16 }}>
+              Equipos de la encuesta
             </div>
-          )}
-
-          {/* ────────── TAB ZONAS ────────── */}
-          {tab === "zonas" && (
-            <>
-              {/* Sidebar izquierdo: lista de zonas + drag&drop equipos */}
-              <div
-                style={{
-                  width: 280,
-                  flexShrink: 0,
-                  borderRight: "1px solid var(--border)",
-                  display: "flex",
-                  flexDirection: "column",
-                  overflowY: "auto",
-                  background: "var(--surface)",
-                }}
-              >
-                {/* ── Mapa completo: todas las zonas juntas ── */}
-                {zonas.length > 0 && (
-                  <div
-                    style={{
-                      borderBottom: "1px solid var(--border)",
-                      padding: "10px 12px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: "var(--ink3)",
-                        textTransform: "uppercase",
-                        letterSpacing: ".06em",
-                        marginBottom: 7,
-                      }}
-                    >
-                      Vista general
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {(equipos || []).length === 0 && (
+                <div style={{ padding: "40px 0", textAlign: "center", color: "var(--ink3)", fontSize: 14 }}>
+                  No hay equipos en esta organización.
+                </div>
+              )}
+              {(equipos || []).map(eq => {
+                const zonasEq = []; // contamos desde DB — se carga al abrir
+                return (
+                  <div key={eq.id} style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 16 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--accent-light)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>👥</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>{eq.nombre}</div>
+                      <div style={{ fontSize: 12, color: "var(--ink3)", marginTop: 2 }}>Tocá para configurar zonas, manzanas y encuestadores</div>
                     </div>
-                    {zonas.length > 0 && (
-                      <div
-                        style={{
-                          padding: "8px 12px",
-                          borderBottom: "1px solid var(--border)",
-                          display: "flex",
-                          gap: 6,
-                        }}
-                      >
-                        <button
-                          onClick={() => setVistaGeneral(true)}
-                          style={{
-                            flex: 1,
-                            padding: "7px 10px",
-                            fontSize: 11,
-                            fontWeight: 700,
-                            fontFamily: "DM Sans",
-                            cursor: "pointer",
-                            borderRadius: "var(--r)",
-                            border: `1.5px solid ${vistaGeneral ? "var(--accent)" : "var(--border2)"}`,
-                            background: vistaGeneral
-                              ? "var(--accent)"
-                              : "var(--surface)",
-                            color: vistaGeneral ? "#fff" : "var(--ink2)",
-                          }}
-                        >
-                          🗺️ Vista general
-                        </button>
-                        <button
-                          onClick={() => setVistaGeneral(false)}
-                          style={{
-                            flex: 1,
-                            padding: "7px 10px",
-                            fontSize: 11,
-                            fontWeight: 700,
-                            fontFamily: "DM Sans",
-                            cursor: "pointer",
-                            borderRadius: "var(--r)",
-                            border: `1.5px solid ${!vistaGeneral ? "var(--accent)" : "var(--border2)"}`,
-                            background: !vistaGeneral
-                              ? "var(--accent)"
-                              : "var(--surface)",
-                            color: !vistaGeneral ? "#fff" : "var(--ink2)",
-                          }}
-                        >
-                          📍 Zona activa
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Lista de zonas */}
-                <div
-                  style={{
-                    padding: "12px 12px 6px",
-                    borderBottom: "1px solid var(--border)",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: "var(--ink3)",
-                        textTransform: "uppercase",
-                        letterSpacing: ".06em",
-                      }}
-                    >
-                      Zonas ({zonas.length})
-                    </span>
-                    <button
-                      onClick={agregarZona}
-                      title="Agregar nueva zona"
-                      style={{
-                        padding: "3px 10px",
-                        background: "var(--accent)",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "var(--r)",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        fontFamily: "DM Sans",
-                      }}
-                    >
-                      + Zona
+                    <button onClick={() => abrirEquipo(eq)}
+                      style={{ padding: "8px 18px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: "var(--r)", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "DM Sans", display: "flex", alignItems: "center", gap: 6 }}>
+                      🗺️ Configurar zonas
                     </button>
                   </div>
-                  {zonas.map((zona, idx) => {
-                    const eq = equipos.find((e) => e.id === zona.equipo_id);
-                    const activa = zona.id === zonaActiva;
-                    return (
-                      <div
-                        key={zona.id}
-                        onClick={() => cambiarZonaActiva(zona.id)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => onDropEnZona(zona.id)}
-                        style={{
-                          padding: "8px 10px",
-                          borderRadius: "var(--r)",
-                          marginBottom: 4,
-                          cursor: "pointer",
-                          background: activa
-                            ? "var(--accent-light)"
-                            : dragging
-                              ? "rgba(22,163,74,0.06)"
-                              : "var(--paper)",
-                          border: `2px solid ${activa ? "var(--accent2)" : dragging ? "#86efac" : "var(--border)"}`,
-                          transition: "all .1s",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: "50%",
-                              background: COLOR_ZONA(idx),
-                              flexShrink: 0,
-                            }}
-                          />
-                          <input
-                            value={zona.nombre}
-                            onChange={(e) =>
-                              renombrarZona(zona.id, e.target.value)
-                            }
-                            onClick={(ev) => ev.stopPropagation()}
-                            style={{
-                              flex: 1,
-                              border: "none",
-                              background: "transparent",
-                              fontSize: 13,
-                              fontWeight: 600,
-                              fontFamily: "DM Sans",
-                              outline: "none",
-                              color: "var(--ink)",
-                              minWidth: 0,
-                            }}
-                          />
-                          <button
-                            onClick={(ev) => {
-                              ev.stopPropagation();
-                              eliminarZona(zona.id);
-                            }}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              fontSize: 14,
-                              color: "var(--ink3)",
-                              padding: "0 2px",
-                              lineHeight: 1,
-                            }}
-                          >
-                            x
-                          </button>
-                          {zona.equipo_id && (
-                            <button
-                              onClick={(ev) => {
-                                ev.stopPropagation();
-                                redistribuirManzanas(zona.id);
-                              }}
-                              title="Redistribuir manzanas entre los encuestadores del equipo al azar"
-                              disabled={distribuyendo === zona.id}
-                              style={{
-                                background: "none",
-                                border: "none",
-                                cursor: "pointer",
-                                fontSize: 12,
-                                color: "var(--accent2)",
-                                padding: "0 2px",
-                                lineHeight: 1,
-                              }}
-                            >
-                              {distribuyendo === zona.id ? "⏳" : "🎲"}
-                            </button>
-                          )}
-                        </div>
-                        {eq ? (
-                          <div style={{ marginTop: 5 }}>
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 5,
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: 11,
-                                  color: "var(--accent2)",
-                                  fontWeight: 600,
-                                  background: "var(--accent-light)",
-                                  padding: "1px 7px",
-                                  borderRadius: 100,
-                                  flex: 1,
-                                }}
-                              >
-                                {eq.nombre}
-                              </span>
-                              <button
-                                onClick={(ev) => {
-                                  ev.stopPropagation();
-                                  quitarEquipoDeZona(zona.id);
-                                }}
-                                title="Quitar equipo de esta zona"
-                                style={{
-                                  background: "none",
-                                  border: "none",
-                                  cursor: "pointer",
-                                  fontSize: 11,
-                                  color: "var(--ink3)",
-                                  padding: "1px 3px",
-                                  lineHeight: 1,
-                                }}
-                              >
-                                x
-                              </button>
-                            </div>
-                            {/* Encuestadores asignados a esta zona */}
-                            {(encuestadoresPorZona[zona.id] || []).map(
-                              (nombre, ni) => (
-                                <div
-                                  key={ni}
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 4,
-                                    marginTop: 3,
-                                  }}
-                                >
-                                  <div
-                                    style={{
-                                      width: 6,
-                                      height: 6,
-                                      borderRadius: "50%",
-                                      background: COLOR_ZONA(idx),
-                                      flexShrink: 0,
-                                    }}
-                                  />
-                                  <span
-                                    style={{
-                                      fontSize: 10,
-                                      color: "var(--ink2)",
-                                    }}
-                                  >
-                                    {nombre}
-                                  </span>
-                                </div>
-                              ),
-                            )}
-                          </div>
-                        ) : (
-                          <div
-                            style={{
-                              marginTop: 5,
-                              fontSize: 11,
-                              color: dragging ? "#16a34a" : "var(--ink3)",
-                              fontStyle: "italic",
-                            }}
-                          >
-                            {dragging
-                              ? "Solta aqui para asignar"
-                              : "Sin equipo asignado"}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {zonas.length === 0 && (
-                    <div
-                      style={{
-                        textAlign: "center",
-                        padding: "16px 0",
-                        fontSize: 12,
-                        color: "var(--ink3)",
-                      }}
-                    >
-                      Agregar una zona para comenzar
+                );
+              })}
+            </div>
+
+            {/* Config muestreo acceso directo */}
+            <div style={{ marginTop: 24 }}>
+              <button onClick={() => setTab("muestreo")}
+                style={{ padding: "8px 18px", background: tab === "muestreo" ? "var(--accent)" : "var(--surface)", border: `1.5px solid ${tab === "muestreo" ? "var(--accent)" : "var(--border2)"}`, borderRadius: "var(--r)", fontSize: 13, cursor: "pointer", fontFamily: "DM Sans", color: tab === "muestreo" ? "#fff" : "var(--ink2)", fontWeight: 600 }}>
+                ⚙️ Configuración de muestreo
+              </button>
+              {tab === "muestreo" && (
+                <button onClick={() => setTab("zonas")}
+                  style={{ marginLeft: 8, padding: "8px 14px", background: "none", border: "1.5px solid var(--border2)", borderRadius: "var(--r)", fontSize: 13, cursor: "pointer", fontFamily: "DM Sans", color: "var(--ink3)" }}>
+                  ✕ Cerrar
+                </button>
+              )}
+            </div>
+
+            {/* Panel muestreo inline */}
+            {tab === "muestreo" && (
+              <div style={{ marginTop: 20, maxWidth: 720 }}>
+                {/* Programación */}
+                <div style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: "18px 20px", marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Programación</div>
+                  <div style={{ fontSize: 13, color: "var(--ink3)", marginBottom: 16, lineHeight: 1.5 }}>
+                    La encuesta se <strong>desbloquea automáticamente</strong> para los encuestadores en la fecha de inicio.
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: "var(--ink2)", display: "block", marginBottom: 6 }}>📅 Fecha de inicio</label>
+                      <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
+                        style={{ width: "100%", padding: "9px 12px", border: "1.5px solid var(--border2)", borderRadius: "var(--r)", fontSize: 13, fontFamily: "DM Sans", background: "var(--surface)", color: "var(--ink)", outline: "none" }} />
+                      <div style={{ fontSize: 11, color: "var(--ink4)", marginTop: 4 }}>Dejar vacío = disponible inmediatamente</div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: "var(--ink2)", display: "block", marginBottom: 6 }}>🔚 Fecha de cierre</label>
+                      <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
+                        style={{ width: "100%", padding: "9px 12px", border: "1.5px solid var(--border2)", borderRadius: "var(--r)", fontSize: 13, fontFamily: "DM Sans", background: "var(--surface)", color: "var(--ink)", outline: "none" }} />
+                      <div style={{ fontSize: 11, color: "var(--ink4)", marginTop: 4 }}>Dejar vacío = sin fecha de cierre</div>
+                    </div>
+                  </div>
+                  {fechaInicio && (
+                    <div style={{ marginTop: 14, padding: "10px 14px", background: "var(--accent-light)", borderRadius: "var(--r)", fontSize: 13, color: "var(--accent2)", borderLeft: "3px solid var(--accent2)" }}>
+                      🔒 Esta encuesta se desbloqueará el <strong>{new Date(fechaInicio + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</strong>
+                      {fechaFin && ` y cerrará el ${new Date(fechaFin + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`}.
                     </div>
                   )}
                 </div>
-
-                {/* Panel drag & drop de equipos */}
-                <div style={{ padding: "12px", flex: 1 }}>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: "var(--ink3)",
-                      textTransform: "uppercase",
-                      letterSpacing: ".06em",
-                      marginBottom: 8,
-                    }}
-                  >
-                    Equipos disponibles
+                {(encuesta?.tipo_encuesta === "callejera" || encuesta?.tipo_encuesta === "telefonica") && (
+                  <div style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: "18px 20px", marginBottom: 20 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Cuota por encuestador</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <input type="range" min={1} max={200} value={config.cuota_por_encuestador || 50}
+                        onChange={e => setConfig(c => ({ ...c, cuota_por_encuestador: parseInt(e.target.value) }))}
+                        style={{ flex: 1, accentColor: "var(--accent)" }} />
+                      <span style={{ fontFamily: "Syne", fontSize: 28, fontWeight: 800, color: "var(--accent)", minWidth: 48, textAlign: "center" }}>
+                        {config.cuota_por_encuestador || 50}
+                      </span>
+                    </div>
                   </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "var(--ink3)",
-                      marginBottom: 8,
-                    }}
-                  >
-                    Arrastra un equipo a una zona para asignarlo
-                  </div>
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 5 }}
-                  >
-                    {equipos.map((eq) => (
-                      <div
-                        key={eq.id}
-                        draggable
-                        onDragStart={() => onDragStart(eq.id)}
-                        onDragEnd={onDragEnd}
-                        style={{
-                          padding: "7px 10px",
-                          borderRadius: "var(--r)",
-                          border: "1.5px solid var(--border2)",
-                          background:
-                            dragging === eq.id
-                              ? "var(--accent-light)"
-                              : "var(--paper)",
-                          cursor: "grab",
-                          fontSize: 13,
-                          fontWeight: 600,
-                          fontFamily: "DM Sans",
-                          color:
-                            dragging === eq.id ? "var(--accent)" : "var(--ink)",
-                          transition: "all .1s",
-                          userSelect: "none",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
-                        }}
-                      >
-                        <span style={{ fontSize: 14 }}>
-                          {dragging === eq.id ? "✋" : "☰"}
-                        </span>
-                        {eq.nombre}
-                      </div>
-                    ))}
-                    {equipos.length === 0 && (
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "var(--ink3)",
-                          fontStyle: "italic",
-                        }}
-                      >
-                        Sin equipos. Crea equipos primero.
-                      </div>
-                    )}
-                  </div>
-                </div>
+                )}
+                {encuesta?.tipo_encuesta === "domiciliaria" && (
+                  <PanelConfig config={config} onChange={setConfig} organizacionId={encuesta?.organizacion_id} />
+                )}
               </div>
+            )}
+          </div>
+        )}
 
-              {/* Mapa de la zona activa */}
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  minWidth: 0,
-                }}
-              >
-                {vistaGeneral ? (
-                  <div
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      flexDirection: "column",
-                    }}
-                  >
-                    <MapaCompleto zonas={todasLasZonasData} fullSize />
+        {/* ════ VISTA: MAPA DEL EQUIPO ════ */}
+        {vista === "mapa" && tab === "zonas" && (
+          <div style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
+            {loadingZonas ? (
+              <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner size="lg" /></div>
+            ) : (
+              <>
+                {/* ── Sidebar izquierdo ── */}
+                <div style={{ width: 260, flexShrink: 0, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", overflowY: "auto", background: "var(--surface)" }}>
+
+                  {/* Encuestadores — click para seleccionar, luego click en zona para asignar */}
+                  <div style={{ padding: "12px 12px 8px", borderBottom: "1px solid var(--border)" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
+                      👤 Encuestadores
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--ink3)", marginBottom: 8 }}>
+                      {draggingEnc ? <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓ {draggingEnc.nombre} — tocá una zona para asignar</span> : "Tocá uno para seleccionar"}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                      {encuestadoresEquipo.length === 0 && (
+                        <div style={{ fontSize: 12, color: "var(--ink3)", fontStyle: "italic" }}>Sin encuestadores en este equipo</div>
+                      )}
+                      {encuestadoresEquipo.map(enc => {
+                        const seleccionado = draggingEnc?.id === enc.id;
+                        return (
+                          <div key={enc.id}
+                            onClick={() => setDraggingEnc(seleccionado ? null : enc)}
+                            style={{
+                              padding: "7px 10px", borderRadius: "var(--r)", fontSize: 12, fontWeight: 600,
+                              background: seleccionado ? "var(--accent)" : "var(--paper)",
+                              color: seleccionado ? "#fff" : "var(--ink)",
+                              border: `1.5px solid ${seleccionado ? "var(--accent)" : "var(--border2)"}`,
+                              cursor: "pointer", userSelect: "none",
+                              display: "flex", alignItems: "center", gap: 6, transition: "all .15s",
+                            }}>
+                            {seleccionado ? "✓" : "+"} {enc.nombre}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                ) : zonaActiva ? (
-                  <MapaZona
-  key={zonaActiva}
-  ref={mapaRef}
-  encuestaId={encuesta.id}
-  zonaActual={zonasDataRef.current[zonaActiva] || null}
-  manzanasSeleccionadas={[]}
-  onZonaChange={geojson => { if (geojson) zonasDataRef.current[zonaActiva] = geojson }}
-  onManzanasChange={() => {}}
-  colorZona={COLOR_ZONA(zonaActivaIdx)}
-  sinManzanas={encuesta?.tipo_encuesta === "callejera"}
-  todasLasZonas={todasLasZonasData}
-/>
-                ) : (
-                  <div
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexDirection: "column",
-                      gap: 12,
-                      color: "var(--ink3)",
-                    }}
-                  >
-                    <div style={{ fontSize: 40 }}>🗺️</div>
-                    <p style={{ fontSize: 14, fontWeight: 600 }}>
-                      Agrega una zona para comenzar
-                    </p>
-                    <button
-                      onClick={agregarZona}
-                      style={{
-                        padding: "8px 20px",
-                        background: "var(--accent)",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "var(--r)",
-                        cursor: "pointer",
-                        fontSize: 14,
-                        fontWeight: 600,
-                        fontFamily: "DM Sans",
-                      }}
-                    >
-                      + Agregar primera zona
+
+                  {/* Lista de zonas */}
+                  <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                      Zonas ({zonas.length})
+                    </div>
+                    {zonas.map((z, zi) => {
+                      const color = COLOR_ZONA(zi);
+                      const asigs = asignaciones[z.id] || [];
+                      const esActiva = z.id === zonaActiva;
+                      const puedeAsignar = !!draggingEnc && !asigs.some(e => e.id === draggingEnc.id);
+                      return (
+                        <div key={z.id}
+                          onDragOver={e => { e.preventDefault(); setDropTarget(z.id); }}
+                          onDragLeave={() => setDropTarget(null)}
+                          onDrop={e => {
+                            e.preventDefault();
+                            const encId = e.dataTransfer.getData("encId");
+                            const encNombre = e.dataTransfer.getData("encNombre");
+                            setDropTarget(null);
+                            if (encId) asignarEncAZona(encId, encNombre, z.id);
+                          }}
+                          onClick={() => {
+                            if (draggingEnc) {
+                              asignarEncAZona(draggingEnc.id, draggingEnc.nombre, z.id);
+                              setDraggingEnc(null);
+                            } else {
+                              cambiarZonaActiva(z.id);
+                            }
+                          }}
+                          style={{
+                            marginBottom: 8, borderRadius: "var(--r2)", overflow: "hidden",
+                            border: `2px solid ${puedeAsignar ? color : dropTarget === z.id ? color : esActiva ? color : "var(--border)"}`,
+                            background: puedeAsignar ? `${color}15` : dropTarget === z.id ? `${color}18` : esActiva ? `${color}0a` : "var(--paper)",
+                            transition: "all .15s",
+                            cursor: draggingEnc ? "pointer" : "default",
+                          }}>
+                          {/* Header zona */}
+                          <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 6, cursor: "pointer", borderBottom: esActiva ? `1px solid ${color}30` : "none" }}
+                            onClick={() => cambiarZonaActiva(z.id)}>
+                            <div style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                            <input
+                              value={z.nombre}
+                              onChange={e => renombrarZona(z.id, e.target.value)}
+                              onClick={e => e.stopPropagation()}
+                              style={{ flex: 1, border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: "var(--ink)", fontFamily: "DM Sans", outline: "none", cursor: "text" }}
+                            />
+                            <button onClick={e => { e.stopPropagation(); eliminarZona(z.id); }}
+                              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", fontSize: 14, padding: "0 2px", lineHeight: 1 }}>×</button>
+                          </div>
+                          {/* Encuestadores asignados */}
+                          {asigs.length > 0 && (
+                            <div style={{ padding: "6px 10px", display: "flex", flexWrap: "wrap", gap: 4 }}>
+                              {asigs.map(enc => (
+                                <div key={enc.id} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 7px", borderRadius: 100, background: `${color}20`, border: `1px solid ${color}50`, fontSize: 11, fontWeight: 600, color }}>
+                                  {enc.nombre.split(" ")[0]}
+                                  <button onClick={() => quitarEncDeZona(enc.id, z.id)}
+                                    style={{ background: "none", border: "none", cursor: "pointer", color, fontSize: 12, padding: 0, lineHeight: 1, marginLeft: 2 }}>×</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {puedeAsignar && (
+                            <div style={{ padding: "4px 10px", fontSize: 10, color, fontWeight: 700, fontStyle: "italic", borderTop: `1px solid ${color}30` }}>
+                              ✓ Tocá para asignar {draggingEnc.nombre.split(" ")[0]}
+                            </div>
+                          )}
+                          {dropTarget === z.id && !puedeAsignar && (
+                            <div style={{ padding: "4px 10px", fontSize: 10, color, fontWeight: 600, fontStyle: "italic" }}>
+                              Soltar aquí →
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <button onClick={agregarZona}
+                      style={{ width: "100%", padding: "8px 0", border: "1.5px dashed var(--border2)", borderRadius: "var(--r)", background: "none", cursor: "pointer", fontSize: 12, color: "var(--ink3)", fontFamily: "DM Sans", marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      + Nueva zona
                     </button>
                   </div>
-                )}
-              </div>
-            </>
-          )}
+                </div>
 
-          {/* ────────── TAB MUESTREO ────────── */}
-          {tab === "muestreo" && (
-            <div style={{ padding: "20px 28px", maxWidth: 720 }}>
-              {/* ── Fechas de la encuesta ── */}
-              <div
-                style={{
-                  background: "var(--paper)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--r2)",
-                  padding: "18px 20px",
-                  marginBottom: 20,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: "var(--ink3)",
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
-                    marginBottom: 4,
-                  }}
-                >
-                  Programación
-                </div>
-                <div
-                  style={{
-                    fontSize: 13,
-                    color: "var(--ink3)",
-                    marginBottom: 16,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  La encuesta se <strong>desbloquea automáticamente</strong>{" "}
-                  para los encuestadores en la fecha de inicio. Si no se
-                  configura, está disponible siempre que esté publicada.
-                </div>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 16,
-                  }}
-                >
-                  <div>
-                    <label
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: "var(--ink2)",
-                        display: "block",
-                        marginBottom: 6,
-                      }}
-                    >
-                      📅 Fecha de inicio
-                    </label>
-                    <input
-                      type="date"
-                      value={fechaInicio}
-                      onChange={(e) => setFechaInicio(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "9px 12px",
-                        border: "1.5px solid var(--border2)",
-                        borderRadius: "var(--r)",
-                        fontSize: 13,
-                        fontFamily: "DM Sans",
-                        background: "var(--surface)",
-                        color: "var(--ink)",
-                        outline: "none",
-                      }}
+                {/* ── Mapa ── */}
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  {/* Toggle vista general */}
+                  <div style={{ padding: "6px 10px", background: "var(--surface)", borderBottom: "1px solid var(--border)", display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => { guardarSnapshotActual(); setVistaGeneral(false); }}
+                      style={{ padding: "4px 12px", fontSize: 11, fontFamily: "DM Sans", fontWeight: 600, cursor: "pointer", borderRadius: "var(--r)", border: `1.5px solid ${!vistaGeneral ? "var(--accent)" : "var(--border2)"}`, background: !vistaGeneral ? "var(--accent)" : "var(--surface)", color: !vistaGeneral ? "#fff" : "var(--ink3)" }}>
+                      ✏️ Editar zona
+                    </button>
+                    <button onClick={() => { guardarSnapshotActual(); setVistaGeneral(true); }}
+                      style={{ padding: "4px 12px", fontSize: 11, fontFamily: "DM Sans", fontWeight: 600, cursor: "pointer", borderRadius: "var(--r)", border: `1.5px solid ${vistaGeneral ? "var(--accent)" : "var(--border2)"}`, background: vistaGeneral ? "var(--accent)" : "var(--surface)", color: vistaGeneral ? "#fff" : "var(--ink3)" }}>
+                      🗺️ Vista general
+                    </button>
+                  </div>
+
+                  {vistaGeneral ? (
+                    <MapaCompleto zonas={todasLasZonasData} fullSize />
+                  ) : zonaActiva ? (
+                    <MapaZona
+                      key={zonaActiva}
+                      ref={mapaRef}
+                      encuestaId={encuesta.id}
+                      zonaActual={zonasDataRef.current[zonaActiva] || null}
+                      manzanasSeleccionadas={[]}
+                      onZonaChange={geojson => { if (geojson) zonasDataRef.current[zonaActiva] = geojson; }}
+                      onManzanasChange={() => {}}
+                      colorZona={COLOR_ZONA(zonaActivaIdx)}
+                      todasLasZonas={todasLasZonasData}
+                      encuestadoresAsignados={asignaciones[zonaActiva] || []}
                     />
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "var(--ink4)",
-                        marginTop: 4,
-                      }}
-                    >
-                      Dejar vacío = disponible inmediatamente
+                  ) : (
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, color: "var(--ink3)" }}>
+                      <div style={{ fontSize: 40 }}>🗺️</div>
+                      <p style={{ fontSize: 14, fontWeight: 600 }}>Agregá una zona para comenzar</p>
+                      <button onClick={agregarZona}
+                        style={{ padding: "8px 20px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: "var(--r)", cursor: "pointer", fontSize: 14, fontWeight: 600, fontFamily: "DM Sans" }}>
+                        + Agregar primera zona
+                      </button>
                     </div>
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: "var(--ink2)",
-                        display: "block",
-                        marginBottom: 6,
-                      }}
-                    >
-                      🔚 Fecha de cierre
-                    </label>
-                    <input
-                      type="date"
-                      value={fechaFin}
-                      onChange={(e) => setFechaFin(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "9px 12px",
-                        border: "1.5px solid var(--border2)",
-                        borderRadius: "var(--r)",
-                        fontSize: 13,
-                        fontFamily: "DM Sans",
-                        background: "var(--surface)",
-                        color: "var(--ink)",
-                        outline: "none",
-                      }}
-                    />
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "var(--ink4)",
-                        marginTop: 4,
-                      }}
-                    >
-                      Dejar vacío = sin fecha de cierre
-                    </div>
-                  </div>
+                  )}
                 </div>
-                {fechaInicio && (
-                  <div
-                    style={{
-                      marginTop: 14,
-                      padding: "10px 14px",
-                      background: "var(--accent-light)",
-                      borderRadius: "var(--r)",
-                      fontSize: 13,
-                      color: "var(--accent2)",
-                      borderLeft: "3px solid var(--accent2)",
-                    }}
-                  >
-                    🔒 Esta encuesta se desbloqueará el{" "}
-                    <strong>
-                      {new Date(fechaInicio + "T12:00:00").toLocaleDateString(
-                        "es-AR",
-                        {
-                          weekday: "long",
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        },
-                      )}
-                    </strong>
-                    {fechaFin &&
-                      ` y cerrará el ${new Date(fechaFin + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`}
-                    .
-                  </div>
-                )}
-              </div>
+              </>
+            )}
+          </div>
+        )}
 
-              {/* Cuota por encuestador — solo callejera y telefónica */}
-              {(encuesta?.tipo_encuesta === "callejera" ||
-                encuesta?.tipo_encuesta === "telefonica") && (
-                <div
-                  style={{
-                    background: "var(--paper)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--r2)",
-                    padding: "18px 20px",
-                    marginBottom: 20,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: "var(--ink3)",
-                      textTransform: "uppercase",
-                      letterSpacing: 1,
-                      marginBottom: 4,
-                    }}
-                  >
-                    Cuota por encuestador
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: "var(--ink3)",
-                      marginBottom: 12,
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    Cantidad de encuestas que debe completar cada encuestador.
-                  </div>
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 12 }}
-                  >
-                    <input
-                      type="range"
-                      min={1}
-                      max={200}
-                      value={config.cuota_por_encuestador || 50}
-                      onChange={(e) =>
-                        setConfig((c) => ({
-                          ...c,
-                          cuota_por_encuestador: parseInt(e.target.value),
-                        }))
-                      }
-                      style={{ flex: 1, accentColor: "var(--accent)" }}
-                    />
-                    <span
-                      style={{
-                        fontFamily: "Syne",
-                        fontSize: 28,
-                        fontWeight: 800,
-                        color: "var(--accent)",
-                        minWidth: 48,
-                        textAlign: "center",
-                      }}
-                    >
-                      {config.cuota_por_encuestador || 50}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Config domiciliaria — solo domiciliaria */}
-              {encuesta?.tipo_encuesta === "domiciliaria" && (
-                <PanelConfig
-                  config={config}
-                  onChange={setConfig}
-                  organizacionId={encuesta?.organizacion_id}
-                />
-              )}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
