@@ -1674,37 +1674,18 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
   // El drop se detecta en los botones de zona del sidebar (fallback)
   // y también via HTML5 drag sobre el mapa (detectando zona por coordenadas)
 
-  async function asignarEncAZona(encId, encNombre, zonaId) {
+  // Asignación solo actualiza estado local — se persiste al guardar
+  function asignarEncAZona(encId, encNombre, zonaId) {
     const yaAsignado = (asignaciones[zonaId] || []).some(e => e.id === encId);
     if (yaAsignado) return;
-
-    const { error: err } = await supabase.from("asignaciones_encuesta").insert({
-      encuesta_zona_id: zonaId,
-      encuestador_id: encId,
-      activo: true,
-      ...(encuestasEquipoIdRef.current ? { encuestas_equipo_id: encuestasEquipoIdRef.current } : {}),
-    });
-
-    if (err) {
-      // 23505 = unique violation (ya existe) — lo ignoramos
-      if (err.code !== '23505') {
-        console.error("[asignar enc]", err);
-        return;
-      }
-    }
-
     setAsignaciones(prev => ({
       ...prev,
       [zonaId]: [...(prev[zonaId] || []), { id: encId, nombre: encNombre }],
     }));
-    mostrarToast(`✅ ${encNombre} asignado/a a ${zonas.find(z => z.id === zonaId)?.nombre}`);
+    mostrarToast(`✅ ${encNombre} → ${zonas.find(z => z.id === zonaId)?.nombre} (guardá para confirmar)`);
   }
 
-  async function quitarEncDeZona(encId, zonaId) {
-    await supabase.from("asignaciones_encuesta")
-      .delete()
-      .eq("encuesta_zona_id", zonaId)
-      .eq("encuestador_id", encId);
+  function quitarEncDeZona(encId, zonaId) {
     setAsignaciones(prev => ({
       ...prev,
       [zonaId]: (prev[zonaId] || []).filter(e => e.id !== encId),
@@ -1726,6 +1707,27 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
           geofencing_activo: !!(geojson.features || []).find(f => f.properties?.tipo === "zona"),
         }).eq("id", zona.id);
       }));
+
+      // Sincronizar asignaciones — upsert para evitar duplicados
+      if (zonas.length > 0) {
+        const nuevasAsig = [];
+        zonas.forEach(zona => {
+          (asignaciones[zona.id] || []).forEach(enc => {
+            nuevasAsig.push({
+              encuesta_zona_id: zona.id,
+              encuestador_id: enc.id,
+              activo: true,
+              ...(encuestasEquipoIdRef.current ? { encuestas_equipo_id: encuestasEquipoIdRef.current } : {}),
+            });
+          });
+        });
+        if (nuevasAsig.length > 0) {
+          const { error: asigErr } = await supabase
+            .from("asignaciones_encuesta")
+            .upsert(nuevasAsig, { onConflict: 'encuesta_zona_id,encuestador_id', ignoreDuplicates: true });
+          if (asigErr) throw asigErr;
+        }
+      }
 
       // Guardar config muestreo y fechas
       await supabase.from("encuestas").update({
@@ -1887,17 +1889,24 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                   )}
                 </div>
                 {(encuesta?.tipo_encuesta === "callejera" || encuesta?.tipo_encuesta === "telefonica") && (
-                  <div style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: "18px 20px", marginBottom: 20 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Cuota por encuestador</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <input type="range" min={1} max={200} value={config.cuota_por_encuestador || 50}
-                        onChange={e => setConfig(c => ({ ...c, cuota_por_encuestador: parseInt(e.target.value) }))}
-                        style={{ flex: 1, accentColor: "var(--accent)" }} />
-                      <span style={{ fontFamily: "Syne", fontSize: 28, fontWeight: 800, color: "var(--accent)", minWidth: 48, textAlign: "center" }}>
-                        {config.cuota_por_encuestador || 50}
-                      </span>
+                  <>
+                    <div style={{ background: "var(--paper)", border: "1px solid var(--border)", borderRadius: "var(--r2)", padding: "18px 20px", marginBottom: 20 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink3)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Cuota por encuestador</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <input type="range" min={1} max={200} value={config.cuota_por_encuestador || 50}
+                          onChange={e => setConfig(c => ({ ...c, cuota_por_encuestador: parseInt(e.target.value) }))}
+                          style={{ flex: 1, accentColor: "var(--accent)" }} />
+                        <span style={{ fontFamily: "Syne", fontSize: 28, fontWeight: 800, color: "var(--accent)", minWidth: 48, textAlign: "center" }}>
+                          {config.cuota_por_encuestador || 50}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                    <RazonesSelector
+                      organizacionId={encuesta?.organizacion_id}
+                      seleccionadas={config.razones_seleccionadas || []}
+                      onChangeSel={(ids) => setConfig(c => ({ ...c, razones_seleccionadas: ids }))}
+                    />
+                  </>
                 )}
                 {encuesta?.tipo_encuesta === "domiciliaria" && (
                   <PanelConfig config={config} onChange={setConfig} organizacionId={encuesta?.organizacion_id} />

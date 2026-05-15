@@ -1614,8 +1614,8 @@ export default function Reportes() {
                   <>
                     {/* KPIs */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-                      <KpiCard label="Total respuestas" value={resumen?.total_participaron || resumen?.total_sesiones || 0} color="var(--accent)" icon={<BarChart2 size={12} />} />
-                      <KpiCard label="No respondieron" value={(resumen?.total_sesiones||0) - (resumen?.total_participaron||resumen?.total_sesiones||0)} color="#ef4444" icon={<FileText size={12} />} />
+                      <KpiCard label="Total respuestas" value={resumen?.total_participaron || 0} color="var(--accent)" icon={<BarChart2 size={12} />} />
+                      <KpiCard label="No respondieron" value={resumen?.total_no_respondieron || 0} color="#ef4444" icon={<FileText size={12} />} />
                       <KpiCard label="Total sesiones" value={resumen?.total_sesiones || 0} color="#7c3aed" icon={<Zap size={12} />} />
                       <KpiCard label="Última respuesta" value={resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—'} color="#b45309" sub="fecha más reciente" />
                     </div>
