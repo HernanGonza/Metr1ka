@@ -1579,7 +1579,7 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
     zonasDataRef.current = {};
 
     try {
-      const [{ data: zs }, { data: miembros }, { data: eeData }] = await Promise.all([
+      const [{ data: zs }, { data: miembros }, { data: eeData }, { data: coordinadores }] = await Promise.all([
         supabase.from("encuesta_zonas")
           .select("*")
           .eq("encuesta_id", encuesta.id)
@@ -1593,6 +1593,9 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
           .eq("encuesta_id", encuesta.id)
           .eq("equipo_id", equipo.id)
           .maybeSingle(),
+        supabase.from("equipo_coordinadores")
+          .select("coordinador_id, perfiles(nombre_completo)")
+          .eq("equipo_id", equipo.id),
       ]);
 
       setEncuestasEquipoId(eeData?.id || null);
@@ -1607,6 +1610,12 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
         id: m.encuestador_id,
         nombre: m.perfiles?.nombre_completo || m.encuestador_id,
       }));
+      // También incluir coordinadores para resolver nombres
+      const coords = (coordinadores || []).map(c => ({
+        id: c.coordinador_id,
+        nombre: c.perfiles?.nombre_completo || c.coordinador_id,
+      }));
+      const todosLosPerfiles = [...encs, ...coords];
       setEncuestadoresEquipo(encs);
 
       // Cargar asignaciones existentes
@@ -1618,7 +1627,7 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
         if (aes) {
           const mapa = {};
           aes.forEach(ae => {
-            const encNombre = encs.find(e => e.id === ae.encuestador_id)?.nombre || ae.encuestador_id;
+            const encNombre = todosLosPerfiles.find(e => e.id === ae.encuestador_id)?.nombre || ae.encuestador_id;
             if (!mapa[ae.encuesta_zona_id]) mapa[ae.encuesta_zona_id] = [];
             mapa[ae.encuesta_zona_id].push({ id: ae.encuestador_id, nombre: encNombre });
           });
@@ -1708,11 +1717,16 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
         }).eq("id", zona.id);
       }));
 
-      // Sincronizar asignaciones — upsert para evitar duplicados
+      // Sincronizar asignaciones — borrar las eliminadas, upsert las nuevas
       if (zonas.length > 0) {
+        const zonaIds = zonas.map(z => z.id);
+
+        // Construir lista de pares (zona_id, encuestador_id) que deben existir
+        const debeExistir = new Set();
         const nuevasAsig = [];
         zonas.forEach(zona => {
           (asignaciones[zona.id] || []).forEach(enc => {
+            debeExistir.add(`${zona.id}|${enc.id}`);
             nuevasAsig.push({
               encuesta_zona_id: zona.id,
               encuestador_id: enc.id,
@@ -1721,6 +1735,25 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
             });
           });
         });
+
+        // Leer asignaciones actuales en DB para estas zonas
+        const { data: asigActuales } = await supabase
+          .from("asignaciones_encuesta")
+          .select("id, encuesta_zona_id, encuestador_id")
+          .in("encuesta_zona_id", zonaIds);
+
+        // Borrar las que ya no deben existir
+        const paraEliminar = (asigActuales || [])
+          .filter(a => !debeExistir.has(`${a.encuesta_zona_id}|${a.encuestador_id}`))
+          .map(a => a.id);
+
+        if (paraEliminar.length > 0) {
+          await supabase.from("asignaciones_encuesta")
+            .delete()
+            .in("id", paraEliminar);
+        }
+
+        // Upsert las que deben existir
         if (nuevasAsig.length > 0) {
           const { error: asigErr } = await supabase
             .from("asignaciones_encuesta")
