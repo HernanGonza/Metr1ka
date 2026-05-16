@@ -41,8 +41,8 @@ function KpiCard({ label, value, sub, color = 'var(--accent)', icon }) {
 }
 
 function EncuestaRow({ enc, onClick }) {
-  const total = enc.sesiones_count || 0
-  const meta  = 300
+  const total = enc.completadas_count || 0
+  const meta  = enc.meta_total || (enc.sesiones_count ? enc.sesiones_count * 2 : 300)
   const pct   = Math.min(100, Math.round((total / meta) * 100))
   const cfg = {
     publicada:    { label: 'Publicada',    color: '#1a472a', bg: '#d8f3dc' },
@@ -202,7 +202,7 @@ export default function Dashboard() {
 
   const encPublicadas = encuestas.filter(e => e.estado_produccion === 'publicada')
   const encOtras      = encuestas.filter(e => e.estado_produccion !== 'publicada')
-  const totalResp     = encPublicadas.reduce((s, e) => s + (parseInt(e.sesiones_count) || 0), 0)
+  const totalResp     = encPublicadas.reduce((s, e) => s + (parseInt(e.completadas_count) || 0), 0)
 
   if (loading) return (
     <div className={styles.page}>
