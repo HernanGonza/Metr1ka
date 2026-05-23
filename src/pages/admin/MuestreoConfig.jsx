@@ -1684,22 +1684,34 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
   // y también via HTML5 drag sobre el mapa (detectando zona por coordenadas)
 
   // Asignación solo actualiza estado local — se persiste al guardar
-  function asignarEncAZona(encId, encNombre, zonaId) {
-    const yaAsignado = (asignaciones[zonaId] || []).some(e => e.id === encId);
-    if (yaAsignado) return;
-    setAsignaciones(prev => ({
-      ...prev,
-      [zonaId]: [...(prev[zonaId] || []), { id: encId, nombre: encNombre }],
-    }));
-    mostrarToast(`✅ ${encNombre} → ${zonas.find(z => z.id === zonaId)?.nombre} (guardá para confirmar)`);
-  }
+  async function asignarEncAZona(encId, encNombre, zonaId) {
+  const yaAsignado = (asignaciones[zonaId] || []).some(e => e.id === encId);
+  if (yaAsignado) return;
+  setAsignaciones(prev => ({
+    ...prev,
+    [zonaId]: [...(prev[zonaId] || []), { id: encId, nombre: encNombre }],
+  }));
+  // Guardar directo en DB sin esperar handleSave
+  await supabase.from("asignaciones_encuesta").upsert({
+    encuesta_zona_id: zonaId,
+    encuestador_id: encId,
+    activo: true,
+    ...(encuestasEquipoIdRef.current ? { encuestas_equipo_id: encuestasEquipoIdRef.current } : {}),
+  }, { onConflict: 'encuesta_zona_id,encuestador_id', ignoreDuplicates: true });
+  mostrarToast(`✅ ${encNombre} → ${zonas.find(z => z.id === zonaId)?.nombre}`);
+}
 
-  function quitarEncDeZona(encId, zonaId) {
-    setAsignaciones(prev => ({
-      ...prev,
-      [zonaId]: (prev[zonaId] || []).filter(e => e.id !== encId),
-    }));
-  }
+  async function quitarEncDeZona(encId, zonaId) {
+  setAsignaciones(prev => ({
+    ...prev,
+    [zonaId]: (prev[zonaId] || []).filter(e => e.id !== encId),
+  }));
+  // Borrar directo en DB
+  await supabase.from("asignaciones_encuesta")
+    .delete()
+    .eq("encuesta_zona_id", zonaId)
+    .eq("encuestador_id", encId);
+}
 
   // ── Guardar todo ──
   async function handleSave() {
@@ -1708,7 +1720,7 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
       guardarSnapshotActual();
 
       // Guardar area_geojson de cada zona directamente
-      await Promise.all(zonas.map(zona => {
+      await Promise.all(zonas.filter(z => zonasDataRef.current[z.id] !== undefined).map(zona => {
         const geojson = zonasDataRef.current[zona.id];
         if (!geojson) return Promise.resolve();
         return supabase.from("encuesta_zonas").update({
