@@ -20,6 +20,14 @@ const CONFIG_DEFAULT = {
   razon_no_respuesta_extra: [],
 };
 
+// ════════════════════════════════════════════════
+// HELPER: Comparar GeoJSON para detectar cambios
+// ════════════════════════════════════════════════
+function sonIgualesGeoJSON(a, b) {
+  if (!a || !b) return false;
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 async function initMapLibs() {
   const L = (await import("leaflet")).default;
   await import("leaflet/dist/leaflet.css");
@@ -1549,6 +1557,11 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
   const [tab, setTab] = useState("zonas");
   const [toastMsg, setToastMsg] = useState("");
 
+  // ════════════════════════════════════════════════
+  // NUEVO: Estado para rastrear zonas modificadas
+  // ════════════════════════════════════════════════
+  const [zonasModificadas, setZonasModificadas] = useState(new Set());
+
   const [encuestasEquipoId, setEncuestasEquipoId] = useState(null);
   const encuestasEquipoIdRef = useRef(null);
   const mapaRef = useRef(null);
@@ -1654,6 +1667,10 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
 
   async function renombrarZona(id, nombre) {
     setZonas(prev => prev.map(z => z.id === id ? { ...z, nombre } : z));
+    // ════════════════════════════════════════════
+    // MARCAR ZONA COMO MODIFICADA al cambiar nombre
+    // ════════════════════════════════════════════
+    setZonasModificadas(prev => new Set(prev).add(id));
     await supabase.from("encuesta_zonas").update({ nombre }).eq("id", id);
   }
 
@@ -1665,12 +1682,28 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
     setZonas(restantes);
     setZonaActiva(restantes.length > 0 ? restantes[0].id : null);
     setAsignaciones(prev => { const n = { ...prev }; delete n[id]; return n; });
+    // Remover de modificadas si estaba
+    setZonasModificadas(prev => {
+      const nueva = new Set(prev);
+      nueva.delete(id);
+      return nueva;
+    });
   }
 
+  // ════════════════════════════════════════════════
+  // ACTUALIZADO: guardarSnapshotActual con detección de cambios
+  // ════════════════════════════════════════════════
   function guardarSnapshotActual() {
     if (mapaRef.current && zonaActiva) {
       const data = mapaRef.current.getZonaActual();
-      if (data) zonasDataRef.current[zonaActiva] = data;
+      if (data) {
+        // Solo marcar como modificada si realmente cambió
+        const anterior = zonasDataRef.current[zonaActiva];
+        if (!sonIgualesGeoJSON(anterior, data)) {
+          zonasDataRef.current[zonaActiva] = data;
+          setZonasModificadas(prev => new Set(prev).add(zonaActiva));
+        }
+      }
     }
   }
 
@@ -1713,21 +1746,42 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
     .eq("encuestador_id", encId);
 }
 
-  // ── Guardar todo ──
+  // ════════════════════════════════════════════════
+  // MODIFICADO: handleSave con guardado selectivo de zonas
+  // ════════════════════════════════════════════════
   async function handleSave() {
-    setSaving(true); setError("");
+    setSaving(true); 
+    setError("");
+
     try {
       guardarSnapshotActual();
 
-      // Guardar area_geojson de cada zona directamente
-      await Promise.all(zonas.filter(z => zonasDataRef.current[z.id] !== undefined).map(zona => {
-        const geojson = zonasDataRef.current[zona.id];
-        if (!geojson) return Promise.resolve();
-        return supabase.from("encuesta_zonas").update({
-          area_geojson: geojson,
-          geofencing_activo: !!(geojson.features || []).find(f => f.properties?.tipo === "zona"),
-        }).eq("id", zona.id);
-      }));
+      // ════════════════════════════════════════════
+      // Solo guardar zonas que fueron modificadas
+      // ════════════════════════════════════════════
+      const zonasAGuardar = zonas.filter(z => zonasModificadas.has(z.id));
+
+      if (zonasAGuardar.length > 0) {
+        console.log(`Guardando ${zonasAGuardar.length} zonas modificadas...`);
+
+        // Guardar una por una o en batches pequeños (mejor control)
+        for (const zona of zonasAGuardar) {
+          const geojson = zonasDataRef.current[zona.id];
+          if (!geojson) continue;
+
+          const { error } = await supabase
+            .from("encuesta_zonas")
+            .update({
+              area_geojson: geojson,
+              geofencing_activo: !!(geojson.features || []).find(
+                f => f.properties?.tipo === "zona"
+              ),
+            })
+            .eq("id", zona.id);
+
+          if (error) throw error;
+        }
+      }
 
       // Sincronizar asignaciones — borrar las eliminadas, upsert las nuevas
       if (zonas.length > 0) {
@@ -1791,11 +1845,19 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
         });
       }
 
-      onSaved(); onClose();
+      // ════════════════════════════════════════════
+      // Limpiar modificadas después de guardar exitosamente
+      // ════════════════════════════════════════════
+      setZonasModificadas(new Set());
+
+      onSaved(); 
+      onClose();
     } catch (err) {
+      console.error(err);
       setError(err.message);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   const COLOR_ZONA = idx => COLORES_ZONA[idx % COLORES_ZONA.length];
@@ -2013,6 +2075,8 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                       const asigs = asignaciones[z.id] || [];
                       const esActiva = z.id === zonaActiva;
                       const puedeAsignar = !!draggingEnc && !asigs.some(e => e.id === draggingEnc.id);
+                      // Indicador visual si la zona fue modificada
+                      const fueModificada = zonasModificadas.has(z.id);
                       return (
                         <div key={z.id}
                           onDragOver={e => { e.preventDefault(); setDropTarget(z.id); }}
@@ -2038,7 +2102,17 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                             background: puedeAsignar ? `${color}15` : dropTarget === z.id ? `${color}18` : esActiva ? `${color}0a` : "var(--paper)",
                             transition: "all .15s",
                             cursor: draggingEnc ? "pointer" : "default",
+                            position: "relative",
                           }}>
+                          {/* Indicador de modificación */}
+                          {fueModificada && (
+                            <div style={{
+                              position: "absolute", top: 4, right: 4,
+                              width: 8, height: 8, borderRadius: "50%",
+                              background: "#f59e0b", border: "2px solid #fff",
+                              boxShadow: "0 0 0 1px #f59e0b"
+                            }} title="Zona modificada - pendiente de guardar" />
+                          )}
                           {/* Header zona */}
                           <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 6, cursor: "pointer", borderBottom: esActiva ? `1px solid ${color}30` : "none" }}
                             onClick={() => cambiarZonaActiva(z.id)}>
