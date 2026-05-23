@@ -294,11 +294,11 @@ export default function Encuestas() {
     setLoading(true)
     try {
       let encQ = supabase.from('encuestas')
-        .select('*, area_geojson, config_muestreo, encuesta_zonas(id, nombre, equipo_id, area_geojson, geofencing_activo, orden)')
+        .select('*, config_muestreo, encuesta_zonas(id, nombre, equipo_id, geofencing_activo, orden)')
         .order('creado_en', { ascending: false })
       if (!esSuperadmin) encQ = encQ.eq('organizacion_id', perfil.organizacion_id)
 
-      let eqQ = supabase.from('equipos').select('id, nombre, area_geojson').order('nombre')
+      let eqQ = supabase.from('equipos').select('id, nombre').order('nombre')
       if (!esSuperadmin) eqQ = eqQ.eq('organizacion_id', perfil.organizacion_id)
 
       const [encRes, eqRes] = await Promise.all([encQ, eqQ])
