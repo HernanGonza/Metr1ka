@@ -105,7 +105,7 @@ function MatrizTabla({ pregunta, filas, color }) {
           // fi puede ser índice numérico o texto de fila
           const filaTexto = isNaN(Number(fi)) ? fi : filasDef[Number(fi)]
           if (filaTexto && conteo[filaTexto] && columnasDef.includes(col)) {
-            conteo[filaTexto][col] = (conteo[filaTexto][col] || 0) + Number(resp.cantidad || 1)
+            conteo[filaTexto][col] = (conteo[filaTexto][col] || 0) + 1
           }
         })
       }
@@ -767,7 +767,7 @@ function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrud
           if (v && typeof v === 'object') {
             Object.entries(v).forEach(([fi, col]) => {
               const ft = isNaN(Number(fi)) ? fi : (filasDef[Number(fi)] || fi)
-              if (ft && cont[ft] && colsDef.includes(col)) cont[ft][col] = (cont[ft][col] || 0) + Number(r.cantidad || 1)
+              if (ft && cont[ft] && colsDef.includes(col)) cont[ft][col] = (cont[ft][col] || 0) + 1
             })
           }
         } catch {}
@@ -1014,6 +1014,7 @@ function MapaRespuestas({ sesiones, columnas, onCapturarMapa }) {
   const mapRef     = useRef(null)
   const instRef    = useRef(null)
   const capasRef   = useRef([])   // array de layers activos para limpiar
+  const fittedRef  = useRef(false) // solo fitBounds la primera vez
   const [L,        setL]        = useState(null) // leaflet lazy loaded
   const [listo,    setListo]    = useState(0)  // incrementa cuando plugins cargan
   const [filtroCol, setFiltroCol] = useState('')
@@ -1167,9 +1168,10 @@ function MapaRespuestas({ sesiones, columnas, onCapturarMapa }) {
       capasRef.current.push(layer)
     })
 
-    if (todosVisibles.length > 0) {
+    if (todosVisibles.length > 0 && !fittedRef.current) {
       const bounds = L.latLngBounds(todosVisibles.map(s => [s.lat, s.lng]))
       mapa.fitBounds(bounds, { padding: [40,40], maxZoom: 16 })
+      fittedRef.current = true
     }
 
     // Captura del mapa con html2canvas — captura tiles + markers + clusters tal como se ven
@@ -1614,8 +1616,8 @@ export default function Reportes() {
                   <>
                     {/* KPIs */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-                      <KpiCard label="Total respuestas" value={resumen?.total_participaron || 0} color="var(--accent)" icon={<BarChart2 size={12} />} />
-                      <KpiCard label="No respondieron" value={resumen?.total_no_respondieron || 0} color="#ef4444" icon={<FileText size={12} />} />
+                      <KpiCard label="Total respuestas" value={resumen?.total_participaron || resumen?.total_sesiones || 0} color="var(--accent)" icon={<BarChart2 size={12} />} />
+                      <KpiCard label="No respondieron" value={(resumen?.total_sesiones||0) - (resumen?.total_participaron||resumen?.total_sesiones||0)} color="#ef4444" icon={<FileText size={12} />} />
                       <KpiCard label="Total sesiones" value={resumen?.total_sesiones || 0} color="#7c3aed" icon={<Zap size={12} />} />
                       <KpiCard label="Última respuesta" value={resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—'} color="#b45309" sub="fecha más reciente" />
                     </div>
@@ -1721,7 +1723,7 @@ export default function Reportes() {
                               <div class="header">
                                 <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#1a472a;text-transform:uppercase">METR1KA · Mapa georreferenciado</div>
                                 <h1>${selected?.nombre}</h1>
-                                <div class="meta">📅 ${fecha} · ${(datosExport?.filas||[]).filter(s=>s.lat&&s.lng&&s.respuestas&&Object.keys(s.respuestas).length>0).length} respuestas con GPS</div>
+                                <div class="meta">📅 ${fecha} · ${(datosExport?.filas||[]).filter(s=>s.lat&&s.lng).length} respuestas con GPS</div>
                                 ${tituloFiltro}
                               </div>
                               ${leyendaHTML}
@@ -1746,7 +1748,7 @@ export default function Reportes() {
                           )}
                         </div>
                         <MapaRespuestas
-                          sesiones={(datosExport?.filas || []).filter(f => f.respuestas && Object.keys(f.respuestas).length > 0)}
+                          sesiones={datosExport?.filas || []}
                           columnas={datosExport?.columnas || []}
                           onCapturarMapa={(datos) => setMapaDatos(datos)}
                         />
@@ -1759,8 +1761,8 @@ export default function Reportes() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                           <thead>
                             <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                              {['Encuestador', 'Equipo', 'Completadas', 'No respuesta', 'Total'].map(h => (
-                                <th key={h} style={{ padding: '10px 16px', textAlign: h === 'Encuestador' || h === 'Equipo' ? 'left' : 'right', fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>
+                              {['Encuestador', 'Equipo', 'Respuestas'].map(h => (
+                                <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>
                               ))}
                             </tr>
                           </thead>
@@ -1769,14 +1771,8 @@ export default function Reportes() {
                               <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                                 <td style={{ padding: '10px 16px', fontWeight: 600, color: 'var(--ink)' }}>{e.nombre_completo}</td>
                                 <td style={{ padding: '10px 16px', color: 'var(--ink3)' }}>{e.equipo_nombre}</td>
-                                <td style={{ padding: '10px 16px', textAlign: 'right' }}>
-                                  <span style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 800, color: 'var(--accent)' }}>{e.completadas ?? e.total}</span>
-                                </td>
-                                <td style={{ padding: '10px 16px', textAlign: 'right' }}>
-                                  <span style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 800, color: '#ef4444' }}>{e.no_respuesta ?? 0}</span>
-                                </td>
-                                <td style={{ padding: '10px 16px', textAlign: 'right' }}>
-                                  <span style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 800, color: 'var(--ink2)' }}>{e.total}</span>
+                                <td style={{ padding: '10px 16px' }}>
+                                  <span style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 800, color: 'var(--accent)' }}>{e.total}</span>
                                 </td>
                               </tr>
                             ))}
