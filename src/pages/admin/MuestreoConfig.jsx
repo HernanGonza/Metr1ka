@@ -2193,8 +2193,12 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                       encuestaId={encuesta.id}
                       zonaActual={zonasDataRef.current[zonaActiva] || null}
                       manzanasSeleccionadas={[]}
-                      onZonaChange={geojson => { if (geojson) zonasDataRef.current[zonaActiva] = geojson; }}
-                      onManzanasChange={() => {}}
+onZonaChange={geojson => {
+  if (geojson) {
+    zonasDataRef.current[zonaActiva] = geojson;
+    setZonasModificadas(prev => new Set(prev).add(zonaActiva));
+  }
+}}                      onManzanasChange={() => {}}
                       colorZona={COLOR_ZONA(zonaActivaIdx)}
                       todasLasZonas={todasLasZonasData}
                       encuestadoresAsignados={asignaciones[zonaActiva] || []}
