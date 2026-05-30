@@ -1622,14 +1622,22 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
       const encs = (miembros || []).map(m => ({
         id: m.encuestador_id,
         nombre: m.perfiles?.nombre_completo || m.encuestador_id,
+        esCoordinador: false,
       }));
-      // También incluir coordinadores para resolver nombres
       const coords = (coordinadores || []).map(c => ({
         id: c.coordinador_id,
         nombre: c.perfiles?.nombre_completo || c.coordinador_id,
+        esCoordinador: true,
       }));
       const todosLosPerfiles = [...encs, ...coords];
-      setEncuestadoresEquipo(encs);
+      // Combinar encuestadores + coordinadores, sin duplicados por id
+      const idsVistos = new Set();
+      const todosAsignables = [...encs, ...coords].filter(p => {
+        if (idsVistos.has(p.id)) return false;
+        idsVistos.add(p.id);
+        return true;
+      });
+      setEncuestadoresEquipo(todosAsignables);
 
       // Cargar asignaciones existentes
       if (lista.length > 0) {
@@ -2059,6 +2067,9 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                               display: "flex", alignItems: "center", gap: 6, transition: "all .15s",
                             }}>
                             {seleccionado ? "✓" : "+"} {enc.nombre}
+                            {enc.esCoordinador && (
+                              <span style={{ fontSize: 9, fontWeight: 700, background: '#7c3aed22', color: '#7c3aed', border: '1px solid #7c3aed44', borderRadius: 100, padding: '1px 5px', marginLeft: 'auto', flexShrink: 0 }}>coord</span>
+                            )}
                           </div>
                         );
                       })}
