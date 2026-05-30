@@ -1483,9 +1483,9 @@ export default function Reportes() {
     }
 
     // Concatenar al título (si no tiene uno personalizado, usar el de la encuesta + zonas)
-    const tituloConZonas = cfg.titulo 
-      ? `${cfg.titulo} ${textoZonas}` 
-      : `${selected.nombre} ${textoZonas}`
+    const subtituloConZonas = exportConfig.subtitulo
+  ? `${exportConfig.subtitulo} ${textoZonas}`
+  : textoZonas
 
     // 🔹 Y ACÁ, al pasar `cfg` a generarHTML, inyectar el título modificado:
     
@@ -1498,7 +1498,7 @@ export default function Reportes() {
         cfg.datosCrudos ? datosExportFiltrados : null,
         sesionesCruceFiltradas,
         cfg.mapa ? mapaDatos : null,
-        { ...cfg, titulo: tituloConZonas },
+        { ...cfg, subtitulo: subtituloConZonas },
         clasificaciones,
       )
       const win = window.open('', '_blank')
