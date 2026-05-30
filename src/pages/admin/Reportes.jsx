@@ -1286,6 +1286,25 @@ function MapaRespuestas({ sesiones, columnas, onCapturarMapa }) {
 }
 
 
+/* ── Helpers para filtro por zona (front-only, sin tocar DB) ── */
+function pointInRingReportes(px, py, ring) {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j]
+    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
+function zonaDeLatLng(lat, lng, zonas) {
+  if (!lat || !lng || !zonas?.length) return null
+  for (const z of zonas) {
+    if (z.ring && pointInRingReportes(lng, lat, z.ring)) return z.id
+  }
+  return null
+}
+
+
 /* ── PANTALLA PRINCIPAL ── */
 export default function Reportes() {
   const { perfil } = useAuth()
@@ -1320,6 +1339,8 @@ export default function Reportes() {
   const [filtroDesde,       setFiltroDesde]       = useState('')
   const [filtroHasta,       setFiltroHasta]       = useState('')
   const [filtrosAbiertos,   setFiltrosAbiertos]   = useState(false)
+  const [zonasEncuesta,     setZonasEncuesta]     = useState([])  // [{ id, nombre, ring }]
+  const [filtroZonas,       setFiltroZonas]       = useState(null) // null = todas, [] = ninguna, [ids] = filtro
 
   const [vistaCompletadas, setVistaCompletadas] = useState(false)
 
@@ -1335,19 +1356,29 @@ export default function Reportes() {
 
   async function cargarEncuesta(enc) {
     setSelected(enc); setData(null); setLoadingEnc(true); setDatosExport(null); setSesionesCruce([])
-    setFiltroEquipo(''); setFiltroEncuestador(''); setFiltroDesde(''); setFiltroHasta('')
-    const [{ data: d }, { data: sc }] = await Promise.all([
+    setFiltroEquipo(''); setFiltroEncuestador(''); setFiltroDesde(''); setFiltroHasta(''); setFiltroZonas(null)
+    const [{ data: d }, { data: sc }, { data: zs }] = await Promise.all([
       supabase.rpc('get_encuesta_full', { p_encuesta_id: enc.id, p_org_id: perfil.organizacion_id }),
       supabase.rpc('get_respuestas_por_sesion', { p_encuesta_id: enc.id, p_org_id: perfil.organizacion_id }),
+      supabase.rpc('get_zonas_con_sesiones', { p_encuesta_id: enc.id }),
     ])
     setData(d)
     setSesionesCruce(sc?.sesiones || [])
+    const zonasList = Array.isArray(zs) ? zs : []
+    setZonasEncuesta(zonasList.map(z => {
+      const feat = z.area_geojson?.features?.find(f => f.properties?.tipo === 'zona')
+      const geom = feat?.geometry
+      let ring = null
+      if (geom?.type === 'Polygon') ring = geom.coordinates?.[0]
+      else if (geom?.type === 'MultiPolygon') ring = geom.coordinates?.[0]?.[0]
+      return { id: z.id, nombre: z.nombre, ring, sesiones: z.sesiones || 0 }
+    }).filter(z => z.ring && z.sesiones > 0))
     setLoadingEnc(false)
   }
 
-  // Cargar datos crudos automáticamente al entrar a la tab
+  // Cargar datos crudos automáticamente al entrar a la tab mapa o datos
   useEffect(() => {
-    if ((vistaActiva === 'datos' || vistaActiva === 'mapa') && selected && !datosExport && !loadingDatos) {
+    if ((vistaActiva === 'datos' || vistaActiva === 'mapa') && selected && !loadingDatos && !loadingEnc) {
       cargarDatosCrudos()
     }
   }, [vistaActiva, selected?.id])
@@ -1355,6 +1386,7 @@ export default function Reportes() {
   async function cargarDatosCrudos() {
     if (!selected) return
     setLoadingDatos(true)
+    const zonaIds = filtroZonas !== null ? (filtroZonas.length > 0 ? filtroZonas : []) : null
     const { data: d } = await supabase.rpc('get_respuestas_crudas', {
       p_encuesta_id:    selected.id,
       p_org_id:         perfil.organizacion_id,
@@ -1362,16 +1394,17 @@ export default function Reportes() {
       p_encuestador_id: filtroEncuestador || null,
       p_fecha_desde:    filtroDesde       || null,
       p_fecha_hasta:    filtroHasta       || null,
+      p_zona_ids:       zonaIds,
     })
     setDatosExport(d)
     setLoadingDatos(false)
   }
 
   function exportarCSV() {
-    if (!datosExport?.columnas || !datosExport?.filas) return
-    const cols = datosExport.columnas
+    if (!datosExportFiltrados?.columnas || !datosExportFiltrados?.filas) return
+    const cols = datosExportFiltrados.columnas
     const header = ['Sesion', 'Fecha', 'Encuestador', 'Equipo', 'Latitud', 'Longitud', ...cols.map(c => c.texto)]
-    const rows = (datosExport.filas || []).map(f => [
+    const rows = (datosExportFiltrados.filas || []).map(f => [
       f.sesion_id,
       f.fecha ? new Date(f.fecha).toLocaleString('es-AR') : '',
       f.encuestador || '',
@@ -1388,18 +1421,33 @@ export default function Reportes() {
     a.click(); URL.revokeObjectURL(url)
   }
 
-  async function aplicarFiltros() {
+  async function aplicarFiltros(zonaIdsOverride) {
     if (!selected) return
     setLoadingEnc(true)
-    const { data: d } = await supabase.rpc('get_encuesta_full', {
-      p_encuesta_id:    selected.id,
-      p_org_id:         perfil.organizacion_id,
-      p_equipo_id:      filtroEquipo      || null,
-      p_encuestador_id: filtroEncuestador || null,
-      p_fecha_desde:    filtroDesde       || null,
-      p_fecha_hasta:    filtroHasta       || null,
-    })
-    setData(d); setLoadingEnc(false)
+    const zonaIds = zonaIdsOverride !== undefined ? zonaIdsOverride : (filtroZonas !== null ? (filtroZonas.length > 0 ? filtroZonas : []) : null)
+    const [{ data: d }, { data: dc }] = await Promise.all([
+      supabase.rpc('get_encuesta_full', {
+        p_encuesta_id:    selected.id,
+        p_org_id:         perfil.organizacion_id,
+        p_equipo_id:      filtroEquipo      || null,
+        p_encuestador_id: filtroEncuestador || null,
+        p_fecha_desde:    filtroDesde       || null,
+        p_fecha_hasta:    filtroHasta       || null,
+        p_zona_ids:       zonaIds,
+      }),
+      supabase.rpc('get_respuestas_crudas', {
+        p_encuesta_id:    selected.id,
+        p_org_id:         perfil.organizacion_id,
+        p_equipo_id:      filtroEquipo      || null,
+        p_encuestador_id: filtroEncuestador || null,
+        p_fecha_desde:    filtroDesde       || null,
+        p_fecha_hasta:    filtroHasta       || null,
+        p_zona_ids:       zonaIds,
+      }),
+    ])
+    setData(d)
+    setDatosExport(dc)
+    setLoadingEnc(false)
   }
 
   async function generarPDF(cfg) {
@@ -1419,16 +1467,38 @@ export default function Reportes() {
 
       const pregsFiltradas = (data.preguntas || []).filter(p => cfg.preguntas[p.id] !== false)
       const crucesSel = cfg.cruces ? comparaciones : []
+      let textoZonas = ''
+    if (filtroZonas === null) {
+      textoZonas = '• Todas las zonas'
+    } else if (filtroZonas.length === 0) {
+      textoZonas = '• Sin zonas'
+    } else if (filtroZonas.length === 1) {
+      const zona = zonasEncuesta.find(z => z.id === filtroZonas[0])
+      textoZonas = `• Zona: ${zona?.nombre || 'Desconocida'}`
+    } else {
+      const nombres = filtroZonas
+        .map(id => zonasEncuesta.find(z => z.id === id)?.nombre)
+        .filter(Boolean)
+      textoZonas = `• Zonas: ${nombres.join(', ')}`
+    }
+
+    // Concatenar al título (si no tiene uno personalizado, usar el de la encuesta + zonas)
+    const tituloConZonas = cfg.titulo 
+      ? `${cfg.titulo} ${textoZonas}` 
+      : `${selected.nombre} ${textoZonas}`
+
+    // 🔹 Y ACÁ, al pasar `cfg` a generarHTML, inyectar el título modificado:
+    
       const html = generarHTML(
         data.encuesta || selected,
         pregsFiltradas,
         data.respuestas || [],
         cfg.kpis ? (data.resumen || null) : null,
         crucesSel,
-        cfg.datosCrudos ? datosExport : null,
-        sesionesCruce,
+        cfg.datosCrudos ? datosExportFiltrados : null,
+        sesionesCruceFiltradas,
         cfg.mapa ? mapaDatos : null,
-        cfg,
+        { ...cfg, titulo: tituloConZonas },
         clasificaciones,
       )
       const win = window.open('', '_blank')
@@ -1453,6 +1523,11 @@ export default function Reportes() {
     filtroEquipo ? (data?.encuestadores||[]).filter(e=>e.equipo_id===filtroEquipo) : (data?.encuestadores||[]),
     [data?.encuestadores, filtroEquipo]
   )
+
+  // La DB ya filtró por zona cuando filtroZonas está activo — no filtrar de nuevo en el front
+  const datosExportFiltrados = datosExport
+
+  const sesionesCruceFiltradas = sesionesCruce
 
   const respuestasMap = useMemo(() => {
     const map = {}
@@ -1553,7 +1628,7 @@ export default function Reportes() {
               <>
                 {/* Header con botón Volver */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <button onClick={() => { setSelected(null); setData(null); setDatosExport(null); setSesionesCruce([]) }}
+                  <button onClick={() => { setSelected(null); setData(null); setDatosExport(null); setSesionesCruce([]); setZonasEncuesta([]); setFiltroZonas(null) }}
                     style={{ background: 'none', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', padding: '5px 12px', fontSize: 12, cursor: 'pointer', color: 'var(--ink3)', fontFamily: 'DM Sans' }}>
                     ← Volver
                   </button>
@@ -1567,6 +1642,7 @@ export default function Reportes() {
                       <Filter size={14} color="var(--ink3)" />
                       <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1 }}>Filtros</span>
                       {(filtroEquipo||filtroEncuestador||filtroDesde||filtroHasta) && <span style={{ background: 'var(--accent)', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 100, padding: '1px 7px' }}>Activos</span>}
+                      {filtroZonas !== null && <span style={{ background: '#7c3aed', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 100, padding: '1px 7px' }}>{filtroZonas.length} zona{filtroZonas.length !== 1 ? 's' : ''}</span>}
                     </div>
                     {filtrosAbiertos ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </button>
@@ -1596,12 +1672,49 @@ export default function Reportes() {
                           <input type="date" value={filtroHasta} onChange={e => setFiltroHasta(e.target.value)} style={inp} />
                         </div>
                       </div>
+                      {zonasEncuesta.length > 1 && (
+                        <div style={{ marginTop: 12 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)' }}>Zonas</label>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button onClick={() => { setFiltroZonas(null); aplicarFiltros(null) }} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans' }}>Todas</button>
+                              <button onClick={() => { setFiltroZonas([]); aplicarFiltros([]) }} style={{ fontSize: 11, color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans' }}>Ninguna</button>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {zonasEncuesta.map(z => {
+                              const activa = filtroZonas === null || filtroZonas.includes(z.id)
+                              return (
+                                <button key={z.id} onClick={() => {
+                                  let nuevas
+                                  if (filtroZonas === null) {
+                                    // Estaban todas — deseleccionar esta zona
+                                    nuevas = zonasEncuesta.map(x => x.id).filter(id => id !== z.id)
+                                  } else if (filtroZonas.includes(z.id)) {
+                                    // Quitar esta zona
+                                    nuevas = filtroZonas.filter(id => id !== z.id)
+                                  } else {
+                                    // Agregar esta zona
+                                    const t = [...filtroZonas, z.id]
+                                    // Si ya están todas, volver a null
+                                    nuevas = t.length === zonasEncuesta.length ? null : t
+                                  }
+                                  setFiltroZonas(nuevas)
+                                  aplicarFiltros(nuevas !== null ? nuevas : null)
+                                }} style={{ padding: '4px 10px', borderRadius: 100, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${activa ? '#7c3aed' : 'var(--border2)'}`, background: activa ? '#7c3aed15' : 'var(--paper)', color: activa ? '#7c3aed' : 'var(--ink3)', fontFamily: 'DM Sans', transition: 'all .1s' }}>
+                                  {z.nombre} <span style={{ opacity: 0.6, fontSize: 10 }}>({z.sesiones})</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                        <button onClick={aplicarFiltros} disabled={loadingEnc} style={{ padding: '7px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button onClick={() => aplicarFiltros()} disabled={loadingEnc} style={{ padding: '7px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 6 }}>
                           <RefreshCw size={12} /> Aplicar
                         </button>
-                        {(filtroEquipo||filtroEncuestador||filtroDesde||filtroHasta) && (
-                          <button onClick={() => { setFiltroEquipo(''); setFiltroEncuestador(''); setFiltroDesde(''); setFiltroHasta(''); aplicarFiltros() }} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans', color: 'var(--ink3)' }}>
+                        {(filtroEquipo||filtroEncuestador||filtroDesde||filtroHasta||filtroZonas !== null) && (
+                          <button onClick={() => { setFiltroEquipo(''); setFiltroEncuestador(''); setFiltroDesde(''); setFiltroHasta(''); setFiltroZonas(null); aplicarFiltros(null) }} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, cursor: 'pointer', fontFamily: 'DM Sans', color: 'var(--ink3)' }}>
                             Limpiar
                           </button>
                         )}
@@ -1668,7 +1781,7 @@ export default function Reportes() {
                           <Zap size={14} /> Cruzá dos preguntas para ver cómo se distribuyen las respuestas de una según los valores de la otra en un único gráfico.
                         </div>
                         {comparaciones.map((comp, i) => (
-                          <GraficoCruce key={comp.id} preguntas={preguntas} sesiones={sesionesCruce} index={i}
+                          <GraficoCruce key={comp.id} preguntas={preguntas} sesiones={sesionesCruceFiltradas} index={i}
                             onRemove={() => setComparaciones(prev => prev.filter(x => x.id !== comp.id))}
                             onCruceChange={({ pA, pB, datosCruce }) => {
                               setComparaciones(prev => prev.map(x => x.id === comp.id
@@ -1686,7 +1799,7 @@ export default function Reportes() {
                     {/* Vista Datos Crudos */}
                     {vistaActiva === 'datos' && (
                       <TablaDatosCrudos
-                        datosExport={datosExport}
+                        datosExport={datosExportFiltrados}
                         loadingDatos={loadingDatos}
                         onActualizar={cargarDatosCrudos}
                         onExportarCSV={exportarCSV}
@@ -1723,7 +1836,7 @@ export default function Reportes() {
                               <div class="header">
                                 <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#1a472a;text-transform:uppercase">METR1KA · Mapa georreferenciado</div>
                                 <h1>${selected?.nombre}</h1>
-                                <div class="meta">📅 ${fecha} · ${(datosExport?.filas||[]).filter(s=>s.lat&&s.lng).length} respuestas con GPS</div>
+                                <div class="meta">📅 ${fecha} · ${(datosExportFiltrados?.filas||[]).filter(s=>s.lat&&s.lng).length} respuestas con GPS</div>
                                 ${tituloFiltro}
                               </div>
                               ${leyendaHTML}
@@ -1748,8 +1861,8 @@ export default function Reportes() {
                           )}
                         </div>
                         <MapaRespuestas
-                          sesiones={datosExport?.filas || []}
-                          columnas={datosExport?.columnas || []}
+                          sesiones={datosExportFiltrados?.filas || []}
+                          columnas={datosExportFiltrados?.columnas || []}
                           onCapturarMapa={(datos) => setMapaDatos(datos)}
                         />
                       </div>
@@ -1888,7 +2001,7 @@ export default function Reportes() {
               </div>
 
               {/* Cruces */}
-              {comparaciones.length > 0 && sesionesCruce.length > 0 && (
+              {comparaciones.length > 0 && sesionesCruceFiltradas.length > 0 && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                   <input type="checkbox" checked={exportConfig.cruces} onChange={e => setExportConfig(p => ({ ...p, cruces: e.target.checked }))}
                     style={{ width: 16, height: 16, accentColor: 'var(--accent)', cursor: 'pointer' }} />
@@ -1916,13 +2029,13 @@ export default function Reportes() {
               )}
 
               {/* Datos crudos */}
-              {datosExport?.filas?.length > 0 && (
+              {datosExportFiltrados?.filas?.length > 0 && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                   <input type="checkbox" checked={exportConfig.datosCrudos} onChange={e => setExportConfig(p => ({ ...p, datosCrudos: e.target.checked }))}
                     style={{ width: 16, height: 16, accentColor: 'var(--accent)', cursor: 'pointer' }} />
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>Datos crudos</div>
-                    <div style={{ fontSize: 11, color: 'var(--ink3)' }}>{datosExport.filas.length} filas — tabla completa con georeferencia</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink3)' }}>{datosExportFiltrados.filas.length} filas — tabla completa con georeferencia</div>
                   </div>
                 </label>
               )}
