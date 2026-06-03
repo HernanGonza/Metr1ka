@@ -2586,20 +2586,20 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
           onDragOver={e => { e.preventDefault(); setDropTarget(z.id); }}
           onDragLeave={() => setDropTarget(null)}
           onDrop={e => { e.preventDefault(); const encId = e.dataTransfer.getData("encId"); const encNombre = e.dataTransfer.getData("encNombre"); setDropTarget(null); if (encId) asignarEncAZona(encId, encNombre, z.id); }}
-          onClick={() => { if (draggingEnc) { asignarEncAZona(draggingEnc.id, draggingEnc.nombre, z.id); setDraggingEnc(null); } else { cambiarZonaActiva(z.id); } }}
-          style={{ marginBottom: 6, borderRadius: "var(--r2)", overflow: "hidden", border: `2px solid ${puedeAsignar ? color : dropTarget === z.id ? color : esActiva ? color : "var(--border)"}`, background: puedeAsignar ? `${color}15` : dropTarget === z.id ? `${color}18` : esActiva ? `${color}0a` : "var(--paper)", transition: "all .15s", cursor: draggingEnc ? "pointer" : "default", position: "relative" }}>
+          onClick={e => { if (draggingEnc) { asignarEncAZona(draggingEnc.id, draggingEnc.nombre, z.id); setDraggingEnc(null); } }}
+          style={{ marginBottom: 8, borderRadius: "var(--r2)", border: `2px solid ${puedeAsignar ? color : dropTarget === z.id ? color : esActiva ? color : "var(--border)"}`, background: puedeAsignar ? `${color}15` : dropTarget === z.id ? `${color}18` : esActiva ? `${color}0a` : "var(--paper)", transition: "all .15s", cursor: draggingEnc ? "pointer" : "default", position: "relative" }}>
           {fueModificada && <div style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#f59e0b", border: "2px solid #fff" }} title="Pendiente de guardar" />}
-          <div style={{ padding: "7px 8px", display: "flex", alignItems: "center", gap: 5, cursor: "pointer", borderBottom: (esActiva || asigs.length > 0 || puedeAsignar) ? `1px solid ${color}25` : "none" }} onClick={() => cambiarZonaActiva(z.id)}>
+          <div style={{ padding: "14px 10px", minHeight: 48, display: "flex", alignItems: "center", gap: 5, cursor: "pointer", borderBottom: (esActiva || asigs.length > 0 || puedeAsignar) ? `1px solid ${color}25` : "none" }} onClick={() => cambiarZonaActiva(z.id)}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
-            <input value={z.nombre} onChange={e => renombrarZona(z.id, e.target.value)} onClick={e => e.stopPropagation()} style={{ flex: 1, border: "none", background: "transparent", fontSize: 12, fontWeight: 600, color: "var(--ink)", fontFamily: "DM Sans", outline: "none", cursor: "text", minWidth: 0 }} />
+            <input value={z.nombre} onChange={e => renombrarZona(z.id, e.target.value)} onClick={e => e.stopPropagation()} style={{ flex: 1, border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: "#111", fontFamily: "DM Sans", outline: "none", cursor: "text", minWidth: 0, height: 28, lineHeight: "28px" }} />
             <button onClick={e => { e.stopPropagation(); eliminarZona(z.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", fontSize: 13, padding: "0 2px", lineHeight: 1, flexShrink: 0 }}>×</button>
           </div>
           {asigs.length > 0 && (
-            <div style={{ padding: "4px 8px", display: "flex", flexWrap: "wrap", gap: 3 }}>
+            <div onClick={e => e.stopPropagation()} style={{ padding: "4px 8px 6px 8px", display: "flex", flexDirection: "column", gap: 3 }}>
               {asigs.map(enc => (
-                <div key={enc.id} style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 6px", borderRadius: 100, background: `${color}20`, border: `1px solid ${color}50`, fontSize: 10, fontWeight: 600, color }}>
-                  {enc.nombre.split(" ")[0]}
-                  <button onClick={() => quitarEncDeZona(enc.id, z.id)} style={{ background: "none", border: "none", cursor: "pointer", color, fontSize: 11, padding: 0, lineHeight: 1, marginLeft: 1 }}>×</button>
+                <div key={enc.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px", borderRadius: 6, background: `${color}18`, border: `1px solid ${color}50`, fontSize: 11, fontWeight: 600, color: "#111" }}>
+                  <span>👤 {enc.nombre}</span>
+                  <button onClick={e => { e.stopPropagation(); quitarEncDeZona(enc.id, z.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#888", fontSize: 15, padding: "0 0 0 8px", lineHeight: 1 }}>×</button>
                 </div>
               ))}
             </div>
