@@ -743,6 +743,7 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
     <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
       <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>Encuestador</th>
       <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>Equipo</th>
+      <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>Zonas</th>
       <th style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>Completadas</th>
       <th style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>No respuesta</th>
       <th style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>Total</th>
@@ -753,6 +754,7 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
       <tr key={enc.encuestador_id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'var(--paper)' : 'var(--surface)' }}>
         <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 600 }}>{enc.nombre_completo}</td>
         <td style={{ padding: '10px 16px', fontSize: 13, color: 'var(--ink3)' }}>{enc.equipo_nombre || '—'}</td>
+        <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--ink2)' }}>{enc.zonas || '—'}</td>
         <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--accent)', textAlign: 'right' }}>{enc.completadas ?? enc.total}</td>
         <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 700, color: '#ef4444', textAlign: 'right' }}>{enc.no_respuesta ?? 0}</td>
         <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--ink2)', textAlign: 'right' }}>{enc.total}</td>
