@@ -1652,8 +1652,27 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
           .eq("equipo_id", equipo.id),
       ]);
 
-      setEncuestasEquipoId(eeData?.id || null);
-      encuestasEquipoIdRef.current = eeData?.id || null;
+      // Si el equipo todavía no tiene el vínculo encuestas_equipo para esta
+      // encuesta, crearlo ahora. Sin esto, la encuesta se ve "asignada" acá
+      // (porque ya tiene zonas) pero get_encuestas_encuestador() nunca la
+      // devuelve en la app del encuestador, porque esa función exige el
+      // vínculo en encuestas_equipo además de las zonas.
+      let equipoLinkId = eeData?.id || null;
+      if (!equipoLinkId) {
+        const { data: nuevoLink, error: linkErr } = await supabase
+          .from("encuestas_equipo")
+          .upsert(
+            { encuesta_id: encuesta.id, equipo_id: equipo.id },
+            { onConflict: "encuesta_id,equipo_id" },
+          )
+          .select("id")
+          .single();
+        if (linkErr) setError(linkErr.message);
+        else equipoLinkId = nuevoLink?.id || null;
+      }
+
+      setEncuestasEquipoId(equipoLinkId);
+      encuestasEquipoIdRef.current = equipoLinkId;
 
       const lista = zs || [];
       setZonas(lista);
