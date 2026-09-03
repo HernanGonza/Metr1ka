@@ -13,12 +13,12 @@ function MiniBarChart({ data, labels }) {
     if (!ref.current || !data.length) return
     const c = new Chart(ref.current.getContext('2d'), {
       type: 'bar',
-      data: { labels, datasets: [{ data, backgroundColor: '#1a472a', borderRadius: 4, borderSkipped: false }] },
+      data: { labels, datasets: [{ data, backgroundColor: 'var(--accent)', borderRadius: 4, borderSkipped: false }] },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false }, tooltip: { callbacks: { title: () => '' } } },
         scales: {
-          x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#94a3b8' } },
+          x: { grid: { display: false }, ticks: { font: { size: 10 }, color: 'var(--ink4)' } },
           y: { display: false, beginAtZero: true },
         },
       },
@@ -28,13 +28,14 @@ function MiniBarChart({ data, labels }) {
   return <canvas ref={ref} />
 }
 
-function KpiCard({ label, value, sub, color = 'var(--accent)', icon }) {
+function KpiCard({ label, value, sub, color = 'var(--metric-a)', icon }) {
+  const isZero = value === 0 || value === '0'
   return (
     <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 4, borderLeft: `4px solid ${color}` }}>
       <div style={{ fontSize: 12, color: 'var(--ink3)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
         {icon && <span>{icon}</span>}{label}
       </div>
-      <div style={{ fontFamily: 'Syne', fontSize: 28, fontWeight: 800, color, letterSpacing: -1 }}>{value}</div>
+      <div style={{ fontFamily: 'var(--font-num)', fontSize: 25, fontWeight: 500, color: isZero ? 'var(--metric-zero)' : color, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
       {sub && <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{sub}</div>}
     </div>
   )
@@ -45,11 +46,11 @@ function EncuestaRow({ enc, onClick }) {
   const meta  = enc.meta_total || (enc.sesiones_count ? enc.sesiones_count * 2 : 300)
   const pct   = Math.min(100, Math.round((total / meta) * 100))
   const cfg = {
-    publicada:    { label: 'Publicada',    color: '#1a472a', bg: '#d8f3dc' },
+    publicada:    { label: 'Publicada',    color: 'var(--accent)', bg: '#d8f3dc' },
     en_proceso:   { label: 'En proceso',   color: '#0369a1', bg: '#e0f2fe' },
     para_revisar: { label: 'Para revisar', color: '#7c3aed', bg: '#f3e8ff' },
     pendiente:    { label: 'Pendiente',    color: '#b45309', bg: '#fef3c7' },
-  }[enc.estado_produccion] || { label: enc.estado_produccion, color: '#64748b', bg: '#f1f5f9' }
+  }[enc.estado_produccion] || { label: enc.estado_produccion, color: 'var(--ink3)', bg: '#f1f5f9' }
 
   return (
     <div onClick={onClick}
@@ -91,7 +92,7 @@ function EncuestadorRow({ enc, rank }) {
         <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{enc.nombre_completo}</div>
         <div style={{ fontSize: 11, color: 'var(--ink3)' }}>{enc.equipo_nombre || 'Sin equipo'}</div>
       </div>
-      <div style={{ fontFamily: 'Syne', fontSize: 18, fontWeight: 800, color: 'var(--accent)', flexShrink: 0 }}>{enc.total}</div>
+      <div style={{ fontFamily: 'var(--font-num)', fontSize: 16, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--accent)', flexShrink: 0 }}>{enc.total}</div>
     </div>
   )
 }
@@ -200,9 +201,12 @@ export default function Dashboard() {
     setLoading(false)
   }
 
-  const encPublicadas = encuestas.filter(e => e.estado_produccion === 'publicada')
-  const encOtras      = encuestas.filter(e => e.estado_produccion !== 'publicada')
-  const totalResp     = encPublicadas.reduce((s, e) => s + (parseInt(e.completadas_count) || 0), 0)
+  const encPublicadas   = encuestas.filter(e => e.estado_produccion === 'publicada')
+  const encEnProduccion = encuestas.filter(e => ['pendiente', 'en_proceso', 'para_revisar'].includes(e.estado_produccion))
+  const encCompletadas  = encuestas.filter(e => e.estado_produccion === 'completada')
+  // Total de encuestas realizadas en toda la organización (viene del RPC, no solo de las publicadas)
+  const totalResp     = kpis.total_sesiones
+    ?? encuestas.reduce((s, e) => s + (parseInt(e.completadas_count) || 0), 0)
 
   if (loading) return (
     <div className={styles.page}>
@@ -219,10 +223,10 @@ export default function Dashboard() {
       <div className={styles.content}>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 24 }}>
-          <KpiCard icon="📋" label="Encuestas activas"     value={kpis.enc_activas}                        sub="publicadas"     color="var(--accent)" />
-          <KpiCard icon="✅" label="Total respuestas"      value={totalResp.toLocaleString('es-AR')}        sub="todas las enc." color="#0369a1" />
-          <KpiCard icon="📅" label="Respuestas hoy"        value={hoy}                                      sub="del día"        color="#7c3aed" />
-          <KpiCard icon="👤" label="Encuestadores activos" value={topEnc.length}                            sub="últimos 7 días" color="#b45309" />
+          <KpiCard icon="📋" label="Encuestas activas"     value={kpis.enc_activas ?? 0}                     sub="publicadas"     color="var(--metric-a)" />
+          <KpiCard icon="✅" label="Total respuestas"      value={(totalResp || 0).toLocaleString('es-AR')} sub="todas las enc." color="var(--metric-b)" />
+          <KpiCard icon="📅" label="Respuestas hoy"        value={hoy}                                      sub="del día"        color="var(--metric-c)" />
+          <KpiCard icon="👤" label="Encuestadores activos" value={topEnc.length}                            sub="últimos 7 días" color="var(--metric-d)" />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, alignItems: 'start' }}>
@@ -246,11 +250,20 @@ export default function Dashboard() {
               </div>
             )}
 
-            {encOtras.length > 0 && (
+            {encEnProduccion.length > 0 && (
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>En producción</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {encOtras.map(enc => <EncuestaRow key={enc.id} enc={enc} onClick={() => navigate(`/encuestas/${enc.id}`)} />)}
+                  {encEnProduccion.map(enc => <EncuestaRow key={enc.id} enc={enc} onClick={() => navigate(`/encuestas/${enc.id}`)} />)}
+                </div>
+              </div>
+            )}
+
+            {encCompletadas.length > 0 && (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Completadas</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {encCompletadas.map(enc => <EncuestaRow key={enc.id} enc={enc} onClick={() => navigate(`/encuestas/${enc.id}`)} />)}
                 </div>
               </div>
             )}

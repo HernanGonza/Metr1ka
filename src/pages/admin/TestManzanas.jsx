@@ -10,12 +10,12 @@ async function initMapLibs() {
   return L
 }
 
-const ESTILO_SEL    = { color: '#1a472a', fillColor: '#1a472a', fillOpacity: 0.5, weight: 2.5 }
-const ESTILO_NO_SEL = { color: '#64748b', fillColor: '#94a3b8', fillOpacity: 0.15, weight: 1.5 }
-const ESTILO_HOVER  = { color: '#64748b', fillColor: '#94a3b8', fillOpacity: 0.4,  weight: 1.5 }
+const ESTILO_SEL    = { color: 'var(--accent)', fillColor: 'var(--accent)', fillOpacity: 0.5, weight: 2.5 }
+const ESTILO_NO_SEL = { color: 'var(--ink3)', fillColor: 'var(--ink4)', fillOpacity: 0.15, weight: 1.5 }
+const ESTILO_HOVER  = { color: 'var(--ink3)', fillColor: 'var(--ink4)', fillOpacity: 0.4,  weight: 1.5 }
 
 const ESTILOS_PARCELA = {
-  'mapa:parcela_urbana':    { color: '#dc2626', fillColor: '#fca5a5', fillOpacity: 0.5, weight: 1 },
+  'mapa:parcela_urbana':    { color: 'var(--danger)', fillColor: '#fca5a5', fillOpacity: 0.5, weight: 1 },
   'mapa:parcela_urbana_v2': { color: '#7c3aed', fillColor: '#c4b5fd', fillOpacity: 0.5, weight: 1 },
   'mapa:parcelas':          { color: '#b45309', fillColor: '#fde68a', fillOpacity: 0.5, weight: 1 },
 }
@@ -258,7 +258,7 @@ export default function TestManzanas() {
   }
 
   const capas = [
-    { typeName: 'mapa:parcela_urbana',    label: 'parcela_urbana',    color: '#dc2626' },
+    { typeName: 'mapa:parcela_urbana',    label: 'parcela_urbana',    color: 'var(--danger)' },
     { typeName: 'mapa:parcela_urbana_v2', label: 'parcela_urbana_v2', color: '#7c3aed' },
     { typeName: 'mapa:parcelas',          label: 'parcelas',          color: '#b45309' },
   ]
@@ -270,23 +270,23 @@ export default function TestManzanas() {
       {/* Controles zona + manzanas */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={activarDibujar} disabled={!!loading}
-          style={{ padding: '8px 16px', background: modo === 'dibujando' ? '#0369a1' : '#1a472a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+          style={{ padding: '8px 16px', background: modo === 'dibujando' ? '#0369a1' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
           {modo === 'dibujando' ? '✏️ Dibujando...' : '🖊️ Dibujar zona'}
         </button>
         {nTotal > 0 && (
           <>
-            <button onClick={seleccionarTodas} style={{ padding: '7px 13px', background: '#fff', border: '1.5px solid #1a472a', color: '#1a472a', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            <button onClick={seleccionarTodas} style={{ padding: '7px 13px', background: 'var(--paper)', border: '1.5px solid var(--accent)', color: 'var(--accent)', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
               Todas
             </button>
-            <button onClick={deseleccionarTodas} style={{ padding: '7px 13px', background: '#fff', border: '1.5px solid #64748b', color: '#64748b', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
+            <button onClick={deseleccionarTodas} style={{ padding: '7px 13px', background: 'var(--paper)', border: '1.5px solid var(--border2)', color: 'var(--ink3)', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
               Ninguna
             </button>
-            <span style={{ fontSize: 12, color: '#1a472a', fontWeight: 600 }}>
+            <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>
               {nSel}/{nTotal} manzanas
             </span>
           </>
         )}
-        <button onClick={limpiarTodo} style={{ padding: '7px 13px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
+        <button onClick={limpiarTodo} style={{ padding: '7px 13px', background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
           Limpiar
         </button>
         {loading && <span style={{ fontSize: 12, color: '#0369a1', fontWeight: 600 }}>⏳ {loading === 'manzanas' ? 'Cargando manzanas...' : `Cargando ${loading}...`}</span>}
@@ -294,7 +294,7 @@ export default function TestManzanas() {
 
       {/* Botones de parcelas */}
       {nSel > 0 && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '10px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '10px 12px', background: 'var(--surface)', borderRadius: 8, border: '1px solid var(--border)' }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Parcelas sobre manzanas seleccionadas:</span>
           {capas.map(({ typeName, label, color }) => {
             const activa = !!parcelaLayersRef.current[typeName]
@@ -306,15 +306,15 @@ export default function TestManzanas() {
               </button>
             )
           })}
-          <span style={{ fontSize: 11, color: '#94a3b8' }}>Clic para mostrar/ocultar</span>
+          <span style={{ fontSize: 11, color: 'var(--ink4)' }}>Clic para mostrar/ocultar</span>
         </div>
       )}
 
       {/* Leyenda */}
-      <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#64748b', flexWrap: 'wrap' }}>
-        <span><span style={{ color: '#1a472a', fontWeight: 700 }}>■</span> Manzana seleccionada</span>
-        <span><span style={{ color: '#94a3b8', fontWeight: 700 }}>■</span> Manzana sin seleccionar</span>
-        <span><span style={{ color: '#dc2626', fontWeight: 700 }}>■</span> parcela_urbana</span>
+      <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--ink3)', flexWrap: 'wrap' }}>
+        <span><span style={{ color: 'var(--accent)', fontWeight: 700 }}>■</span> Manzana seleccionada</span>
+        <span><span style={{ color: 'var(--ink4)', fontWeight: 700 }}>■</span> Manzana sin seleccionar</span>
+        <span><span style={{ color: 'var(--danger)', fontWeight: 700 }}>■</span> parcela_urbana</span>
         <span><span style={{ color: '#7c3aed', fontWeight: 700 }}>■</span> parcela_urbana_v2</span>
         <span><span style={{ color: '#b45309', fontWeight: 700 }}>■</span> parcelas</span>
       </div>
@@ -324,7 +324,7 @@ export default function TestManzanas() {
         {logs.length === 0
           ? <span style={{ color: '#475569' }}>Dibujá una zona para empezar...</span>
           : logs.map((l, i) => (
-            <div key={i} style={{ color: l.startsWith('✅') ? '#4ade80' : l.startsWith('❌') ? '#f87171' : l.startsWith('⚠') ? '#fbbf24' : '#94a3b8' }}>{l}</div>
+            <div key={i} style={{ color: l.startsWith('✅') ? '#4ade80' : l.startsWith('❌') ? '#f87171' : l.startsWith('⚠') ? '#fbbf24' : 'var(--ink4)' }}>{l}</div>
           ))}
       </div>
 

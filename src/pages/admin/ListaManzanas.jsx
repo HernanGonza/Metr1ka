@@ -38,7 +38,7 @@ export default function ListaManzanas({ manzanas, encuestadores, asignaciones, o
           const asig = asignaciones[m.localId] || {}
           const enc = encuestadores.find(e => e.id === asig.encuestador_id)
           return (
-            <div key={m.localId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', border: `1.5px solid ${asig.encuestador_id ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 'var(--r)', transition: 'border-color .15s' }}>
+            <div key={m.localId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--paper)', border: `1.5px solid ${asig.encuestador_id ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 'var(--r)', transition: 'border-color .15s' }}>
               {/* Número */}
               <div style={{ width: 30, height: 30, background: asig.encuestador_id ? 'var(--accent)' : 'var(--surface2)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: asig.encuestador_id ? '#fff' : 'var(--ink3)', flexShrink: 0 }}>
                 {i + 1}
@@ -62,7 +62,7 @@ export default function ListaManzanas({ manzanas, encuestadores, asignaciones, o
               <select
                 value={asig.encuestador_id || ''}
                 onChange={e => onAsignar(m.localId, e.target.value || null, m.area_geojson)}
-                style={{ padding: '6px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, fontFamily: 'DM Sans', color: 'var(--ink)', background: '#fff', cursor: 'pointer', minWidth: 160 }}>
+                style={{ padding: '6px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, fontFamily: 'DM Sans', color: 'var(--ink)', background: 'var(--paper)', cursor: 'pointer', minWidth: 160 }}>
                 <option value="">Sin asignar</option>
                 {encuestadores.map(e => (
                   <option key={e.id} value={e.id}>{e.nombre_completo}</option>

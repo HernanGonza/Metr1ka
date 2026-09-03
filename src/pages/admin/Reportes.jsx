@@ -1,5 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
-import html2canvas from 'html2canvas'
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { Topbar } from '../../components/layout'
@@ -11,7 +10,7 @@ import { BarChart2, PieChart, FileText, Download, Filter, RefreshCw, ChevronDown
 const PALETA = ['#1a472a','#0369a1','#7c3aed','#b45309','#be185d','#047857','#2d6a4f','#0284c7','#dc2626','#d97706']
 
 /* ── Componente de gráfico individual ── */
-function MiniChart({ pregunta, filas, tipo = 'bar', color = '#1a472a' }) {
+function MiniChart({ pregunta, filas, tipo = 'bar', color = 'var(--accent)' }) {
   const ref = useRef(null)
   const chartRef = useRef(null)
 
@@ -72,7 +71,7 @@ function MiniChart({ pregunta, filas, tipo = 'bar', color = '#1a472a' }) {
           }
         },
         scales: isPie ? {} : {
-          x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#9ca3af', maxRotation: 30 } },
+          x: { grid: { display: false }, ticks: { font: { size: 10 }, color: 'var(--ink4)', maxRotation: 30 } },
           y: { display: tipo !== 'horizontal', beginAtZero: true, ticks: { font: { size: 10 } } },
         }
       }
@@ -148,7 +147,7 @@ function MatrizTabla({ pregunta, filas, color }) {
                   )
                 })}
                 <td style={{ padding: '9px 10px', textAlign: 'center', verticalAlign: 'middle' }}>
-                  <span style={{ fontFamily: 'Syne', fontSize: 14, fontWeight: 800, color: 'var(--ink2)' }}>{totalFila}</span>
+                  <span style={{ fontFamily: 'var(--font-num)', fontSize: 13, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--ink2)' }}>{totalFila}</span>
                 </td>
               </tr>
             )
@@ -196,7 +195,7 @@ function TextoLibreClasificado({ pregunta, filas, color, encuestaId }) {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => { const pct = totalClasificado > 0 ? Math.round(ctx.parsed.x/totalClasificado*100) : 0; return ` ${ctx.parsed.x} (${pct}%)` } } } },
         scales: {
-          x: { beginAtZero: true, grid: { color: '#f0f0f0' }, ticks: { stepSize: 1, font: { family: 'DM Sans', size: 11 } } },
+          x: { beginAtZero: true, grid: { color: 'var(--surface2)' }, ticks: { stepSize: 1, font: { family: 'DM Sans', size: 11 } } },
           y: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 12 } } },
         }
       }
@@ -254,7 +253,7 @@ function TextoLibreClasificado({ pregunta, filas, color, encuestaId }) {
                 ) : (
                   <>
                     <span style={{ fontSize: 12, fontWeight: 700, color }}>{c.categoria}</span>
-                    <span style={{ fontSize: 14, fontWeight: 800, color, fontFamily: 'Syne' }}>{c.cantidad}</span>
+                    <span style={{ fontSize: 13, fontWeight: 500, color, fontFamily: 'var(--font-num)', fontVariantNumeric: 'tabular-nums' }}>{c.cantidad}</span>
                     <span style={{ fontSize: 10, color: `${color}99` }}>{pct}%</span>
                     <button onClick={() => setEditando(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: `${color}88`, fontSize: 11, padding: '0 2px' }}>✏️</button>
                     <button onClick={() => eliminar(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef444488', fontSize: 12, padding: '0 2px', lineHeight: 1 }}>×</button>
@@ -690,7 +689,7 @@ function KpiCard({ label, value, sub, color, icon }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
         {icon}{label}
       </div>
-      <div style={{ fontFamily: 'Syne', fontSize: 28, fontWeight: 800, color, letterSpacing: -1 }}>{value}</div>
+      <div style={{ fontFamily: 'var(--font-num)', fontSize: 25, fontWeight: 500, color: (value === 0 || value === '0') ? 'var(--metric-zero)' : color, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
       {sub && <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 4 }}>{sub}</div>}
     </div>
   )
@@ -1129,8 +1128,8 @@ function MapaRespuestas({ sesiones, columnas, onCapturarMapa }) {
 
     Object.entries(grupos).forEach(([resp, pts]) => {
       const color = (resp !== '__all__' && filtroCol)
-        ? (colorPorValor[resp] || '#9ca3af')
-        : '#1a472a'
+        ? (colorPorValor[resp] || 'var(--ink4)')
+        : 'var(--accent)'
 
       const layer = tieneCluster
         ? L.markerClusterGroup({
@@ -1180,6 +1179,7 @@ function MapaRespuestas({ sesiones, columnas, onCapturarMapa }) {
         try {
           mapa.invalidateSize()
           await new Promise(r => setTimeout(r, 1200))
+          const { default: html2canvas } = await import('html2canvas')
           const canvas = await html2canvas(mapRef.current, {
             useCORS: true,
             allowTaint: true,
@@ -1239,7 +1239,7 @@ function MapaRespuestas({ sesiones, columnas, onCapturarMapa }) {
       {filtroCol && valoresUnicos.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
           {valoresUnicos.map(v => {
-            const color = colorPorValor[v] || '#9ca3af'
+            const color = colorPorValor[v] || 'var(--ink4)'
             const activo = capas[v] !== false
             const cant = (sesiones||[]).filter(s => s.respuestas?.[filtroCol] === v && s.lat).length
             return (
@@ -1286,25 +1286,6 @@ function MapaRespuestas({ sesiones, columnas, onCapturarMapa }) {
 }
 
 
-/* ── Helpers para filtro por zona (front-only, sin tocar DB) ── */
-function pointInRingReportes(px, py, ring) {
-  let inside = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i], [xj, yj] = ring[j]
-    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside
-  }
-  return inside
-}
-
-function zonaDeLatLng(lat, lng, zonas) {
-  if (!lat || !lng || !zonas?.length) return null
-  for (const z of zonas) {
-    if (z.ring && pointInRingReportes(lng, lat, z.ring)) return z.id
-  }
-  return null
-}
-
-
 /* ── PANTALLA PRINCIPAL ── */
 export default function Reportes() {
   const { perfil } = useAuth()
@@ -1329,6 +1310,7 @@ export default function Reportes() {
   const [vistaActiva, setVistaActiva] = useState('dashboard')
   const [comparaciones, setComparaciones] = useState([{ id: 1 }])
   const [sesionesCruce, setSesionesCruce] = useState([])
+  const [encAbiertos,   setEncAbiertos]   = useState({})
   const [datosExport,  setDatosExport]  = useState(null)
   const [loadingDatos, setLoadingDatos] = useState(false)
   const [mapaDatos,    setMapaDatos]    = useState(null)  // {img, titulo, leyenda}
@@ -1351,7 +1333,15 @@ export default function Reportes() {
       .eq('organizacion_id', perfil.organizacion_id)
       .in('estado_produccion', ['publicada', 'completada'])
       .order('creado_en', { ascending: false })
-      .then(({ data }) => { setEncuestas(data || []); setLoading(false) })
+      .then(({ data }) => {
+        const encs = data || []
+        setEncuestas(encs)
+        // Sin encuestas publicadas pero con completadas → arrancar en "Completadas"
+        if (!encs.some(e => e.estado_produccion === 'publicada') && encs.some(e => e.estado_produccion === 'completada')) {
+          setVistaCompletadas(true)
+        }
+        setLoading(false)
+      })
   }, [perfil?.organizacion_id])
 
   async function cargarEncuesta(enc) {
@@ -1425,7 +1415,7 @@ export default function Reportes() {
     if (!selected) return
     setLoadingEnc(true)
     const zonaIds = zonaIdsOverride !== undefined ? zonaIdsOverride : (filtroZonas !== null ? (filtroZonas.length > 0 ? filtroZonas : []) : null)
-    const [{ data: d }, { data: dc }] = await Promise.all([
+    const [{ data: d }, { data: dc }, { data: sc }] = await Promise.all([
       supabase.rpc('get_encuesta_full', {
         p_encuesta_id:    selected.id,
         p_org_id:         perfil.organizacion_id,
@@ -1444,9 +1434,15 @@ export default function Reportes() {
         p_fecha_hasta:    filtroHasta       || null,
         p_zona_ids:       zonaIds,
       }),
+      supabase.rpc('get_respuestas_por_sesion', {
+        p_encuesta_id: selected.id,
+        p_org_id:      perfil.organizacion_id,
+        p_zona_ids:    zonaIds,
+      }),
     ])
     setData(d)
     setDatosExport(dc)
+    setSesionesCruce(sc?.sesiones || [])
     setLoadingEnc(false)
   }
 
@@ -1603,7 +1599,7 @@ export default function Reportes() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>{enc.nombre}</div>
                         {enc.estado_produccion === 'completada' && (
-                          <span style={{ fontSize: 10, fontWeight: 700, background: '#f3f4f6', color: '#374151', padding: '2px 7px', borderRadius: 100 }}>✓ Completada</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--surface2)', color: 'var(--ink2)', padding: '2px 7px', borderRadius: 100 }}>✓ Completada</span>
                         )}
                       </div>
                       {enc.descripcion && <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>{enc.descripcion}</div>}
@@ -1737,15 +1733,15 @@ export default function Reportes() {
 
                     {/* No respuestas */}
                     {razonesNR.length > 0 && (
-                      <div style={{ background: 'var(--paper)', border: '1px solid #fca5a5', borderRadius: 'var(--r2)', padding: '14px 20px', borderLeft: '4px solid #ef4444' }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#c0392b', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                      <div style={{ background: 'var(--paper)', border: '1px solid var(--danger)', borderRadius: 'var(--r2)', padding: '14px 20px', borderLeft: '4px solid var(--danger)' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
                           📋 Razones de no-respuesta
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                           {razonesNR.map((f, i) => (
-                            <div key={i} style={{ background: '#fef2f2', borderRadius: 'var(--r)', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ fontSize: 13, color: '#c0392b', fontWeight: 600 }}>{f.valor_texto}</span>
-                              <span style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 800, color: '#ef4444' }}>{f.cantidad}</span>
+                            <div key={i} style={{ background: 'var(--danger-light)', borderRadius: 'var(--r)', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 13, color: 'var(--danger)', fontWeight: 600 }}>{f.valor_texto}</span>
+                              <span style={{ fontFamily: 'var(--font-num)', fontSize: 15, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--danger)' }}>{f.cantidad}</span>
                             </div>
                           ))}
                         </div>
@@ -1847,7 +1843,7 @@ export default function Reportes() {
                               win.document.write(html); win.document.close(); win.focus()
                               setTimeout(() => win.print(), 600)
                             }} style={{
-                              padding: '8px 16px', background: '#1a472a', color: '#fff', border: 'none',
+                              padding: '8px 16px', background: 'var(--accent)', color: '#fff', border: 'none',
                               borderRadius: 'var(--r)', fontFamily: 'DM Sans', fontSize: 12, fontWeight: 700,
                               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
                             }}>
@@ -1874,21 +1870,44 @@ export default function Reportes() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                           <thead>
                             <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                              {['Encuestador', 'Equipo', 'Respuestas'].map(h => (
-                                <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>
+                              {['Encuestador', 'Equipo', 'Zonas', 'Completadas', 'No resp.', 'Total'].map((h, hi) => (
+                                <th key={h} style={{ padding: '10px 16px', textAlign: hi >= 3 ? 'right' : 'left', fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
-                            {(data.encuestadores || []).sort((a,b) => b.total - a.total).map((e, i) => (
-                              <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                                <td style={{ padding: '10px 16px', fontWeight: 600, color: 'var(--ink)' }}>{e.nombre_completo}</td>
-                                <td style={{ padding: '10px 16px', color: 'var(--ink3)' }}>{e.equipo_nombre}</td>
-                                <td style={{ padding: '10px 16px' }}>
-                                  <span style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 800, color: 'var(--accent)' }}>{e.total}</span>
-                                </td>
-                              </tr>
-                            ))}
+                            {(data.encuestadores || []).slice().sort((a,b) => b.total - a.total).map((e, i) => {
+                              const key = e.encuestador_id || i
+                              const open = !!encAbiertos[key]
+                              const zonas = (e.por_zona || []).slice().sort((a,b) => b.total - a.total)
+                              return (
+                                <Fragment key={key}>
+                                  <tr onClick={() => zonas.length && setEncAbiertos(p => ({ ...p, [key]: !p[key] }))}
+                                    style={{ borderBottom: '1px solid var(--border)', cursor: zonas.length ? 'pointer' : 'default' }}>
+                                    <td style={{ padding: '10px 16px', fontWeight: 600, color: 'var(--ink)' }}>
+                                      {zonas.length > 0 && <span style={{ display: 'inline-block', width: 14, color: 'var(--ink3)' }}>{open ? '▾' : '▸'}</span>}
+                                      {e.nombre_completo}
+                                    </td>
+                                    <td style={{ padding: '10px 16px', color: 'var(--ink3)' }}>{e.equipo_nombre || '—'}</td>
+                                    <td style={{ padding: '10px 16px', color: 'var(--ink2)', fontSize: 12 }}>{e.zonas || '—'}</td>
+                                    <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: 'var(--accent)' }}>{e.completadas ?? '—'}</td>
+                                    <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: 'var(--danger)' }}>{e.no_respuesta ?? '—'}</td>
+                                    <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                                      <span style={{ fontFamily: 'var(--font-num)', fontSize: 15, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--ink2)' }}>{e.total}</span>
+                                    </td>
+                                  </tr>
+                                  {open && zonas.map(z => (
+                                    <tr key={key + (z.zona_id || 'sz')} style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+                                      <td style={{ padding: '8px 16px 8px 38px', color: 'var(--ink2)' }} colSpan={2}>{z.zona_nombre}</td>
+                                      <td style={{ padding: '8px 16px', color: 'var(--ink3)' }}></td>
+                                      <td style={{ padding: '8px 16px', textAlign: 'right', fontWeight: 600, color: 'var(--accent)' }}>{z.completadas}</td>
+                                      <td style={{ padding: '8px 16px', textAlign: 'right', fontWeight: 600, color: 'var(--danger)' }}>{z.no_respuesta}</td>
+                                      <td style={{ padding: '8px 16px', textAlign: 'right', fontWeight: 600, color: 'var(--ink2)' }}>{z.total}</td>
+                                    </tr>
+                                  ))}
+                                </Fragment>
+                              )
+                            })}
                           </tbody>
                         </table>
                       </div>

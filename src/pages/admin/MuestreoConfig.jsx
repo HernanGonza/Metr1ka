@@ -1950,6 +1950,12 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
       // ════════════════════════════════════════════
       setZonasModificadas(new Set());
 
+      // Refrescar la foto de equipos/zonas de la encuesta (para reportes y vista en vivo)
+      await supabase.rpc("capturar_snapshot_encuesta", {
+        p_encuesta_id: encuesta.id,
+        p_origen: "config_muestreo",
+      }).catch((e) => console.error("[snapshot]", e));
+
       onSaved();
       onClose();
     } catch (err) {

@@ -5,3 +5,15 @@ dist
 .env.*.local
 *.log
 .DS_Store
+
+# Backups de la base (datos reales / PII) — nunca al repo
+/backups/
+/.secrets/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# Tooling local (Claude Code / graft)
+/.claude/
+/.ignore
+/.mcp.json

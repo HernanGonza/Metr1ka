@@ -7,7 +7,7 @@ import SimuladorEncuesta from '../admin/SimuladorEncuesta'
 import styles from '../admin/Page.module.css'
 
 const ESTADO_CFG = {
-  publicada:    { label: 'Publicada',    color: '#1a472a', bg: 'var(--accent-light)' },
+  publicada:    { label: 'Publicada',    color: 'var(--accent)', bg: 'var(--accent-light)' },
   en_proceso:   { label: 'En proceso',   color: '#0369a1', bg: 'var(--info-light)' },
   para_revisar: { label: 'Para revisar', color: '#7c3aed', bg: 'rgba(124,58,237,0.1)' },
   pendiente:    { label: 'Pendiente',    color: '#b45309', bg: 'var(--warning-light)' },

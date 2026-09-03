@@ -1,0 +1,391 @@
+-- Fase 2 — Las funciones de stats leen sesiones_respuesta.zona_id / .encuesta_id
+-- en vez de recalcular la zona cada una a su manera (unas por asignación, otras por GPS).
+-- Unifica el criterio: la zona de una sesión es la que resolvió el trigger (GPS).
+-- Wire-up de p_zona_ids en get_encuesta_full (hoy declarado y sin usar).
+-- Rollback: 20260902220006_fase2_stats_por_zona_id_rollback.sql (restaura las 4 originales).
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 1. get_zonas_con_sesiones — conteo por sesiones_respuesta.zona_id
+-- ═══════════════════════════════════════════════════════════════════
+create or replace function public.get_zonas_con_sesiones(p_encuesta_id uuid)
+returns jsonb
+language sql
+stable security definer
+set search_path to 'public'
+as $function$
+  select jsonb_agg(
+    jsonb_build_object(
+      'id',           ez.id,
+      'nombre',       ez.nombre,
+      'orden',        ez.orden,
+      'area_geojson', ez.area_geojson,
+      'sesiones',     coalesce(s.total, 0)
+    ) order by ez.orden, ez.nombre
+  )
+  from public.encuesta_zonas ez
+  left join (
+    select sr.zona_id, count(*) as total
+    from public.sesiones_respuesta sr
+    where sr.encuesta_id = p_encuesta_id
+      and sr.completada_en is not null
+      and sr.zona_id is not null
+    group by sr.zona_id
+  ) s on s.zona_id = ez.id
+  where ez.encuesta_id = p_encuesta_id;
+$function$;
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 2. get_resultados_encuesta_filtrado — filtra por sr.zona_id
+-- ═══════════════════════════════════════════════════════════════════
+create or replace function public.get_resultados_encuesta_filtrado(
+  p_encuesta_id uuid,
+  p_equipo_id uuid default null,
+  p_zona_id uuid default null,
+  p_encuestador_id uuid default null
+)
+returns jsonb
+language plpgsql
+stable security definer
+set search_path to 'public'
+as $function$
+declare
+  v_hay_participa      boolean;
+  v_participa_guardada boolean;
+  v_result             jsonb;
+begin
+  select exists (
+    select 1 from preguntas where encuesta_id = p_encuesta_id and clave_base = 'participa'
+  ) into v_hay_participa;
+
+  select exists (
+    select 1 from respuestas r
+    join preguntas p on p.id = r.pregunta_id
+    join sesiones_respuesta sr on sr.id = r.sesion_id
+    where sr.encuesta_id = p_encuesta_id and p.clave_base = 'participa'
+  ) into v_participa_guardada;
+
+  with ses as (
+    select
+      sr.id,
+      sr.completada_en,
+      case
+        when v_hay_participa and v_participa_guardada then exists (
+          select 1 from respuestas r join preguntas p on p.id = r.pregunta_id
+          where r.sesion_id = sr.id and p.clave_base = 'participa' and r.valor_texto = 'Sí'
+        )
+        else exists (
+          select 1 from respuestas r join preguntas p on p.id = r.pregunta_id
+          where r.sesion_id = sr.id and (p.clave_base is null or p.clave_base <> 'participa')
+        )
+      end as completada
+    from sesiones_respuesta sr
+    left join encuesta_zonas ez        on ez.id = sr.zona_id
+    left join equipo_encuestadores ee  on ee.encuestador_id = sr.encuestador_id
+    where sr.encuesta_id = p_encuesta_id
+      and sr.completada_en is not null
+      and (p_zona_id        is null or sr.zona_id        = p_zona_id)
+      and (p_encuestador_id is null or sr.encuestador_id = p_encuestador_id)
+      and (p_equipo_id      is null or coalesce(ez.equipo_id, ee.equipo_id) = p_equipo_id)
+  )
+  select jsonb_build_object(
+    'total_sesiones',     (select count(*) from ses),
+    'total_completadas',  (select count(*) from ses where completada),
+    'total_no_respuesta', (select count(*) from ses where not completada),
+    'total_hoy',          (select count(*) from ses where completada and completada_en::date = current_date),
+    'respuestas', (
+      select jsonb_agg(jsonb_build_object(
+        'pregunta_id',    r.pregunta_id,
+        'valor_texto',    r.valor_texto,
+        'valor_numero',   r.valor_numero,
+        'valor_booleano', r.valor_booleano,
+        'opcion_id',      r.opcion_id
+      ))
+      from respuestas r
+      join ses on ses.id = r.sesion_id
+      join preguntas p2 on p2.id = r.pregunta_id
+      where (p2.clave_base is null or p2.clave_base <> 'participa')
+    ),
+    'por_dia', (
+      select jsonb_agg(jsonb_build_object('dia', dia, 'total', total) order by dia)
+      from (
+        select completada_en::date as dia, count(*) as total
+        from ses
+        where completada
+        group by 1
+        order by 1 desc
+        limit 14
+      ) sub
+    )
+  ) into v_result;
+
+  return v_result;
+end;
+$function$;
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 3. get_respuestas_crudas — filtra por sr.zona_id = any(p_zona_ids)
+-- ═══════════════════════════════════════════════════════════════════
+create or replace function public.get_respuestas_crudas(
+  p_encuesta_id uuid,
+  p_org_id uuid,
+  p_equipo_id uuid default null,
+  p_encuestador_id uuid default null,
+  p_fecha_desde date default null,
+  p_fecha_hasta date default null,
+  p_zona_ids uuid[] default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare v_result jsonb;
+begin
+  select jsonb_build_object(
+    'columnas', (
+      select jsonb_agg(jsonb_build_object('id', pq.id, 'texto', pq.texto, 'tipo', pq.tipo) order by pq.orden)
+      from preguntas pq
+      where pq.encuesta_id = p_encuesta_id and pq.clave_base is distinct from 'participa'
+    ),
+    'filas', (
+      select jsonb_agg(jsonb_build_object(
+        'sesion_id',   sr.id,
+        'fecha',       sr.completada_en,
+        'lat',         sr.latitud,
+        'lng',         sr.longitud,
+        'encuestador', p.nombre_completo,
+        'equipo',      eq.nombre,
+        'zona',        ez.nombre,
+        'respuestas',  (
+          select jsonb_object_agg(
+            r.pregunta_id::text,
+            case
+              when r.valor_booleano is not null then case r.valor_booleano when true then 'Sí' else 'No' end
+              when r.opcion_id is not null then (select op.texto from opciones_pregunta op where op.id = r.opcion_id)
+              when r.valor_numero is not null then r.valor_numero::text
+              else r.valor_texto
+            end
+          )
+          from respuestas r where r.sesion_id = sr.id
+        )
+      ) order by sr.completada_en desc)
+      from sesiones_respuesta sr
+      join encuestas en                 on en.id = sr.encuesta_id
+      left join perfiles p              on p.id = sr.encuestador_id
+      left join encuesta_zonas ez       on ez.id = sr.zona_id
+      left join equipo_encuestadores ee on ee.encuestador_id = sr.encuestador_id
+      left join equipos eq              on eq.id = coalesce(ez.equipo_id, ee.equipo_id)
+      where sr.encuesta_id     = p_encuesta_id
+        and en.organizacion_id = p_org_id
+        and sr.completada_en is not null
+        and (p_equipo_id      is null or coalesce(ez.equipo_id, ee.equipo_id) = p_equipo_id)
+        and (p_encuestador_id is null or sr.encuestador_id = p_encuestador_id)
+        and (p_fecha_desde    is null or sr.completada_en::date >= p_fecha_desde)
+        and (p_fecha_hasta    is null or sr.completada_en::date <= p_fecha_hasta)
+        and (p_zona_ids       is null or sr.zona_id = any(p_zona_ids))
+    )
+  ) into v_result;
+  return v_result;
+end;
+$function$;
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 4. get_encuesta_full — fuente única sesiones_respuesta + p_zona_ids activo
+-- ═══════════════════════════════════════════════════════════════════
+create or replace function public.get_encuesta_full(
+  p_encuesta_id uuid,
+  p_org_id uuid,
+  p_equipo_id uuid default null,
+  p_encuestador_id uuid default null,
+  p_fecha_desde date default null,
+  p_fecha_hasta date default null,
+  p_zona_ids uuid[] default null
+)
+returns json
+language plpgsql
+stable security definer
+set search_path to 'public'
+as $function$
+declare
+  v_encuesta      json;
+  v_preguntas     json;
+  v_resumen       json;
+  v_encuestadores json;
+  v_equipos       json;
+  v_respuestas    json;
+  v_hay_participa boolean;
+begin
+  select row_to_json(e) into v_encuesta
+  from encuestas e
+  where e.id = p_encuesta_id and e.organizacion_id = p_org_id;
+
+  if v_encuesta is null then return json_build_object('error', 'not_found'); end if;
+
+  select exists (
+    select 1 from respuestas r join preguntas p on p.id = r.pregunta_id
+    where p.encuesta_id = p_encuesta_id and p.clave_base = 'participa'
+  ) into v_hay_participa;
+
+  select json_agg(
+    json_build_object(
+      'id', p.id, 'texto', p.texto, 'tipo', p.tipo,
+      'requerida', p.requerida, 'orden', p.orden,
+      'es_base', p.es_base, 'clave_base', p.clave_base,
+      'condicionales', p.condicionales, 'config_matriz', p.config_matriz,
+      'opciones_pregunta', coalesce(opts.opciones, '[]'::json)
+    ) order by p.orden
+  ) into v_preguntas
+  from preguntas p
+  left join (
+    select o.pregunta_id,
+      json_agg(json_build_object('id', o.id, 'texto', o.texto, 'orden', o.orden) order by o.orden) as opciones
+    from opciones_pregunta o
+    join preguntas p2 on p2.id = o.pregunta_id
+    where p2.encuesta_id = p_encuesta_id
+    group by o.pregunta_id
+  ) opts on opts.pregunta_id = p.id
+  where p.encuesta_id = p_encuesta_id;
+
+  if (v_encuesta->>'estado_produccion') in ('publicada', 'completada') then
+
+    -- Fuente única: cada sesión completada de la encuesta, con su zona geográfica (sr.zona_id),
+    -- su encuestador (sr.encuestador_id) y su equipo (de la zona, o del encuestador si la zona no tiene).
+    with sesiones_encuesta as (
+      select
+        sr.id                                    as sesion_id,
+        sr.completada_en,
+        sr.latitud, sr.longitud,
+        sr.encuestador_id,
+        coalesce(ez.equipo_id, ee.equipo_id)     as equipo_id,
+        sr.zona_id,
+        eq.nombre                                as equipo_nombre,
+        pf.nombre_completo,
+        coalesce(ez.nombre, 'Sin zona')          as zona_nombre
+      from sesiones_respuesta sr
+      left join encuesta_zonas ez        on ez.id = sr.zona_id
+      left join equipo_encuestadores ee  on ee.encuestador_id = sr.encuestador_id
+      left join equipos eq               on eq.id = coalesce(ez.equipo_id, ee.equipo_id)
+      left join perfiles pf              on pf.id = sr.encuestador_id
+      where sr.encuesta_id = p_encuesta_id
+        and sr.completada_en is not null
+        and (p_equipo_id      is null or coalesce(ez.equipo_id, ee.equipo_id) = p_equipo_id)
+        and (p_encuestador_id is null or sr.encuestador_id = p_encuestador_id)
+        and (p_fecha_desde    is null or sr.completada_en::date >= p_fecha_desde)
+        and (p_fecha_hasta    is null or sr.completada_en::date <= p_fecha_hasta)
+        and (p_zona_ids       is null or sr.zona_id = any(p_zona_ids))
+    )
+    select json_build_object(
+      'total_sesiones',        count(distinct sesion_id),
+      'total_participaron',    case
+        when v_hay_participa then count(distinct sesion_id) filter (where exists (
+          select 1 from respuestas r2 join preguntas p2 on p2.id = r2.pregunta_id
+          where r2.sesion_id = se.sesion_id and p2.clave_base = 'participa' and r2.valor_texto = 'Sí'
+        ))
+        else count(distinct sesion_id) filter (where exists (select 1 from respuestas r where r.sesion_id = se.sesion_id))
+      end,
+      'total_no_respondieron', case
+        when v_hay_participa then count(distinct sesion_id) filter (where exists (
+          select 1 from respuestas r2 join preguntas p2 on p2.id = r2.pregunta_id
+          where r2.sesion_id = se.sesion_id and p2.clave_base = 'participa' and r2.valor_texto != 'Sí'
+        ))
+        else count(distinct sesion_id) filter (where not exists (select 1 from respuestas r where r.sesion_id = se.sesion_id))
+      end,
+      'encuestadores',         count(distinct encuestador_id),
+      'equipos',               count(distinct equipo_id),
+      'ultima_respuesta',      max(completada_en)
+    ) into v_resumen
+    from sesiones_encuesta se;
+
+    with sesiones_encuesta as (
+      select
+        sr.id                                    as sesion_id,
+        sr.completada_en,
+        sr.encuestador_id,
+        coalesce(ez.equipo_id, ee.equipo_id)     as equipo_id,
+        eq.nombre                                as equipo_nombre,
+        pf.nombre_completo,
+        coalesce(ez.nombre, 'Sin zona')          as zona_nombre
+      from sesiones_respuesta sr
+      left join encuesta_zonas ez        on ez.id = sr.zona_id
+      left join equipo_encuestadores ee  on ee.encuestador_id = sr.encuestador_id
+      left join equipos eq               on eq.id = coalesce(ez.equipo_id, ee.equipo_id)
+      left join perfiles pf              on pf.id = sr.encuestador_id
+      where sr.encuesta_id = p_encuesta_id
+        and sr.completada_en is not null
+        and (p_equipo_id      is null or coalesce(ez.equipo_id, ee.equipo_id) = p_equipo_id)
+        and (p_encuestador_id is null or sr.encuestador_id = p_encuestador_id)
+        and (p_fecha_desde    is null or sr.completada_en::date >= p_fecha_desde)
+        and (p_fecha_hasta    is null or sr.completada_en::date <= p_fecha_hasta)
+        and (p_zona_ids       is null or sr.zona_id = any(p_zona_ids))
+    )
+    select json_agg(row_to_json(t)) into v_encuestadores
+    from (
+      select encuestador_id, nombre_completo, equipo_id, equipo_nombre,
+        count(sesion_id) as total,
+        case when v_hay_participa then count(sesion_id) filter (where exists (
+          select 1 from respuestas r2 join preguntas p2 on p2.id = r2.pregunta_id
+          where r2.sesion_id = se.sesion_id and p2.clave_base = 'participa' and r2.valor_texto = 'Sí'
+        )) else count(sesion_id) filter (where exists (select 1 from respuestas r where r.sesion_id = se.sesion_id))
+        end as completadas,
+        case when v_hay_participa then count(sesion_id) filter (where exists (
+          select 1 from respuestas r2 join preguntas p2 on p2.id = r2.pregunta_id
+          where r2.sesion_id = se.sesion_id and p2.clave_base = 'participa' and r2.valor_texto != 'Sí'
+        )) else count(sesion_id) filter (where not exists (select 1 from respuestas r where r.sesion_id = se.sesion_id))
+        end as no_respuesta,
+        string_agg(distinct zona_nombre, ', ' order by zona_nombre) as zonas
+      from sesiones_encuesta se
+      group by encuestador_id, nombre_completo, equipo_id, equipo_nombre
+      order by total desc
+    ) t;
+
+    select json_agg(json_build_object('id', id, 'nombre', nombre)) into v_equipos
+    from equipos where organizacion_id = p_org_id;
+
+    with sesiones_encuesta as (
+      select sr.id as sesion_id
+      from sesiones_respuesta sr
+      left join encuesta_zonas ez        on ez.id = sr.zona_id
+      left join equipo_encuestadores ee  on ee.encuestador_id = sr.encuestador_id
+      where sr.encuesta_id = p_encuesta_id
+        and sr.completada_en is not null
+        and (p_equipo_id      is null or coalesce(ez.equipo_id, ee.equipo_id) = p_equipo_id)
+        and (p_encuestador_id is null or sr.encuestador_id = p_encuestador_id)
+        and (p_fecha_desde    is null or sr.completada_en::date >= p_fecha_desde)
+        and (p_fecha_hasta    is null or sr.completada_en::date <= p_fecha_hasta)
+        and (p_zona_ids       is null or sr.zona_id = any(p_zona_ids))
+    )
+    select json_agg(row_to_json(t) order by t.pregunta_id, t.cantidad desc)
+    into v_respuestas
+    from (
+      select r.pregunta_id, p2.tipo, p2.clave_base,
+        case when p2.tipo = 'si_no' and r.valor_texto is null and r.valor_booleano is not null
+          then case when r.valor_booleano then 'Sí' else 'No' end
+          else r.valor_texto end as valor_texto,
+        case when p2.tipo = 'si_no' then null else r.valor_numero end as valor_numero,
+        null::boolean as valor_booleano,
+        r.opcion_id, op.texto as opcion_texto,
+        count(*)::bigint as cantidad
+      from respuestas r
+      join sesiones_encuesta se     on se.sesion_id = r.sesion_id
+      join preguntas p2             on p2.id = r.pregunta_id
+      left join opciones_pregunta op on op.id = r.opcion_id
+      where p2.encuesta_id = p_encuesta_id
+      group by r.pregunta_id, p2.tipo, p2.clave_base,
+        case when p2.tipo = 'si_no' and r.valor_texto is null and r.valor_booleano is not null
+             then case when r.valor_booleano then 'Sí' else 'No' end else r.valor_texto end,
+        case when p2.tipo = 'si_no' then null else r.valor_numero end,
+        r.opcion_id, op.texto
+    ) t;
+
+  end if;
+
+  return json_build_object(
+    'encuesta',      v_encuesta,
+    'preguntas',     coalesce(v_preguntas,     '[]'::json),
+    'resumen',       v_resumen,
+    'encuestadores', coalesce(v_encuestadores, '[]'::json),
+    'equipos',       coalesce(v_equipos,       '[]'::json),
+    'respuestas',    coalesce(v_respuestas,    '[]'::json)
+  );
+end;
+$function$;

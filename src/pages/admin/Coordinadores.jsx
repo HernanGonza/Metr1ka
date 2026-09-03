@@ -145,7 +145,7 @@ function TarjetaMiembro({ m, i, equipos, onAsignar, onToggleActivo, puedeGestion
               : <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, background: 'var(--surface2)', color: 'var(--ink3)' }}>Sin equipo</span>
             : null
           }
-          {!m.activo && <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: '#fdecea', color: 'var(--danger)' }}>Inactivo</span>}
+          {!m.activo && <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: 'var(--danger-light)', color: 'var(--danger)' }}>Inactivo</span>}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
@@ -215,7 +215,7 @@ export default function Coordinadores() {
   const statsGestor = [
     { label: 'Total',     value: gestores.length,                                color: '#7c3aed', bg: 'rgba(124,58,237,0.1)' },
     { label: 'Activos',   value: gestores.filter(m => m.activo !== false).length, color: 'var(--accent)', bg: 'var(--accent-light)' },
-    { label: 'Inactivos', value: gestores.filter(m => m.activo === false).length, color: '#c0392b', bg: 'var(--danger-light)' },
+    { label: 'Inactivos', value: gestores.filter(m => m.activo === false).length, color: 'var(--danger)', bg: 'var(--danger-light)' },
   ]
 
   const seccion = (titulo, descripcion, colorBadge, bgBadge, stats, lista, rolInvitar, idx0, puedeInvitar, puedeGestionar) => (

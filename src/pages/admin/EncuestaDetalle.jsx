@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
@@ -18,8 +18,8 @@ const ESTADO_CONFIG = {
   pendiente:    { label: 'Pendiente',    color: '#b45309', bg: 'var(--warning-light)' },
   en_proceso:   { label: 'En proceso',   color: '#0369a1', bg: 'var(--info-light)' },
   para_revisar: { label: 'Para revisar', color: '#7c3aed', bg: 'rgba(124,58,237,0.1)' },
-  publicada:    { label: 'Publicada',    color: '#1a472a', bg: 'var(--accent-light)' },
-  completada: { label: 'Completada', color: '#374151', bg: '#f3f4f6' },
+  publicada:    { label: 'Publicada',    color: 'var(--accent)', bg: 'var(--accent-light)' },
+  completada: { label: 'Completada', color: 'var(--ink2)', bg: 'var(--surface2)' },
 }
 
 // Paleta variada — cada índice de pregunta recibe colores distintos
@@ -177,9 +177,10 @@ function MatrizTabla({ pregunta, filas, color }) {
                 <td style={{ 
                   padding: '10px 12px', 
                   textAlign: 'center', 
-                  fontFamily: 'Syne', 
-                  fontSize: 15, 
-                  fontWeight: 800, 
+                  fontFamily: 'var(--font-num)', 
+                  fontSize: 13, 
+                  fontWeight: 500, 
+                  fontVariantNumeric: 'tabular-nums', 
                   color: 'var(--ink2)' 
                 }}>
                   {totalFila}
@@ -193,42 +194,32 @@ function MatrizTabla({ pregunta, filas, color }) {
   )
 }
 
+// Dispatcher — evita hooks condicionales: cada rama es su propio componente.
 function PreguntaChart({ pregunta, filas, paletaIdx }) {
+  if (pregunta.tipo === 'matriz') return <PreguntaMatriz pregunta={pregunta} filas={filas} paletaIdx={paletaIdx} />
+  return <PreguntaChartBase pregunta={pregunta} filas={filas} paletaIdx={paletaIdx} />
+}
+
+function PreguntaMatriz({ pregunta, filas, paletaIdx }) {
+  const colorPrincipal = PALETAS[paletaIdx % PALETAS.length][0]
+  const totalRespuestas = (filas || []).reduce((sum, f) => sum + Number(f.cantidad || 1), 0)
+  return (
+    <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: colorPrincipal, flexShrink: 0 }} />
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{pregunta.texto}</div>
+          <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>Matriz · {totalRespuestas} respuestas</div>
+        </div>
+      </div>
+      <MatrizTabla pregunta={pregunta} filas={filas || []} color={colorPrincipal} />
+    </div>
+  )
+}
+
+function PreguntaChartBase({ pregunta, filas, paletaIdx }) {
   const { tipo } = pregunta
   const paleta = PALETAS[paletaIdx % PALETAS.length]
-  const colorPrincipal = paleta[0]
-
-  // === MANEJO ESPECIAL PARA PREGUNTAS DE TIPO MATRIZ ===
-  if (tipo === 'matriz') {
-    const totalRespuestas = (filas || []).reduce((sum, f) => sum + Number(f.cantidad || 1), 0)
-
-    return (
-      <div style={{ 
-        background: 'var(--paper)', 
-        border: '1px solid var(--border)', 
-        borderRadius: 'var(--r2)', 
-        padding: '20px' 
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: colorPrincipal, flexShrink: 0 }} />
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{pregunta.texto}</div>
-            <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>
-              Matriz · {totalRespuestas} respuestas
-            </div>
-          </div>
-        </div>
-
-        <MatrizTabla 
-          pregunta={pregunta} 
-          filas={filas || []} 
-          color={colorPrincipal} 
-        />
-      </div>
-    )
-  }
-
-  // === CÓDIGO ORIGINAL PARA EL RESTO DE TIPOS ===
   const opciones  = pregunta.opciones_pregunta || []
   const [tipoGrafico, setTipoGrafico] = useState(DEFAULT_TIPO[tipo] || 'bar')
 
@@ -324,7 +315,7 @@ function PreguntaChart({ pregunta, filas, paletaIdx }) {
       },
       scales: isPie ? {} : {
         x: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 11 } } },
-        y: { beginAtZero: true, grid: { color: '#f0f0f0' }, ticks: { stepSize: 1, font: { family: 'DM Sans', size: 11 } } },
+        y: { beginAtZero: true, grid: { color: 'var(--surface2)' }, ticks: { stepSize: 1, font: { family: 'DM Sans', size: 11 } } },
       },
     }
   }, [tipoGrafico, datos?.total])
@@ -536,7 +527,7 @@ function MapaEncuesta({ sesiones, columnas, onCargar, loading }) {
     const todosVisibles = []
     const tieneCluster = !!window.L?.MarkerClusterGroup
     Object.entries(grupos).forEach(([resp, pts]) => {
-      const color = (resp !== '__all__' && filtroCol) ? (colorPorValor[resp] || '#9ca3af') : '#1a472a'
+      const color = (resp !== '__all__' && filtroCol) ? (colorPorValor[resp] || 'var(--ink4)') : 'var(--accent)'
       const layer = tieneCluster
         ? L.markerClusterGroup({ maxClusterRadius: 50, showCoverageOnHover: false,
             iconCreateFunction: (cluster) => {
@@ -597,8 +588,121 @@ function MapaEncuesta({ sesiones, columnas, onCargar, loading }) {
 }
 
 
-function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipos, filtros, onFiltroChange, loadingR, sesionesGPS, onCargarMapa, loadingGPS }) {
+function PorZonaTabla({ statsZona, loading, onCargar }) {
+  const [abiertas, setAbiertas] = useState({})
+  useEffect(() => { if (!statsZona && !loading) onCargar() }, [])
+
+  if (loading && !statsZona) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink3)', fontSize: 13 }}>Cargando zonas…</div>
+  if (!statsZona) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink3)', fontSize: 13 }}><button onClick={onCargar} style={{ padding: '6px 14px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', background: 'var(--paper)', cursor: 'pointer', fontSize: 13 }}>Cargar estadísticas por zona</button></div>
+
+  const zonas = statsZona.por_zona || []
+  const tot   = statsZona.totales || {}
+  const th = { padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }
+  const thR = { ...th, textAlign: 'right' }
+  const td = { padding: '9px 16px', fontSize: 13 }
+  const tdR = { ...td, textAlign: 'right', fontWeight: 600, fontFamily: 'var(--font-num)', fontVariantNumeric: 'tabular-nums' }
+  const nz = (n, col) => ({ ...tdR, color: n === 0 ? 'var(--metric-zero)' : col })
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, color: 'var(--ink2)' }}>
+        <span><b style={{ fontFamily: 'var(--font-num)', fontSize: 16, fontWeight: 500 }}>{tot.total ?? 0}</b> encuestas</span>
+        <span style={{ color: 'var(--accent)' }}><b style={{ fontFamily: 'var(--font-num)', fontSize: 16, fontWeight: 500 }}>{tot.completadas ?? 0}</b> completadas</span>
+        <span style={{ color: 'var(--danger)' }}><b style={{ fontFamily: 'var(--font-num)', fontSize: 16, fontWeight: 500 }}>{tot.no_respuesta ?? 0}</b> no respuesta</span>
+        {tot.sin_zona > 0 && <span style={{ color: 'var(--gold)' }}><b style={{ fontFamily: 'var(--font-num)', fontSize: 16, fontWeight: 500 }}>{tot.sin_zona}</b> sin zona</span>}
+        {tot.fuera_de_poligono > 0 && <span style={{ color: 'var(--ink3)' }} title="El GPS cayó fuera del polígono; se asignó la zona más cercana">{tot.fuera_de_poligono} fuera de polígono</span>}
+      </div>
+      <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+              <th style={th}>Zona</th>
+              <th style={th}>Equipo</th>
+              <th style={thR}>Completadas</th>
+              <th style={thR}>No respuesta</th>
+              <th style={thR}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {zonas.map((z, i) => {
+              const key = z.zona_id || 'sin-zona'
+              const open = !!abiertas[key]
+              return (
+                <Fragment key={key}>
+                  <tr onClick={() => setAbiertas(p => ({ ...p, [key]: !p[key] }))}
+                    style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'var(--paper)' : 'var(--surface)', cursor: 'pointer' }}>
+                    <td style={{ ...td, fontWeight: 600 }}>
+                      <span style={{ display: 'inline-block', width: 14, color: 'var(--ink3)' }}>{open ? '▾' : '▸'}</span>
+                      {z.zona_nombre}
+                      {z.fuera_de_poligono > 0 && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--ink3)' }}>({z.fuera_de_poligono} aprox.)</span>}
+                    </td>
+                    <td style={{ ...td, color: 'var(--ink3)' }}>{z.equipo_nombre || '—'}</td>
+                    <td style={nz(z.completadas, 'var(--accent)')}>{z.completadas}</td>
+                    <td style={nz(z.no_respuesta, 'var(--danger)')}>{z.no_respuesta}</td>
+                    <td style={{ ...tdR, color: 'var(--ink2)' }}>{z.total}</td>
+                  </tr>
+                  {open && (z.encuestadores || []).map(e => (
+                    <tr key={key + e.encuestador_id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+                      <td style={{ ...td, paddingLeft: 38, color: 'var(--ink2)' }} colSpan={2}>{e.nombre || '—'}</td>
+                      <td style={nz(e.completadas, 'var(--accent)')}>{e.completadas}</td>
+                      <td style={nz(e.no_respuesta, 'var(--danger)')}>{e.no_respuesta}</td>
+                      <td style={{ ...tdR, color: 'var(--ink2)' }}>{e.total}</td>
+                    </tr>
+                  ))}
+                </Fragment>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function SnapshotLista({ titulo, items, color }) {
+  if (!items?.length) return null
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{titulo} ({items.length})</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {items.map(x => <span key={x.id || x.zona_id} style={{ fontSize: 12, background: color, color: 'var(--ink2)', borderRadius: 100, padding: '3px 10px' }}>{x.nombre || x.zona_nombre}</span>)}
+      </div>
+    </div>
+  )
+}
+
+function EquiposSnapshot({ snap }) {
+  if (!snap) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink3)', fontSize: 13 }}>Todavía no hay foto de equipos para esta encuesta. Se genera al publicarla.</div>
+  const equipos = snap.equipos || []
+  const sinEquipo = snap.zonas_sin_equipo || []
+  const Lista = SnapshotLista
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
+        Configuración registrada {snap.capturado_en ? `el ${new Date(snap.capturado_en).toLocaleDateString('es-AR')}` : ''} — no cambia aunque se reconfiguren los equipos para otras encuestas.
+      </div>
+      {equipos.map((eq, i) => (
+        <div key={eq.equipo_id || i} style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 18px' }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}>{eq.equipo_nombre}</div>
+          <Lista titulo="Coordinadores" items={eq.coordinadores} color="var(--metric-c-bg)" />
+          <Lista titulo="Encuestadores del equipo" items={eq.encuestadores} color="var(--surface2)" />
+          <Lista titulo="Encuestadores que trabajaron" items={eq.encuestadores_que_trabajaron} color="var(--metric-a-bg)" />
+          <Lista titulo="Zonas" items={eq.zonas} color="var(--metric-b-bg)" />
+        </div>
+      ))}
+      {sinEquipo.length > 0 && (
+        <div style={{ background: 'var(--paper)', border: '1px dashed var(--border2)', borderRadius: 'var(--r2)', padding: '12px 18px' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink3)' }}>Zonas sin equipo asignado</div>
+          <Lista titulo="Zonas" items={sinEquipo} color="var(--surface)" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipos, filtros, onFiltroChange, loadingR, sesionesGPS, onCargarMapa, loadingGPS, statsZona, onCargarZonas, loadingZonas, configSnapshot }) {
   const [vista, setVista] = useState('resumen')
+  const [encZonasAbiertas, setEncZonasAbiertas] = useState({})
 
   const filasPorPregunta = useMemo(() => {
     const map = {}
@@ -625,10 +729,10 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
   )
 
   const kpis = [
-    { label: 'Respuestas',       value: resumen?.total_participaron   || 0, color: 'var(--accent)',  border: '#1a472a' },
-    { label: 'Encuestadores',    value: resumen?.encuestadores    || 0, color: '#0369a1',         border: '#0369a1' },
-    { label: 'Equipos activos',  value: resumen?.equipos          || 0, color: '#7c3aed',         border: '#7c3aed' },
-    { label: 'Última respuesta', value: resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—', color: '#b45309', border: '#b45309' },
+    { label: 'Respuestas',       value: resumen?.total_participaron || 0, color: 'var(--metric-a)' },
+    { label: 'Encuestadores',    value: resumen?.encuestadores      || 0, color: 'var(--metric-b)' },
+    { label: 'Equipos activos',  value: resumen?.equipos            || 0, color: 'var(--metric-c)' },
+    { label: 'Última respuesta', value: resumen?.ultima_respuesta ? new Date(resumen.ultima_respuesta).toLocaleDateString('es-AR') : '—', color: 'var(--metric-d)' },
   ]
 
   const hayFiltros = filtros.equipo_id || filtros.encuestador_id || filtros.fecha_desde || filtros.fecha_hasta
@@ -640,8 +744,8 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
         {kpis.map((k, i) => (
-          <div key={i} style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 18px', borderTop: `3px solid ${k.border}` }}>
-            <div style={{ fontFamily: 'Syne', fontSize: 28, fontWeight: 800, color: k.color, letterSpacing: -1 }}>{k.value}</div>
+          <div key={i} style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 18px', borderTop: `3px solid ${k.color}` }}>
+            <div style={{ fontFamily: 'var(--font-num)', fontSize: 24, fontWeight: 500, color: (k.value === 0 || k.value === '0') ? 'var(--metric-zero)' : k.color, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>{k.value}</div>
             <div style={{ fontSize: 12, color: 'var(--ink3)', fontWeight: 600, marginTop: 2 }}>{k.label}</div>
           </div>
         ))}
@@ -677,15 +781,15 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
 
       {/* Razones de no respuesta */}
       {razonesNoResp.length > 0 && (
-        <div style={{ background: 'var(--paper)', border: '1px solid #fca5a5', borderRadius: 'var(--r2)', padding: '14px 18px', borderLeft: '4px solid #ef4444' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#c0392b', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+        <div style={{ background: 'var(--paper)', border: '1px solid var(--danger)', borderRadius: 'var(--r2)', padding: '14px 18px', borderLeft: '4px solid var(--danger)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
             📋 Razones de no-respuesta — {razonesNoResp.reduce((s, f) => s + Number(f.cantidad), 0)} registros
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {razonesNoResp.map((f, i) => (
               <div key={i} style={{ background: 'var(--danger-light)', borderRadius: 'var(--r)', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 13, color: '#c0392b', fontWeight: 600 }}>{f.valor_texto}</span>
-                <span style={{ fontSize: 18, fontWeight: 800, color: '#ef4444', fontFamily: 'Syne' }}>{f.cantidad}</span>
+                <span style={{ fontSize: 13, color: 'var(--danger)', fontWeight: 600 }}>{f.valor_texto}</span>
+                <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--danger)', fontFamily: 'var(--font-num)', fontVariantNumeric: 'tabular-nums' }}>{f.cantidad}</span>
               </div>
             ))}
           </div>
@@ -694,7 +798,7 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)' }}>
-        {[['resumen','Resumen'],['preguntas','Por pregunta'],['encuestadores','Encuestadores'],['mapa','🗺️ Mapa']].map(([v, label]) => (
+        {[['resumen','Resumen'],['preguntas','Por pregunta'],['encuestadores','Encuestadores'],['zonas','📍 Por zona'],['equipos','👥 Equipos'],['mapa','🗺️ Mapa']].map(([v, label]) => (
           <button key={v} onClick={() => setVista(v)} style={{
             padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer',
             fontSize: 13, fontFamily: 'DM Sans', marginBottom: -1,
@@ -750,21 +854,46 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
     </tr>
   </thead>
   <tbody>
-    {encuestadoresFiltrados.map((enc, i) => (
-      <tr key={enc.encuestador_id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'var(--paper)' : 'var(--surface)' }}>
-        <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 600 }}>{enc.nombre_completo}</td>
+    {encuestadoresFiltrados.map((enc, i) => {
+      const key = enc.encuestador_id || i
+      const zonas = (enc.por_zona || []).slice().sort((a, b) => b.total - a.total)
+      const open = !!encZonasAbiertas[key]
+      return (
+      <Fragment key={key}>
+      <tr onClick={() => zonas.length && setEncZonasAbiertas(p => ({ ...p, [key]: !p[key] }))}
+          style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'var(--paper)' : 'var(--surface)', cursor: zonas.length ? 'pointer' : 'default' }}>
+        <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 600 }}>
+          {zonas.length > 0 && <span style={{ display: 'inline-block', width: 14, color: 'var(--ink3)' }}>{open ? '▾' : '▸'}</span>}
+          {enc.nombre_completo}
+        </td>
         <td style={{ padding: '10px 16px', fontSize: 13, color: 'var(--ink3)' }}>{enc.equipo_nombre || '—'}</td>
         <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--ink2)' }}>{enc.zonas || '—'}</td>
-        <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--accent)', textAlign: 'right' }}>{enc.completadas ?? enc.total}</td>
-        <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 700, color: '#ef4444', textAlign: 'right' }}>{enc.no_respuesta ?? 0}</td>
-        <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--ink2)', textAlign: 'right' }}>{enc.total}</td>
+        {[[enc.completadas ?? enc.total, 'var(--accent)'], [enc.no_respuesta ?? 0, 'var(--danger)'], [enc.total, 'var(--ink2)']].map(([n, c], j) => (
+          <td key={j} style={{ padding: '10px 16px', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-num)', fontVariantNumeric: 'tabular-nums', color: n === 0 ? 'var(--metric-zero)' : c, textAlign: 'right' }}>{n}</td>
+        ))}
       </tr>
-    ))}
+      {open && zonas.map(z => (
+        <tr key={key + (z.zona_id || 'sz')} style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+          <td style={{ padding: '8px 16px 8px 38px', fontSize: 12, color: 'var(--ink2)' }} colSpan={3}>{z.zona_nombre}</td>
+          {[[z.completadas, 'var(--accent)'], [z.no_respuesta, 'var(--danger)'], [z.total, 'var(--ink2)']].map(([n, c], j) => (
+            <td key={j} style={{ padding: '8px 16px', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-num)', fontVariantNumeric: 'tabular-nums', color: n === 0 ? 'var(--metric-zero)' : c, textAlign: 'right' }}>{n}</td>
+          ))}
+        </tr>
+      ))}
+      </Fragment>
+      )
+    })}
   </tbody>
 </table>
           </div>
         </div>
       )}
+
+      {vista === 'zonas' && (
+        <PorZonaTabla statsZona={statsZona} loading={loadingZonas} onCargar={onCargarZonas} />
+      )}
+
+      {vista === 'equipos' && <EquiposSnapshot snap={configSnapshot} />}
 
       {vista === 'mapa' && (
         <MapaEncuesta
@@ -794,6 +923,9 @@ export default function EncuestaDetalle() {
   const [error,         setError]         = useState('')
   const [sesionesGPS,   setSesionesGPS]   = useState([])
   const [loadingGPS,    setLoadingGPS]    = useState(false)
+  const [statsZona,     setStatsZona]     = useState(null)
+  const [loadingZonas,  setLoadingZonas]  = useState(false)
+  const [configSnapshot, setConfigSnapshot] = useState(null)
 
   const [filtroEquipo,      setFiltroEquipo]      = useState(null)
   const [filtroEncuestador, setFiltroEncuestador] = useState(null)
@@ -877,6 +1009,7 @@ export default function EncuestaDetalle() {
       setEncuesta(cached.encuesta); setPreguntas(cached.preguntas)
       setResumen(cached.resumen);   setEncuestadores(cached.encuestadores)
       setEquipos(cached.equipos);   setRespuestas(cacheGet(`enc_resp:${id}:base`) || [])
+      setConfigSnapshot(cached.configSnapshot || null)
       setLoading(false); return
     }
     setLoading(true); setError('')
@@ -889,6 +1022,7 @@ export default function EncuestaDetalle() {
       const payload = {
         encuesta: data.encuesta, preguntas: data.preguntas || [],
         resumen: data.resumen || null, encuestadores: data.encuestadores || [], equipos: data.equipos || [],
+        configSnapshot: data.config_snapshot || null,
       }
       cacheSet(cacheKey, payload, 300_000)
       const respBase = data.respuestas || []
@@ -896,6 +1030,7 @@ export default function EncuestaDetalle() {
       setEncuesta(payload.encuesta); setPreguntas(payload.preguntas)
       setResumen(payload.resumen);   setEncuestadores(payload.encuestadores)
       setEquipos(payload.equipos);   setRespuestas(respBase)
+      setConfigSnapshot(payload.configSnapshot)
     } catch (e) { console.error(e); setError(e.message) }
     setLoading(false)
   }
@@ -935,6 +1070,16 @@ export default function EncuestaDetalle() {
       setSesionesGPS((data?.filas || []).filter(f => f.lat && f.lng))
     } catch (e) { console.error('cargarSesionesGPS:', e) }
     setLoadingGPS(false)
+  }
+
+  async function cargarStatsZona() {
+    if (!id) return
+    setLoadingZonas(true)
+    try {
+      const { data } = await supabase.rpc('get_stats_por_zona', { p_encuesta_id: id })
+      setStatsZona(data || null)
+    } catch (e) { console.error('cargarStatsZona:', e) }
+    setLoadingZonas(false)
   }
 
   function handleFiltroChange(campo, valor) {
@@ -978,12 +1123,14 @@ export default function EncuestaDetalle() {
 } : null}
       />
       <div className={styles.content}>
-        {error && <div style={{ padding: '10px 16px', background: 'var(--danger-light)', border: '1px solid #fca5a5', borderRadius: 'var(--r)', fontSize: 13, color: '#c0392b', marginBottom: 12 }}>Error: {error}</div>}
+        {error && <div style={{ padding: '10px 16px', background: 'var(--danger-light)', border: '1px solid var(--danger)', borderRadius: 'var(--r)', fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>Error: {error}</div>}
         {['publicada', 'completada'].includes(encuesta.estado_produccion)
           ? <VistaResultados preguntas={preguntas} resumen={resumen} respuestas={respuestas}
               encuestadores={encuestadores} equipos={equipos} filtros={filtros}
               onFiltroChange={handleFiltroChange} loadingR={loadingR}
-              sesionesGPS={sesionesGPS} onCargarMapa={cargarSesionesGPS} loadingGPS={loadingGPS} />
+              sesionesGPS={sesionesGPS} onCargarMapa={cargarSesionesGPS} loadingGPS={loadingGPS}
+              statsZona={statsZona} onCargarZonas={cargarStatsZona} loadingZonas={loadingZonas}
+              configSnapshot={configSnapshot} />
           : <VistaProduccion encuesta={encuesta} preguntas={preguntas} />
         }
       </div>

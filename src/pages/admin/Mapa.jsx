@@ -12,7 +12,7 @@ async function initMapLibs() {
 }
 
 function iconEncuestador(nombre, activo) {
-  const color = activo ? '#1a472a' : '#94a3b8'
+  const color = activo ? 'var(--accent)' : 'var(--ink4)'
   const inicial = (nombre || '?')[0].toUpperCase()
   const html = `
     <div style="
@@ -240,7 +240,7 @@ export default function Mapa() {
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: activo ? '#1a472a' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: activo ? 'var(--accent)' : 'var(--ink4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                         {(u.nombre || '?')[0].toUpperCase()}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>

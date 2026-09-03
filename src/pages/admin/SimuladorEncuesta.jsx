@@ -72,7 +72,7 @@ const PreguntaScreen = memo(function PreguntaScreen({
                 }}>{n}</button>
               ))}
             </div>
-            {respuesta && <div style={{ textAlign: 'center', fontSize: 13, color: '#1a472a', fontWeight: 600 }}>Seleccionaste: {respuesta}</div>}
+            {respuesta && <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--accent)', fontWeight: 600 }}>Seleccionaste: {respuesta}</div>}
           </div>
         )}
         {pregunta.tipo === 'texto_libre' && (
@@ -112,12 +112,12 @@ const PreguntaScreen = memo(function PreguntaScreen({
                           <td key={ci} style={{ textAlign: 'center', borderBottom: '1px solid var(--border)', verticalAlign: 'middle', padding: '10px 4px' }}>
                             <button onClick={() => onChange({ ...val, [fi]: col })} style={{
                               width: 26, height: 26, borderRadius: '50%', cursor: 'pointer',
-                              border: `2px solid ${activo ? '#1a472a' : 'var(--border2)'}`,
-                              background: activo ? '#1a472a' : 'var(--surface)',
+                              border: `2px solid ${activo ? 'var(--accent)' : 'var(--border2)'}`,
+                              background: activo ? 'var(--accent)' : 'var(--surface)',
                               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                               padding: 0,
                             }}>
-                              {activo && <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#fff' }} />}
+                              {activo && <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--paper)' }} />}
                             </button>
                           </td>
                         )
@@ -137,7 +137,7 @@ const PreguntaScreen = memo(function PreguntaScreen({
         )}
         <button onClick={onSiguiente} disabled={!puedeAvanzar} style={{
           flex: 2, padding: '13px',
-          background: puedeAvanzar ? '#1a472a' : 'var(--border2)',
+          background: puedeAvanzar ? 'var(--accent)' : 'var(--border2)',
           color: puedeAvanzar ? '#fff' : '#aaa',
           border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
           cursor: puedeAvanzar ? 'pointer' : 'not-allowed', fontFamily: 'DM Sans',
@@ -278,14 +278,14 @@ export default function SimuladorEncuesta({ encuestaId, orgId, onClose }) {
         {/* Pantalla */}
         <div style={{ background: 'var(--paper)', borderRadius: 38, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: 'calc(90vh - 60px)', border: '1px solid var(--border)' }}>
 
-        <div style={{ background: '#1a472a', padding: '10px 20px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ background: 'var(--accent)', padding: '10px 20px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ color: '#d8f3dc', fontSize: 12, fontWeight: 800, letterSpacing: 1 }}>METR1KA</span>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 100, padding: '3px 12px', fontSize: 11, cursor: 'pointer', fontFamily: 'DM Sans', fontWeight: 600 }}>✕ Cerrar</button>
         </div>
 
         {pantalla === 'encuesta' && (
           <div style={{ height: 3, background: 'var(--border2)', flexShrink: 0 }}>
-            <div style={{ height: '100%', background: '#1a472a', width: `${progreso}%`, transition: 'width 0.3s' }} />
+            <div style={{ height: '100%', background: 'var(--accent)', width: `${progreso}%`, transition: 'width 0.3s' }} />
           </div>
         )}
 
@@ -299,13 +299,13 @@ export default function SimuladorEncuesta({ encuestaId, orgId, onClose }) {
           ) : pantalla === 'inicio' ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '32px 24px', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
               <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#d8f3dc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, marginBottom: 20 }}>📋</div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#1a472a', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Encuesta</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>Encuesta</div>
               <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--ink)', margin: '0 0 10px', lineHeight: 1.3 }}>{encuesta?.nombre}</h2>
               {encuesta?.descripcion && <p style={{ fontSize: 13, color: 'var(--ink3)', margin: '0 0 24px', lineHeight: 1.6 }}>{encuesta.descripcion}</p>}
               <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 24 }}>
                 {preguntasEncuesta.length} preguntas · ~{Math.ceil(preguntasEncuesta.length * 0.5)} min
               </div>
-              <button onClick={handleIniciar} style={{ width: '100%', padding: '15px', background: '#1a472a', color: '#fff', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', marginBottom: 10 }}>
+              <button onClick={handleIniciar} style={{ width: '100%', padding: '15px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans', marginBottom: 10 }}>
                 Comenzar encuesta
               </button>
               <button onClick={onClose} style={{ width: '100%', padding: '13px', background: 'none', color: 'var(--ink3)', border: '1.5px solid var(--border2)', borderRadius: 14, fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans' }}>
@@ -353,9 +353,9 @@ export default function SimuladorEncuesta({ encuestaId, orgId, onClose }) {
                   <button key={r} onClick={() => setRazonNR(r)} style={{
                     padding: '13px 14px', borderRadius: 10, textAlign: 'left',
                     fontSize: 13, fontFamily: 'DM Sans', cursor: 'pointer',
-                    border: `2px solid ${razonNR === r ? '#1a472a' : 'var(--border2)'}`,
+                    border: `2px solid ${razonNR === r ? 'var(--accent)' : 'var(--border2)'}`,
                     background: razonNR === r ? '#d8f3dc' : '#fff',
-                    color: razonNR === r ? '#1a472a' : '#333',
+                    color: razonNR === r ? 'var(--accent)' : '#333',
                     fontWeight: razonNR === r ? 700 : 400,
                   }}>{r}</button>
                 ))}
@@ -364,7 +364,7 @@ export default function SimuladorEncuesta({ encuestaId, orgId, onClose }) {
                 <button onClick={() => setPantalla('participa')} style={{ flex: 1, padding: '12px', background: 'none', border: '1.5px solid var(--border2)', borderRadius: 12, fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans', color: 'var(--ink3)' }}>Volver</button>
                 <button onClick={() => { setNoResponde(true); setPantalla('fin') }} disabled={!razonNR} style={{
                   flex: 2, padding: '12px',
-                  background: razonNR ? '#c0392b' : 'var(--border2)',
+                  background: razonNR ? 'var(--danger)' : 'var(--border2)',
                   color: razonNR ? '#fff' : '#aaa',
                   border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700,
                   cursor: razonNR ? 'pointer' : 'not-allowed', fontFamily: 'DM Sans',
@@ -400,7 +400,7 @@ export default function SimuladorEncuesta({ encuestaId, orgId, onClose }) {
                 style={{ width: '100%', padding: '13px', background: 'none', border: '1.5px solid var(--border2)', borderRadius: 14, fontSize: 14, cursor: 'pointer', fontFamily: 'DM Sans', color: 'var(--ink3)', marginBottom: 10 }}>
                 🔄 Reiniciar simulación
               </button>
-              <button onClick={onClose} style={{ width: '100%', padding: '14px', background: '#1a472a', color: '#fff', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+              <button onClick={onClose} style={{ width: '100%', padding: '14px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans' }}>
                 Cerrar simulador
               </button>
             </div>

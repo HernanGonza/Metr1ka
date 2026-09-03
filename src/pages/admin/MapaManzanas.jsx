@@ -96,7 +96,7 @@ export default function MapaManzanas({ manzanasInit, onManzanasChange, geofencin
       // Geoman — solo rectángulos, sin toolbar nativa
       map.pm.setGlobalOptions({
         snappable: true, snapDistance: 20,
-        pathOptions: { color: '#1a472a', fillColor: '#1a472a', fillOpacity: 0.18, weight: 2, dashArray: '5,3' }
+        pathOptions: { color: 'var(--accent)', fillColor: 'var(--accent)', fillOpacity: 0.18, weight: 2, dashArray: '5,3' }
       })
       map.pm.removeControls({
         drawMarker: true, drawCircle: true, drawPolyline: true, drawPolygon: true,
@@ -112,7 +112,7 @@ export default function MapaManzanas({ manzanasInit, onManzanasChange, geofencin
           const feats = m.area_geojson.type === 'FeatureCollection' ? m.area_geojson.features : [m.area_geojson]
           feats.forEach(f => {
             const gl = L.geoJSON(f, {
-              style: { color: '#1a472a', fillColor: '#1a472a', fillOpacity: 0.18, weight: 2, dashArray: '5,3' }
+              style: { color: 'var(--accent)', fillColor: 'var(--accent)', fillOpacity: 0.18, weight: 2, dashArray: '5,3' }
             })
             gl.eachLayer(l => {
               l.addTo(map)
@@ -129,7 +129,7 @@ export default function MapaManzanas({ manzanasInit, onManzanasChange, geofencin
         if (!e.layer) return
         const idx = layersRef.current.length + 1
         const nombre = `Manzana ${idx}`
-        e.layer.setStyle({ color: '#1a472a', fillColor: '#1a472a', fillOpacity: 0.18, weight: 2, dashArray: '5,3' })
+        e.layer.setStyle({ color: 'var(--accent)', fillColor: 'var(--accent)', fillOpacity: 0.18, weight: 2, dashArray: '5,3' })
         e.layer.bindTooltip(nombre, { permanent: true, direction: 'center', className: 'leaflet-manzana-label' })
         layersRef.current.push({ localId: `new-${Date.now()}-${idx}`, dbId: null, layer: e.layer, nombre })
         setModo('idle')

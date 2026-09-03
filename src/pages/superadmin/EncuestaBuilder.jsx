@@ -19,6 +19,7 @@ const ESTADO_CONFIG = {
   en_proceso:   { label: 'En proceso',   color: '#0369a1', bg: '#e0f2fe' },
   para_revisar: { label: 'Para revisar', color: '#7c3aed', bg: '#f3e8ff' },
   publicada:    { label: 'Publicada',    color: '#1a472a', bg: '#d8f3dc' },
+  completada:   { label: 'Completada',   color: '#374151', bg: '#f3f4f6' },
 }
 
 const inputStyle = {
@@ -521,8 +522,8 @@ export default function EncuestaBuilder() {
 
   if (loading) return <div className="sa-page"><div style={{ padding: 60 }}><Spinner center size="lg" /></div></div>
 
-  const cfg = ESTADO_CONFIG[meta.estado_produccion]
-  const esPublicada = meta.estado_produccion === 'publicada'
+  const cfg = ESTADO_CONFIG[meta.estado_produccion] || ESTADO_CONFIG.pendiente
+  const esPublicada = ['publicada', 'completada'].includes(meta.estado_produccion)
 
   return (
     <div className="sa-page">

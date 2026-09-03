@@ -35,6 +35,21 @@
   --gold:         #b45309;
   --gold-light:   #fef9e7;
 
+  /* Métricas — 4 hues distintos para diferenciar KPIs, legibles en ambos temas */
+  --metric-a:     #1a7a45;  /* verde   */
+  --metric-b:     #0369a1;  /* azul    */
+  --metric-c:     #7c3aed;  /* violeta */
+  --metric-d:     #b45309;  /* ámbar   */
+  --metric-neg:   #dc2626;  /* rojo — no respuesta / negativo */
+  --metric-zero:  #9ca3af;  /* valor 0 — atenuado */
+  --metric-a-bg:  rgba(26,122,69,0.10);
+  --metric-b-bg:  rgba(3,105,161,0.10);
+  --metric-c-bg:  rgba(124,58,237,0.10);
+  --metric-d-bg:  rgba(180,83,9,0.10);
+
+  /* Tipografía de datos numéricos (sibling de DM Sans, tabular) */
+  --font-num: 'DM Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
   /* Radius */
   --r:   10px;
   --r2:  16px;
@@ -85,8 +100,24 @@
   --shadow-xl: 0 20px 64px rgba(0,0,0,0.7), 0 4px 16px rgba(0,0,0,0.4);
 
   /* Semantic — versiones oscuras para dark mode */
-  --danger-light:  rgba(220,38,38,0.12);
-  --warning-light: rgba(217,119,6,0.12);
-  --info-light:    rgba(3,105,161,0.15);
-  --gold-light:    rgba(180,83,9,0.12);
+  --danger:        #f0776b;
+  --danger-light:  rgba(240,119,107,0.14);
+  --warning:       #e0a45a;
+  --warning-light: rgba(224,164,90,0.14);
+  --info:          #5aa9d6;
+  --info-light:    rgba(90,169,214,0.15);
+  --gold:          #d99852;
+  --gold-light:    rgba(217,152,82,0.14);
+
+  /* Métricas — versiones para fondo oscuro (legibles, sin neón) */
+  --metric-a:     #4fca8a;
+  --metric-b:     #5aa9d6;
+  --metric-c:     #a78bfa;
+  --metric-d:     #d99852;
+  --metric-neg:   #f0776b;
+  --metric-zero:  #6b7280;
+  --metric-a-bg:  rgba(79,202,138,0.13);
+  --metric-b-bg:  rgba(90,169,214,0.13);
+  --metric-c-bg:  rgba(167,139,250,0.13);
+  --metric-d-bg:  rgba(217,152,82,0.13);
 }

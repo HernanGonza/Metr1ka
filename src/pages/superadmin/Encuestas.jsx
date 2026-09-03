@@ -147,7 +147,7 @@ export default function Encuestas() {
             onChange={e => setFiltroOrg(e.target.value)}
             style={{ padding: '8px 12px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--surface)', color: 'var(--ink)', outline: 'none', minWidth: 200 }}>
             <option value="">Todas las organizaciones</option>
-            {organizaciones.sort((a,b) => a.nombre.localeCompare(b.nombre, 'es')).map(o => (
+            {[...organizaciones].sort((a,b) => (a.nombre || '').localeCompare(b.nombre || '', 'es')).map(o => (
               <option key={o.id} value={o.id}>{o.nombre}</option>
             ))}
           </select>

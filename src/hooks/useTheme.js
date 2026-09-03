@@ -1,37 +1,31 @@
 import { useState, useEffect } from 'react'
 
+// El tema ya viene aplicado en <html data-theme> por el script inline de index.html.
+// Este hook solo lo lee y ofrece un toggle que persiste la elección explícita.
+function leerTema() {
+  return document.documentElement.getAttribute('data-theme')
+    || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+}
+
 export function useTheme() {
-  const [theme, setTheme] = useState(() => {
-    // Leer del atributo del DOM primero (fuente de verdad), luego localStorage
-    const domTheme = document.documentElement.getAttribute('data-theme')
-    if (domTheme) return domTheme
-    const saved = localStorage.getItem('metr1ka-theme')
-    if (saved) return saved
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  })
+  const [theme, setTheme] = useState(leerTema)
 
-  useEffect(() => {
-    // Aplicar al DOM y guardar
-    document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('metr1ka-theme', theme)
-  }, [theme])
-
-  // Escuchar cambios en el DOM (cuando otro componente cambia el tema)
+  // Sincronizar si otro componente cambia el tema
   useEffect(() => {
     const observer = new MutationObserver(() => {
       const current = document.documentElement.getAttribute('data-theme')
-      if (current && current !== theme) {
-        setTheme(current)
-      }
+      if (current && current !== theme) setTheme(current)
     })
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-theme'],
-    })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
     return () => observer.disconnect()
   }, [theme])
 
-  const toggle = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
+  const toggle = () => {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    document.documentElement.setAttribute('data-theme', next)
+    try { localStorage.setItem('metr1ka-theme', next) } catch { /* modo privado */ }
+    setTheme(next)
+  }
 
   return { theme, toggle, isDark: theme === 'dark' }
 }

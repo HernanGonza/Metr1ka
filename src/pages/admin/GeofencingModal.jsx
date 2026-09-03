@@ -135,7 +135,7 @@ export default function GeofencingModal({
     const manzanas = geojson.features?.filter(f => f.properties?.tipo === 'manzana') || []
 
     if (zonaFeature) {
-      const layer = L.geoJSON(zonaFeature, { style: { color: '#1a472a', fillOpacity: 0.2, weight: 2 } }).addTo(map)
+      const layer = L.geoJSON(zonaFeature, { style: { color: 'var(--accent)', fillOpacity: 0.2, weight: 2 } }).addTo(map)
       zonaLayer.current = layer
       setTieneZona(true)
       map.fitBounds(layer.getBounds())
@@ -206,8 +206,8 @@ export default function GeofencingModal({
   }
 
   const estiloManzana = useCallback((sel) => ({
-    color: sel ? '#1a472a' : '#64748b',
-    fillColor: sel ? '#1a472a' : '#94a3b8',
+    color: sel ? 'var(--accent)' : 'var(--ink3)',
+    fillColor: sel ? 'var(--accent)' : 'var(--ink4)',
     fillOpacity: sel ? 0.5 : 0.2,
     weight: sel ? 3 : 1.5,
   }), [])
@@ -343,10 +343,10 @@ export default function GeofencingModal({
   // ───────────────────────────── RENDER ─────────────────────────────
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#fff', borderRadius: 'var(--r2)', width: '100%', maxWidth: 860, maxHeight: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,.3)' }}>
+      <div style={{ background: 'var(--paper)', borderRadius: 'var(--r2)', width: '100%', maxWidth: 860, maxHeight: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,.3)' }}>
         
         {/* HEADER */}
-        <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: '#fff' }}>
+        <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'var(--paper)' }}>
           <div>
             <h3 style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 700, margin: 0 }}>
               📍 {equipo?.nombre} — {paso === 1 ? 'Definir zona de operación' : 'Seleccionar manzanas'}
@@ -446,15 +446,15 @@ export default function GeofencingModal({
         </div>
 
         {/* FOOTER */}
-        <div style={{ padding: '10px 18px', borderTop: '1px solid var(--border)', background: '#fff', display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0, minHeight: 42 }}>
+        <div style={{ padding: '10px 18px', borderTop: '1px solid var(--border)', background: 'var(--paper)', display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0, minHeight: 42 }}>
           {paso === 2 && manzanasCatastro.length > 0 && mode === 'zona-y-manzanas' && (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--ink3)' }}>
-                <div style={{ width: 14, height: 14, background: '#1a472a', borderRadius: 2, opacity: .8 }} />
+                <div style={{ width: 14, height: 14, background: 'var(--accent)', borderRadius: 2, opacity: .8 }} />
                 Seleccionada
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--ink3)' }}>
-                <div style={{ width: 14, height: 14, background: '#94a3b8', borderRadius: 2, opacity: .6 }} />
+                <div style={{ width: 14, height: 14, background: 'var(--ink4)', borderRadius: 2, opacity: .6 }} />
                 Sin seleccionar (clic para seleccionar)
               </div>
             </>

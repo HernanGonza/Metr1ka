@@ -12,14 +12,14 @@ const ESTADO_CONFIG = {
   pendiente:    { label: 'Pendiente',    color: '#b45309', bg: '#fef3c7' },
   en_proceso:   { label: 'En proceso',   color: '#0369a1', bg: '#e0f2fe' },
   para_revisar: { label: 'Para revisar', color: '#7c3aed', bg: '#f3e8ff' },
-  publicada:    { label: 'Publicada',    color: '#1a472a', bg: '#d8f3dc' },
-  completada:   { label: 'Completada',   color: '#374151', bg: '#f3f4f6' },
+  publicada:    { label: 'Publicada',    color: 'var(--accent)', bg: '#d8f3dc' },
+  completada:   { label: 'Completada',   color: 'var(--ink2)', bg: 'var(--surface2)' },
 }
 const FILTROS         = ['todas', 'pendiente', 'en_proceso', 'para_revisar', 'publicada']
 const FILTROS_ACTIVAS = ['todas', 'pendiente', 'en_proceso', 'para_revisar', 'publicada']
 
 const TIPO_CONFIG = {
-  domiciliaria: { label: 'Domiciliaria', icon: '🏠', color: '#1a472a', bg: '#d8f3dc' },
+  domiciliaria: { label: 'Domiciliaria', icon: '🏠', color: 'var(--accent)', bg: '#d8f3dc' },
   callejera:    { label: 'Callejera',    icon: '🚶', color: '#0369a1', bg: '#e0f2fe' },
   telefonica:   { label: 'Telefónica',   icon: '📞', color: '#7c3aed', bg: '#f3e8ff' },
   online:       { label: 'Online',       icon: '🌐', color: '#b45309', bg: '#fef3c7' },
@@ -192,7 +192,8 @@ function EncuestaCard({ encuesta, equipos, onApprove, onZonas, onSimular, onView
   const paraRevisar    = encuesta.estado_produccion === 'para_revisar'
   const enProduccion   = ['pendiente', 'en_proceso'].includes(encuesta.estado_produccion)
   const cantZonas      = encuesta.encuesta_zonas?.length || 0
-  const equiposAsignados = encuesta.encuesta_zonas?.filter(z => z.equipo_id)?.length || 0
+  // equipos distintos con zonas asignadas (no la cantidad de zonas con equipo)
+  const equiposAsignados = new Set((encuesta.encuesta_zonas || []).map(z => z.equipo_id).filter(Boolean)).size
   const esDomiciliaria = !['telefonica','online'].includes(encuesta.tipo_encuesta)
 
   return (
@@ -220,7 +221,7 @@ function EncuestaCard({ encuesta, equipos, onApprove, onZonas, onSimular, onView
         Solicitada: {new Date(encuesta.creado_en).toLocaleDateString('es-AR')}
         {cantZonas > 0 && (
           <span style={{ marginLeft: 10, padding: '1px 7px', borderRadius: 100, fontSize: 11, background: 'var(--accent-light)', color: 'var(--accent2)', fontWeight: 600 }}>
-            {cantZonas} zona{cantZonas !== 1 ? 's' : ''}{equiposAsignados > 0 ? ` · ${equiposAsignados} equipos` : ''}
+            {cantZonas} zona{cantZonas !== 1 ? 's' : ''}{equiposAsignados > 0 ? ` · ${equiposAsignados} equipo${equiposAsignados !== 1 ? 's' : ''}` : ''}
           </span>
         )}
       </div>
@@ -302,8 +303,14 @@ export default function Encuestas() {
       if (!esSuperadmin) eqQ = eqQ.eq('organizacion_id', perfil.organizacion_id)
 
       const [encRes, eqRes] = await Promise.all([encQ, eqQ])
-      setEncuestas(encRes.data || [])
+      const encs = encRes.data || []
+      setEncuestas(encs)
       setEquipos(eqRes.data || [])
+
+      // Si no hay ninguna encuesta activa pero sí completadas, arrancar en esa vista
+      const hayActivas = encs.some(e => e.estado_produccion !== 'completada')
+      const hayCompletadas = encs.some(e => e.estado_produccion === 'completada')
+      if (!hayActivas && hayCompletadas) setVistaCompletadas(true)
 
       // Superadmin carga organizaciones para el filtro (secuencial para no saturar)
       if (esSuperadmin) {
@@ -445,7 +452,7 @@ export default function Encuestas() {
                 <button onClick={() => setConfirmModal(null)} style={{ flex: 1, padding: '10px 0', borderRadius: 'var(--r)', border: '1.5px solid var(--border2)', background: 'var(--surface)', fontSize: 14, fontFamily: 'DM Sans', cursor: 'pointer', fontWeight: 600, color: 'var(--ink2)' }}>
                   Cancelar
                 </button>
-                <button onClick={confirmarCompletar} style={{ flex: 1, padding: '10px 0', borderRadius: 'var(--r)', border: 'none', background: '#374151', color: '#fff', fontSize: 14, fontFamily: 'DM Sans', cursor: 'pointer', fontWeight: 700 }}>
+                <button onClick={confirmarCompletar} style={{ flex: 1, padding: '10px 0', borderRadius: 'var(--r)', border: 'none', background: 'var(--ink2)', color: '#fff', fontSize: 14, fontFamily: 'DM Sans', cursor: 'pointer', fontWeight: 700 }}>
                   ✓ Completar
                 </button>
               </div>

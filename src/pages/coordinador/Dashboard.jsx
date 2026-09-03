@@ -17,7 +17,7 @@ function esActivo(ts) {
   return (Date.now() - new Date(ts).getTime()) < 5 * 60 * 1000
 }
 function iconEnc(nombre, activo) {
-  const color = activo ? '#1a472a' : '#94a3b8'
+  const color = activo ? 'var(--accent)' : 'var(--ink4)'
   const ini   = (nombre || '?')[0].toUpperCase()
   return {
     html: `<div style="width:32px;height:32px;border-radius:50%;background:${color};
@@ -240,7 +240,7 @@ function MapaEquipo({ equipoId, orgId }) {
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: activo ? '#1a472a' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: activo ? 'var(--accent)' : 'var(--ink4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                     {(u.nombre || '?')[0].toUpperCase()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -436,12 +436,12 @@ export default function DashboardCoord() {
                     const fechaInicio = enc.fecha_inicio
                     let estadoLabel = 'Pendiente', estadoColor = '#b45309', estadoBg = 'var(--warning-light)'
                     if (enc.estado_produccion === 'publicada') {
-                      if (fechaFin && fechaFin < hoy) { estadoLabel = 'Finalizada'; estadoColor = '#6b7280'; estadoBg = 'var(--surface)' }
+                      if (fechaFin && fechaFin < hoy) { estadoLabel = 'Finalizada'; estadoColor = 'var(--ink3)'; estadoBg = 'var(--surface)' }
                       else if (fechaInicio && fechaInicio > hoy) { estadoLabel = 'Próximamente'; estadoColor = '#0369a1'; estadoBg = 'var(--info-light)' }
-                      else { estadoLabel = 'Activa'; estadoColor = '#1a472a'; estadoBg = 'var(--accent-light)' }
+                      else { estadoLabel = 'Activa'; estadoColor = 'var(--accent)'; estadoBg = 'var(--accent-light)' }
                     }
                     return (
-                      <div key={i} style={{ background: 'var(--paper)', border: `1.5px solid ${estadoColor === '#1a472a' ? '#a7f3d0' : 'var(--border)'}`, borderRadius: 'var(--r2)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div key={i} style={{ background: 'var(--paper)', border: `1.5px solid ${estadoColor === 'var(--accent)' ? '#a7f3d0' : 'var(--border)'}`, borderRadius: 'var(--r2)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{enc.nombre}</div>
                           {enc.descripcion && <div style={{ fontSize: 12, color: 'var(--ink3)' }}>{enc.descripcion}</div>}

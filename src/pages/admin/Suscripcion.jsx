@@ -8,12 +8,12 @@ import styles from './Page.module.css'
 const PLAN_INFO = {
   arranque:   { label: 'Arranque',   encuestas: 3,    encuestadores: 15,   color: '#0369a1', bg: '#e0f2fe', icon: '🌱' },
   estandar:   { label: 'Estándar',   encuestas: 10,   encuestadores: 60,   color: '#7c3aed', bg: '#f3e8ff', icon: '⭐' },
-  territorio: { label: 'Territorio', encuestas: '∞',  encuestadores: '∞',  color: '#1a472a', bg: '#d8f3dc', icon: '🏆' },
+  territorio: { label: 'Territorio', encuestas: '∞',  encuestadores: '∞',  color: 'var(--accent)', bg: '#d8f3dc', icon: '🏆' },
 }
 const ESTADO_INFO = {
-  activa:     { label: 'Activa',     color: '#1a472a', bg: '#d8f3dc' },
+  activa:     { label: 'Activa',     color: 'var(--accent)', bg: '#d8f3dc' },
   trial:      { label: 'Trial',      color: '#0369a1', bg: '#e0f2fe' },
-  vencida:    { label: 'Vencida',    color: '#c0392b', bg: '#fdecea' },
+  vencida:    { label: 'Vencida',    color: 'var(--danger)', bg: '#fdecea' },
   suspendida: { label: 'Suspendida', color: '#b45309', bg: '#fef3c7' },
 }
 const PLANES = [
@@ -132,7 +132,7 @@ export default function Suscripcion() {
 
             {/* Monto si está cargado */}
             {susc.monto && (
-              <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 14, color: 'var(--ink2)', fontWeight: 600 }}>Valor del plan</span>
                 <span style={{ fontFamily: 'Syne', fontSize: 20, fontWeight: 800, color: 'var(--accent)' }}>
                   ${Number(susc.monto).toLocaleString('es-AR')} / mes
@@ -175,7 +175,7 @@ export default function Suscripcion() {
           </div>
           <a
             href="mailto:hola@metr1ka.com?subject=Suscripción METR1KA"
-            style={{ padding: '12px 22px', background: '#fff', color: 'var(--accent)', borderRadius: 'var(--r)', fontSize: 14, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', fontFamily: 'DM Sans', flexShrink: 0 }}
+            style={{ padding: '12px 22px', background: 'var(--paper)', color: 'var(--accent)', borderRadius: 'var(--r)', fontSize: 14, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', fontFamily: 'DM Sans', flexShrink: 0 }}
           >
             Contactar
           </a>
