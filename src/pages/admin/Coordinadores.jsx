@@ -74,15 +74,20 @@ function AsignarEquipoModal({ perfil: miembro, equipos, onClose, onSaved }) {
   async function handleSave() {
     setSaving(true); setError('')
     try {
+      // Mismo fix que en AsignarEquipoModal (Encuestadores.jsx): antes no se
+      // revisaba `error`, así que un delete/insert fallido dejaba al
+      // coordinador con equipos mal asignados sin ningún aviso.
       for (const equipoId of equiposAsignados) {
         if (!selected.has(equipoId)) {
-          await supabase.from('equipo_coordinadores').delete()
+          const { error: delError } = await supabase.from('equipo_coordinadores').delete()
             .eq('coordinador_id', miembro.id).eq('equipo_id', equipoId)
+          if (delError) throw delError
         }
       }
       for (const equipoId of selected) {
         if (!equiposAsignados.includes(equipoId)) {
-          await supabase.from('equipo_coordinadores').insert({ coordinador_id: miembro.id, equipo_id: equipoId })
+          const { error: insError } = await supabase.from('equipo_coordinadores').insert({ coordinador_id: miembro.id, equipo_id: equipoId })
+          if (insError) throw insError
         }
       }
       onSaved(); onClose()

@@ -7,7 +7,7 @@ import {
   forwardRef,
 } from "react";
 import { supabase } from "../../lib/supabase";
-import { Spinner } from "../../components/ui";
+import { Spinner, ConfirmDialog } from "../../components/ui";
 import { puntoInicioAleatorio } from "./MapaManzanas";
 
 const CONFIG_DEFAULT = {
@@ -16,6 +16,13 @@ const CONFIG_DEFAULT = {
   max_intentos: 2,
   sentido_recorrido: "horario",
   cuota_por_manzana: 10,
+  // Antes esto no estaba en el default: el slider de "Cuota por encuestador"
+  // mostraba "50" con el fallback `config.cuota_por_encuestador || 50`, pero
+  // si el admin nunca arrastraba el control ese valor jamás se guardaba en
+  // encuestas.config_muestreo. get_estado_encuesta_callejera() entonces caía
+  // al fallback siguiente (cuota_por_manzana, un número distinto y sin
+  // relación) y el encuestador veía una cuota que nadie configuró a propósito.
+  cuota_por_encuestador: 50,
   casas_por_lado: 10, // estimado de casas por lado de manzana para calcular navegación
   razon_no_respuesta_extra: [],
 };
@@ -1585,6 +1592,48 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
   const [error, setError] = useState("");
   const [tab, setTab] = useState("zonas");
   const [toastMsg, setToastMsg] = useState("");
+  const [zonaAEliminar, setZonaAEliminar] = useState(null); // { id, nombre }
+
+  // ════════════════════════════════════════════════
+  // Zonas "huérfanas": quedan con equipo_id = null cuando se borra el
+  // equipo dueño (FK ON DELETE SET NULL). Como abrirEquipo() sólo busca
+  // zonas .eq('equipo_id', equipo.id), estas zonas nunca aparecían en el
+  // panel — pero el polígono y las asignaciones siguen existiendo, por
+  // eso la app móvil las seguía mostrando con normalidad.
+  // ════════════════════════════════════════════════
+  const [zonasHuerfanas, setZonasHuerfanas] = useState([]); // [{ id, nombre, equipo_nombre }]
+
+  const cargarZonasHuerfanas = useCallback(async () => {
+    const { data } = await supabase
+      .from("encuesta_zonas")
+      .select("id, nombre, equipo_nombre")
+      .eq("encuesta_id", encuesta.id)
+      .is("equipo_id", null)
+      .order("orden");
+    setZonasHuerfanas(data || []);
+  }, [encuesta.id]);
+
+  useEffect(() => {
+    cargarZonasHuerfanas();
+  }, [cargarZonasHuerfanas]);
+
+  async function reasignarZonaHuerfana(zonaId, nuevoEquipoId) {
+    if (!nuevoEquipoId) return;
+    await supabase
+      .from("encuesta_zonas")
+      .update({ equipo_id: nuevoEquipoId })
+      .eq("id", zonaId);
+    // Asegurar el vínculo encuestas_equipo del equipo destino (mismo fix
+    // que abrirEquipo aplica al abrir un equipo por primera vez).
+    await supabase
+      .from("encuestas_equipo")
+      .upsert(
+        { encuesta_id: encuesta.id, equipo_id: nuevoEquipoId },
+        { onConflict: "encuesta_id,equipo_id" },
+      );
+    mostrarToast("✅ Zona reasignada");
+    cargarZonasHuerfanas();
+  }
 
   // ════════════════════════════════════════════════
   // NUEVO: Estado para rastrear zonas modificadas
@@ -1745,7 +1794,17 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
       })
       .select()
       .single();
-    if (err || !data) return;
+    // Antes esto fallaba en silencio (p.ej. equipo_id de un equipo ya
+    // borrado/recreado, con la pantalla vieja en memoria) y no avisaba nada.
+    if (err || !data) {
+      console.error("[agregarZona]", err);
+      mostrarToast(
+        "❌ No se pudo crear la zona — recargá la página e intentá de nuevo (" +
+          (err?.message || "sin datos") +
+          ")",
+      );
+      return;
+    }
     setZonas((prev) => [...prev, data]);
     setZonaActiva(data.id);
   }
@@ -1759,14 +1818,24 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
     await supabase.from("encuesta_zonas").update({ nombre }).eq("id", id);
   }
 
+  function pedirEliminarZona(id, nombre) {
+    setZonaAEliminar({ id, nombre });
+  }
+
   async function eliminarZona(id) {
-    if (
-      !window.confirm(
-        "¿Eliminar esta zona? Se borran sus manzanas y asignaciones.",
-      )
-    )
-      return;
-    await supabase.from("encuesta_zonas").delete().eq("id", id);
+    // OJO: .delete() de supabase-js NO tira excepción si la fila no se borra
+    // (p.ej. bloqueada por RLS) — hay que chequear { error, count } a mano,
+    // si no la UI queda como si hubiese borrado algo que en realidad sigue en la DB.
+    const { error, count } = await supabase
+      .from("encuesta_zonas")
+      .delete({ count: "exact" })
+      .eq("id", id);
+    if (error) throw error;
+    if (!count) {
+      throw new Error(
+        "No se pudo eliminar la zona (permisos insuficientes o la fila ya no existe).",
+      );
+    }
     delete zonasDataRef.current[id];
     const restantes = zonas.filter((z) => z.id !== id);
     setZonas(restantes);
@@ -1782,6 +1851,20 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
       nueva.delete(id);
       return nueva;
     });
+  }
+
+  async function confirmarEliminarZona() {
+    if (!zonaAEliminar) return;
+    try {
+      await eliminarZona(zonaAEliminar.id);
+      mostrarToast("✅ Zona eliminada");
+    } catch (e) {
+      console.error("[eliminarZona]", e);
+      mostrarToast("❌ " + (e.message || "No se pudo eliminar la zona"));
+    } finally {
+      setZonaAEliminar(null);
+      cargarZonasHuerfanas();
+    }
   }
 
   // ════════════════════════════════════════════════
@@ -1940,7 +2023,7 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
       }
 
       // Guardar config muestreo y fechas
-      await supabase
+      const { error: configErr } = await supabase
         .from("encuestas")
         .update({
           config_muestreo: config,
@@ -1948,6 +2031,7 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
           fecha_fin: fechaFin || null,
         })
         .eq("id", encuesta.id);
+      if (configErr) throw configErr;
 
       // Disparar parcelas en background (solo domiciliaria)
       if (encuesta.tipo_encuesta !== "callejera") {
@@ -1970,10 +2054,17 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
       setZonasModificadas(new Set());
 
       // Refrescar la foto de equipos/zonas de la encuesta (para reportes y vista en vivo)
-      await supabase.rpc("capturar_snapshot_encuesta", {
-        p_encuesta_id: encuesta.id,
-        p_origen: "config_muestreo",
-      }).catch((e) => console.error("[snapshot]", e));
+      // Nota: el builder de supabase-js sólo implementa .then(), no .catch(),
+      // así que un .catch() encadenado directo revienta con "is not a function".
+      try {
+        const { error: snapErr } = await supabase.rpc(
+          "capturar_snapshot_encuesta",
+          { p_encuesta_id: encuesta.id, p_origen: "config_muestreo" },
+        );
+        if (snapErr) console.error("[snapshot]", snapErr);
+      } catch (e) {
+        console.error("[snapshot]", e);
+      }
 
       onSaved();
       onClose();
@@ -2179,6 +2270,17 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
           </div>
         )}
 
+        {/* Confirmar eliminación de zona */}
+        {zonaAEliminar && (
+          <ConfirmDialog
+            title="Eliminar zona"
+            message={`¿Eliminar la zona "${zonaAEliminar.nombre}"? Se borran sus manzanas y asignaciones.`}
+            confirmLabel="Eliminar"
+            onConfirm={confirmarEliminarZona}
+            onCancel={() => setZonaAEliminar(null)}
+          />
+        )}
+
         {/* ════ VISTA: LISTA DE EQUIPOS ════ */}
         {vista === "equipos" && (
           <div style={{ flex: 1, overflow: "auto", padding: 28 }}>
@@ -2280,6 +2382,112 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                 );
               })}
             </div>
+
+            {zonasHuerfanas.length > 0 && (
+              <div style={{ marginTop: 24 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "var(--danger)",
+                    textTransform: "uppercase",
+                    letterSpacing: 1,
+                    marginBottom: 8,
+                  }}
+                >
+                  ⚠️ Zonas sin equipo
+                </div>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    color: "var(--ink3)",
+                    marginBottom: 12,
+                  }}
+                >
+                  El equipo dueño de estas zonas fue eliminado, pero la zona
+                  (con su polígono, manzanas y asignaciones) sigue existiendo.
+                  Asignalas a otro equipo o eliminalas.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {zonasHuerfanas.map((z) => (
+                    <div
+                      key={z.id}
+                      style={{
+                        background: "var(--paper)",
+                        border: "1px dashed var(--danger)",
+                        borderRadius: "var(--r2)",
+                        padding: "14px 20px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 16,
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div
+                          style={{
+                            fontSize: 15,
+                            fontWeight: 700,
+                            color: "var(--ink)",
+                          }}
+                        >
+                          {z.nombre}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "var(--ink3)",
+                            marginTop: 2,
+                          }}
+                        >
+                          Antes de{" "}
+                          {z.equipo_nombre || "un equipo eliminado"}
+                        </div>
+                      </div>
+                      <select
+                        defaultValue=""
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            reasignarZonaHuerfana(z.id, e.target.value);
+                          }
+                        }}
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: "var(--r)",
+                          border: "1.5px solid var(--border2)",
+                          background: "var(--surface)",
+                          color: "var(--ink)",
+                          fontSize: 13,
+                          fontFamily: "DM Sans",
+                        }}
+                      >
+                        <option value="">Reasignar a…</option>
+                        {(equipos || []).map((eq) => (
+                          <option key={eq.id} value={eq.id}>
+                            {eq.nombre}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => pedirEliminarZona(z.id, z.nombre)}
+                        style={{
+                          padding: "8px 14px",
+                          background: "none",
+                          color: "var(--danger)",
+                          border: "1.5px solid var(--danger)",
+                          borderRadius: "var(--r)",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          fontFamily: "DM Sans",
+                        }}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Config muestreo acceso directo */}
             <div style={{ marginTop: 24 }}>
@@ -2617,7 +2825,7 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
           <div style={{ padding: "14px 10px", minHeight: 48, display: "flex", alignItems: "center", gap: 5, cursor: "pointer", borderBottom: (esActiva || asigs.length > 0 || puedeAsignar) ? `1px solid ${color}25` : "none" }} onClick={() => cambiarZonaActiva(z.id)}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
             <input value={z.nombre} onChange={e => renombrarZona(z.id, e.target.value)} onClick={e => e.stopPropagation()} style={{ flex: 1, border: "none", background: "transparent", fontSize: 13, fontWeight: 600, color: "#111", fontFamily: "DM Sans", outline: "none", cursor: "text", minWidth: 0, height: 28, lineHeight: "28px" }} />
-            <button onClick={e => { e.stopPropagation(); eliminarZona(z.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", fontSize: 13, padding: "0 2px", lineHeight: 1, flexShrink: 0 }}>×</button>
+            <button onClick={e => { e.stopPropagation(); pedirEliminarZona(z.id, z.nombre); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink3)", fontSize: 13, padding: "0 2px", lineHeight: 1, flexShrink: 0 }}>×</button>
           </div>
           {asigs.length > 0 && (
             <div onClick={e => e.stopPropagation()} style={{ padding: "4px 8px 6px 8px", display: "flex", flexDirection: "column", gap: 3 }}>

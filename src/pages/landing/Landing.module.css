@@ -636,8 +636,10 @@
 
 /* ── COOKIE BANNER ── */
 .cookieBanner {
+  /* Color fijo (no var(--ink)): --ink se invierte en modo oscuro y volvía
+     el fondo casi blanco con el texto blanco hardcodeado → ilegible. */
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 400;
-  background: var(--ink); color: rgba(255,255,255,0.85);
+  background: #1a1a1a; color: rgba(255,255,255,0.85);
   padding: 16px 24px;
 }
 .cookieContent {

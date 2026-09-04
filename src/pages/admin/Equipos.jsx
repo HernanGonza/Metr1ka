@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../hooks/useAuth";
 import { Topbar } from "../../components/layout";
-import { Spinner } from "../../components/ui";
+import { Spinner, ConfirmDialog } from "../../components/ui";
 import styles from "./Page.module.css";
 
 function EquipoModal({ equipo, onClose, onSaved, orgId }) {
@@ -120,19 +120,25 @@ function GestionarMiembrosModal({ equipo, onClose, onSaved, orgId }) {
     setSaving(true)
     setError('')
     try {
+      // Antes no se revisaba `error`: un delete/insert fallido dejaba al
+      // coordinador sin (des)asignar del equipo sin ningún aviso, y
+      // onSaved() igual refrescaba como si hubiera funcionado.
       if (currentCoordIds.includes(coordinadorId)) {
-        await supabase
+        const { error: delError } = await supabase
           .from('equipo_coordinadores')
           .delete()
           .eq('equipo_id', equipo.id)
           .eq('coordinador_id', coordinadorId)
+        if (delError) throw delError
       } else {
-        await supabase
+        const { error: insError } = await supabase
           .from('equipo_coordinadores')
           .insert({ equipo_id: equipo.id, coordinador_id: coordinadorId })
+        if (insError) throw insError
       }
       onSaved()
     } catch (err) {
+      console.error(err)
       setError('Error al actualizar coordinador')
     } finally {
       setSaving(false)
@@ -160,16 +166,19 @@ function GestionarMiembrosModal({ equipo, onClose, onSaved, orgId }) {
         return
       }
 
+      // Mismo fix que toggleCoordinador: antes no se revisaba `error` acá.
       if (currentEncIds.includes(encuestadorId)) {
-        await supabase
+        const { error: delError } = await supabase
           .from('equipo_encuestadores')
           .delete()
           .eq('equipo_id', equipo.id)
           .eq('encuestador_id', encuestadorId)
+        if (delError) throw delError
       } else {
-        await supabase
+        const { error: insError } = await supabase
           .from('equipo_encuestadores')
           .insert({ equipo_id: equipo.id, encuestador_id: encuestadorId })
+        if (insError) throw insError
       }
 
       onSaved()
@@ -331,6 +340,7 @@ export default function Equipos() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // para crear/editar equipo
   const [gestionarModal, setGestionarModal] = useState(null); // nuevo estado
+  const [equipoAEliminar, setEquipoAEliminar] = useState(null); // { id, nombre }
 
   const fetchData = useCallback(async () => {
     if (!perfil?.organizacion_id) return;
@@ -367,16 +377,30 @@ export default function Equipos() {
     fetchData();
   }, [fetchData]);
 
-  const handleDelete = async (id) => {
-    if (
-      !window.confirm("Eliminar este equipo? Esta acción no se puede deshacer.")
-    )
-      return;
+  const handleDelete = (id, nombre) => {
+    setEquipoAEliminar({ id, nombre });
+  };
+
+  const confirmarEliminar = async () => {
+    if (!equipoAEliminar) return;
     try {
-      await supabase.from("equipos").delete().eq("id", id);
+      // Antes esto no revisaba `error`: supabase-js no tira excepción en un
+      // delete fallido (RLS, FK, etc.), devuelve { error } y listo. El
+      // try/catch de acá nunca se disparaba, el modal se cerraba como si
+      // hubiera funcionado y el equipo seguía existiendo (con sus zonas
+      // huérfanas apuntando a él) sin ningún aviso. Mismo bug que en
+      // MuestreoConfig.jsx (eliminarZona/agregarZona).
+      const { error } = await supabase
+        .from("equipos")
+        .delete()
+        .eq("id", equipoAEliminar.id);
+      if (error) throw error;
       fetchData();
-    } catch {
+    } catch (err) {
+      console.error("Error eliminando equipo:", err);
       alert("Error al eliminar el equipo");
+    } finally {
+      setEquipoAEliminar(null);
     }
   };
 
@@ -410,6 +434,17 @@ export default function Equipos() {
             setGestionarModal(null);
             fetchData();
           }}
+        />
+      )}
+
+      {/* Confirmar eliminación de equipo */}
+      {equipoAEliminar && (
+        <ConfirmDialog
+          title="Eliminar equipo"
+          message={`¿Eliminar el equipo "${equipoAEliminar.nombre}"? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={confirmarEliminar}
+          onCancel={() => setEquipoAEliminar(null)}
         />
       )}
 
@@ -662,7 +697,7 @@ export default function Equipos() {
                   </button>
 
                   <button
-                    onClick={() => handleDelete(eq.id)}
+                    onClick={() => handleDelete(eq.id, eq.nombre)}
                     style={{
                       padding: "6px 13px",
                       background: "none",

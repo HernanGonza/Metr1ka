@@ -65,11 +65,23 @@ function AsignarEquipoModal({ encuestador, equipos, equipoActual, onClose, onSav
   async function handleSave() {
     setSaving(true); setError('')
     try {
+      // Antes no se revisaba `error` acá: si el delete/insert fallaba (RLS,
+      // unique constraint, etc.) el modal igual cerraba como éxito y el
+      // encuestador quedaba sin equipo asignado, sin ningún aviso — el mismo
+      // tipo de falla silenciosa que causó la crisis de esta noche, pero acá
+      // en el paso de asignar el equipo en vez de la zona.
       if (equipoActual) {
-        await supabase.from('equipo_encuestadores').delete().eq('encuestador_id', encuestador.id)
+        const { error: delError } = await supabase
+          .from('equipo_encuestadores')
+          .delete()
+          .eq('encuestador_id', encuestador.id)
+        if (delError) throw delError
       }
       if (selected) {
-        await supabase.from('equipo_encuestadores').insert({ encuestador_id: encuestador.id, equipo_id: selected })
+        const { error: insError } = await supabase
+          .from('equipo_encuestadores')
+          .insert({ encuestador_id: encuestador.id, equipo_id: selected })
+        if (insError) throw insError
       }
       onSaved(); onClose()
     } catch (err) { setError(err.message) }
