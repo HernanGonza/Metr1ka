@@ -41,14 +41,47 @@ export default function Mapa() {
 
   const [listo,         setListo]         = useState(false)
   const [encuestadores, setEncuestadores] = useState([]) // [{ encuestador_id, nombre, lat, lng, actualizado_en }]
+  const idsPermitidosRef = useRef(new Set()) // encuestadores de equipos con encuesta publicada
 
-  // Cargar nombres de encuestadores de la org
+  // IDs de encuestadores que pertenecen a un equipo asignado a una encuesta
+  // en curso (estado_produccion = 'publicada'). Evita mostrar encuestadores
+  // de operativos ya terminados que quedaron con ubicación cacheada.
+  const cargarIdsPermitidos = useCallback(async () => {
+    if (!perfil?.organizacion_id) return new Set()
+    const { data: encs } = await supabase
+      .from('encuestas')
+      .select('id')
+      .eq('organizacion_id', perfil.organizacion_id)
+      .eq('estado_produccion', 'publicada')
+    const encuestaIds = (encs || []).map(e => e.id)
+    if (!encuestaIds.length) return new Set()
+
+    const { data: ee } = await supabase
+      .from('encuestas_equipo')
+      .select('equipo_id')
+      .in('encuesta_id', encuestaIds)
+    const equipoIds = [...new Set((ee || []).map(e => e.equipo_id))]
+    if (!equipoIds.length) return new Set()
+
+    const { data: miembros } = await supabase
+      .from('equipo_encuestadores')
+      .select('encuestador_id')
+      .in('equipo_id', equipoIds)
+    return new Set((miembros || []).map(m => m.encuestador_id))
+  }, [perfil?.organizacion_id])
+
+  // Cargar nombres de encuestadores de los equipos con encuesta en curso
   const loadNombres = useCallback(async () => {
     if (!perfil?.organizacion_id) return {}
+    const idsPermitidos = await cargarIdsPermitidos()
+    idsPermitidosRef.current = idsPermitidos
+    if (!idsPermitidos.size) return {}
+
     const { data } = await supabase
       .from('ubicaciones_encuestadores')
       .select('encuestador_id, lat, lng, actualizado_en, perfiles(nombre_completo)')
       .eq('organizacion_id', perfil.organizacion_id)
+      .in('encuestador_id', [...idsPermitidos])
     if (!data) return {}
     const map = {}
     data.forEach(u => {
@@ -61,7 +94,7 @@ export default function Mapa() {
       }
     })
     return map
-  }, [perfil?.organizacion_id])
+  }, [perfil?.organizacion_id, cargarIdsPermitidos])
 
   // Inicializar mapa
   useEffect(() => {
@@ -118,6 +151,7 @@ export default function Mapa() {
         async (payload) => {
           const u = payload.new
           if (!u?.encuestador_id || !u.lat || !u.lng) return
+          if (!idsPermitidosRef.current.has(u.encuestador_id)) return
 
           // Buscar nombre si no lo tenemos
           let nombre = encuestadores.find(e => e.encuestador_id === u.encuestador_id)?.nombre
@@ -217,7 +251,7 @@ export default function Mapa() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
             {encuestadores.length === 0 ? (
               <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 12, color: 'var(--ink3)' }}>
-                Ningún encuestador activo
+                Sin encuestadores del equipo en curso
               </div>
             ) : (
               encuestadores

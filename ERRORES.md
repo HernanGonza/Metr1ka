@@ -219,21 +219,29 @@ equipo a esa zona antes de arrancar (no depender del fallback automático).
 
 ---
 
-## 5. Comportamiento a tener en cuenta para el sábado: `auto_asignar_encuestador()`
+## 5. Comportamiento a tener en cuenta para el sábado: `auto_asignar_encuestador()` solo cubre la primera zona (es a propósito)
 
-No es un bug, pero es una limitación real de cómo funciona la asignación
-automática, y puede confundir en el momento si no se sabe:
+**No es un bug.** Se probó en vivo esta noche (dentro de una transacción con
+`rollback`, sin dejar nada guardado) para confirmarlo: si un encuestador
+tiene 2+ zonas en el mismo equipo/encuesta y todavía no tiene ninguna
+asignación, `auto_asignar_encuestador()` le crea la asignación de la
+**primera zona que encuentra** y, para las siguientes, se frena a propósito
+apenas detecta que ya existe alguna asignación activa suya en esa encuesta —
+nunca les crea asignación, ni en esa llamada ni en las siguientes.
 
-`auto_asignar_encuestador()` le crea automáticamente una asignación a un
-encuestador para una zona de su equipo **solo si todavía no tiene ninguna
-asignación activa en esa misma encuesta**. Si un encuestador ya tiene una
-asignación (aunque sea de otra zona) y después se le agrega una zona nueva al
-equipo dentro de la misma encuesta, **esa zona nueva no se le va a
-auto-asignar** — hay que crear la asignación a mano desde el panel.
+Esto viene de la migración `fix_auto_asignar_respetar_asignaciones_manuales`
+(14/mayo/2026): la función se escribió así deliberadamente para no pisar ni
+duplicar lo que un admin ya armó a mano. El diseño esperado es: la
+auto-asignación es un atajo para el caso simple (1 zona por encuestador); si
+un encuestador necesita 2 o más zonas en la misma encuesta, **hay que
+asignarle cada zona a mano desde el panel** (`Equipos` → asignar
+encuestador a zona) — que es justamente el flujo que ya se usa hoy con Ana
+Soria, por eso a ella le funcionaron las dos zonas.
 
-En la práctica: si el día del operativo hace falta sumarle una zona extra a
-un encuestador que ya está trabajando en esa encuesta, no alcanza con
-agregarla al equipo — hay que ir a asignar esa zona puntual manualmente.
+En la práctica para el sábado: si un encuestador va a cubrir más de una zona,
+no alcanza con sumarlo al equipo y dejar que la app lo resuelva sola —
+**asignale cada zona manualmente desde el panel antes de que arranque a
+encuestar.**
 
 ---
 
@@ -246,4 +254,4 @@ agregarla al equipo — hay que ir a asignar esa zona puntual manualmente.
 | 2b | Misma falla en "gestion 2026" (¿16 es intencional?) | ⚠️ Pendiente de confirmar con el admin |
 | 3 | Llamadas a Supabase sin chequear `error` en asignación de equipos | ✅ Corregido en 4 pantallas |
 | 4 | Zonas sin equipo en 3 encuestas de prueba viejas | ⚠️ No tocado, documentado |
-| 5 | Auto-asignación no cubre zonas nuevas si ya hay asignación activa | ℹ️ Comportamiento a tener en cuenta, no corregido |
+| 5 | Auto-asignación solo cubre la primera zona por encuesta (verificado en vivo) | ℹ️ Comportamiento intencional (desde 14/may) — para 2+ zonas, asignar a mano |
