@@ -984,14 +984,23 @@ export default function EncuestaDetalle() {
     if (perfil?.organizacion_id && id) fetchBase()
   }, [id, perfil?.organizacion_id])
 
-  // Realtime — escuchar nuevas sesiones y actualizar contadores + gráficos sin recargar estructura
+  // Realtime — detectar sesiones nuevas SIN pisar lo que el admin está mirando.
+  // Antes esto recargaba resumen/respuestas/encuestadores en el momento, lo que
+  // durante un operativo en vivo (muchas respuestas seguidas) hacía molesto
+  // quedarse leyendo la encuesta. Ahora solo guardamos los datos frescos y
+  // prendemos un aviso; el admin decide cuándo aplicarlos con "↻ Actualizar".
+  const [hayNuevos, setHayNuevos]     = useState(false)
+  const pendingRef                    = useRef(null)
+  const totalRef                      = useRef(0)
+
+  useEffect(() => { totalRef.current = resumen?.total_participaron ?? 0 }, [resumen])
+
   useEffect(() => {
     if (!id || !perfil?.organizacion_id) return
 
     let debounce = null
 
-    async function recargarRespuestas() {
-      // Siempre ir a la DB — ignorar cache para actualizaciones en tiempo real
+    async function revisarNuevos() {
       try {
         const { data } = await supabase.rpc('get_encuesta_full', {
           p_encuesta_id: id,
@@ -1000,14 +1009,11 @@ export default function EncuestaDetalle() {
           p_fecha_desde: null, p_fecha_hasta: null,
         })
         if (data && !data.error) {
-          // Solo actualizar resumen y respuestas — NO encuesta ni preguntas (no cambian)
-          if (data.resumen)     setResumen(data.resumen)
-          if (data.respuestas)  setRespuestas(data.respuestas)
-          if (data.encuestadores) setEncuestadores(data.encuestadores)
-          // Actualizar cache también
-          cacheClear(`enc_base:${id}`)
-          cacheClear(`enc_resp:${id}:base`)
-          cacheSet(`enc_resp:${id}:base`, data.respuestas || [], 60_000)
+          const nuevoTotal = data.resumen?.total_participaron ?? 0
+          if (nuevoTotal !== totalRef.current) {
+            pendingRef.current = data
+            setHayNuevos(true)
+          }
         }
       } catch (e) { console.error('[realtime reload]', e) }
     }
@@ -1019,16 +1025,16 @@ export default function EncuestaDetalle() {
         schema: 'public',
         table: 'sesiones_respuesta',
       }, () => {
-        // Debounce 800ms para no recargar por cada respuesta de un batch
+        // Debounce 800ms para no chequear por cada respuesta de un batch
         if (debounce) clearTimeout(debounce)
-        debounce = setTimeout(recargarRespuestas, 800)
+        debounce = setTimeout(revisarNuevos, 800)
       })
       .subscribe((status) => {
         console.log('[realtime encuesta-detalle]', status)
       })
 
     // Polling cada 20s como fallback (más agresivo que 30s)
-    const interval = setInterval(recargarRespuestas, 20_000)
+    const interval = setInterval(revisarNuevos, 20_000)
 
     return () => {
       if (debounce) clearTimeout(debounce)
@@ -1036,6 +1042,24 @@ export default function EncuestaDetalle() {
       supabase.removeChannel(channel)
     }
   }, [id, perfil?.organizacion_id])
+
+  function aplicarNuevos() {
+    const data = pendingRef.current
+    if (data) {
+      if (data.resumen)        setResumen(data.resumen)
+      if (data.respuestas)     setRespuestas(data.respuestas)
+      if (data.encuestadores)  setEncuestadores(data.encuestadores)
+      cacheClear(`enc_base:${id}`)
+      cacheClear(`enc_resp:${id}:base`)
+      cacheSet(`enc_resp:${id}:base`, data.respuestas || [], 60_000)
+      pendingRef.current = null
+    } else {
+      cacheClear(`enc_base:${id}`)
+      cacheClear(`enc_resp:${id}`)
+      fetchBase()
+    }
+    setHayNuevos(false)
+  }
 
   const debounceRef = useRef(null)
   useEffect(() => {
@@ -1047,6 +1071,8 @@ export default function EncuestaDetalle() {
   }, [filtrosKey, encuesta?.id])
 
   async function fetchBase() {
+    pendingRef.current = null
+    setHayNuevos(false)
     const cacheKey = `enc_base:${id}`
     const cached   = cacheGet(cacheKey)
     if (cached) {
@@ -1158,12 +1184,8 @@ export default function EncuestaDetalle() {
         back={{ label: 'Encuestas', onClick: () => navigate('/encuestas') }}
         badge={{ label: cfg.label, color: cfg.color, bg: cfg.bg }}
         action={encuesta.estado_produccion === 'publicada' ? {
-  label: '↻ Actualizar',
-  onClick: () => {
-    cacheClear(`enc_base:${id}`)
-    cacheClear(`enc_resp:${id}`)
-    fetchBase()
-  }
+  label: hayNuevos ? '🔴 Actualizar (hay respuestas nuevas)' : '↻ Actualizar',
+  onClick: aplicarNuevos,
 } : null}
       />
       <div className={styles.content}>

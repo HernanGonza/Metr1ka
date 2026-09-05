@@ -381,6 +381,195 @@ general de todos.
 
 ---
 
+## 7. Actualización automática de pantallas (sin pull-to-refresh ni cerrar la app)
+
+### Problema (relevado 5/sep/2026)
+No es un tema de caché — la app no usa ninguna librería de cache de datos
+(React Query, SWR, etc.) que haya que "vaciar". El problema es más simple:
+varias pantallas piden los datos una sola vez al montarse y no vuelven a
+pedirlos solas, así que la única forma de ver un cambio hecho desde el
+panel web (una encuesta nueva asignada, un cambio de equipo, etc.) es
+tirar de la pantalla hacia abajo (pull-to-refresh manual) o cerrar y
+volver a abrir la app (lo que remonta el componente y sí dispara la carga
+inicial). Confirmado en:
+- `app/(encuestador)/home.tsx:149` — `useEffect` que carga
+  `get_encuestas_encuestador` solo cuando cambia `perfil?.id`; el
+  `RefreshControl` de la lista (línea ~266) es manual, no automático.
+- `app/(coordinador)/encuestas.tsx:49` — mismo patrón: `useEffect` una
+  sola vez + `RefreshControl` manual (línea ~141).
+
+El panel web ya resuelve este mismo problema en las pantallas de admin
+combinando dos mecanismos (`src/pages/admin/EncuestaDetalle.jsx`):
+una suscripción Realtime (`postgres_changes`) para reaccionar al
+instante, más un polling de respaldo cada 20s por si el socket se cae.
+
+### Propuesta
+Aplicar el mismo patrón combinado a las pantallas del encuestador y del
+coordinador:
+1. **Refetch al volver a primer plano**: usar `AppState` (ya se usa en
+   `lib/offlineQueue.ts:120` para relanzar la sincronización) para volver
+   a pedir los datos cuando la app pasa a `active` después de haber
+   estado en background — cubre "minimizié y volví" además de "cerré y
+   reabrí".
+2. **Polling liviano de respaldo** (por ejemplo cada 60s) mientras la
+   pantalla está montada, igual que el panel, para el caso de que el
+   encuestador deje la pantalla abierta mucho tiempo sin hacer nada.
+3. Donde tenga sentido, sumar una suscripción Realtime a los cambios
+   relevantes (`encuestas_equipo`, `asignaciones_encuesta`, `encuestas`)
+   filtrada por encuestador/equipo, para que una encuesta nueva asignada
+   aparezca sin esperar al polling ni a volver a primer plano.
+
+### Alcance
+- `app/(encuestador)/home.tsx` — lista de encuestas del encuestador.
+- `app/(coordinador)/encuestas.tsx` — lista de encuestas del equipo.
+- La pantalla de cuota (`estadoCalle` en `encuesta/[id].tsx`) ya tiene su
+  propio arreglo específico documentado en la sección 4; no se duplica
+  acá.
+
+Es JS puro (hooks + listeners), sin cambios nativos — se puede publicar
+por OTA (sección 3) una vez implementado, sin recompilar.
+
+### Verificación al implementar
+- Con la app abierta en la lista de encuestas del encuestador, asignarle
+  una encuesta nueva desde el panel sin tocar nada en el teléfono, y
+  confirmar que aparece sola dentro del intervalo definido.
+- Repetir minimizando la app y volviendo a abrirla (no cerrarla del
+  todo) y confirmar que también se actualiza.
+- Repetir lo mismo en la pantalla de encuestas del coordinador.
+
+---
+
+## 8. Módulo de reportes descargables (PDF) por encuesta
+
+### Pedido (5/sep/2026)
+Reportes en PDF, uno por click, con datos en tiempo real de Supabase,
+integrados al panel — para que el coordinador los baje solo, durante o
+después del operativo, sin intervención técnica. Es una ampliación de
+los reportes que ya existen en el panel, no un reemplazo: los actuales
+también hay que mejorarlos en paralelo.
+
+**Importante:** los cruces (candidato x zona, candidato x edad x género,
+perfil demográfico, etc.) tienen que salir armados solos — el usuario no
+arma la tabla a mano. Esto es distinto de cómo funciona hoy
+`GraficoCruce` en `Reportes.jsx` (líneas ~360-532), donde el admin elige
+manualmente qué dos preguntas cruzar. Acá el admin solo elige, de la
+lista de los 10 reportes ya definidos (y qué columnas/preguntas incluir
+dentro de cada uno), cuáles quiere ver o descargar — el cálculo del
+cruce en sí (agrupar, sumar, ordenar, calcular porcentaje) lo hace el
+reporte automáticamente, sin que el usuario arme nada.
+
+### Estado actual (relevado 5/sep/2026)
+- Hoy los reportes "en producción" (los que se le entregan al cliente)
+  salen de scripts Node locales con la librería `docx`, corridos a mano,
+  fuera del repo/panel.
+- Dentro del panel ya existe un generador de PDF en
+  `src/pages/admin/Reportes.jsx`: `generarHTML` (líneas ~699-1010) arma
+  un HTML con el estilo de Metr1ka del lado del cliente, y `generarPDF`
+  (líneas ~1449-1507) lo manda a `window.print()` — es un PDF vía el
+  diálogo de impresión del navegador, no un render server-side con
+  Puppeteer. Ya cubre resumen/KPIs, gráfico por pregunta (`MiniChart`),
+  matrices, cruces (`GraficoCruce`), datos crudos y mapa.
+- También existe `TextoLibreClasificado` (líneas ~162-293) con la tabla
+  `clasificaciones_texto_libre` (`categoria`, `cantidad`, `orden`) — hoy
+  es un clasificador 100% manual: el admin agrupa a mano las respuestas
+  de texto libre en categorías con una cantidad agregada, sin ningún
+  matching automático.
+
+### Piezas que faltan en el modelo de datos
+- No hay forma estándar de identificar preguntas "especiales" (candidato
+  a intendente, edad, género, nivel educativo, situación laboral) más
+  que por su `texto` literal — `preguntas.clave_base` hoy solo tiene el
+  valor `'participa'` en uso real (definido en
+  `backups/metr1ka-20260902-211401.schema.sql:3344`, usado en
+  `get_encuesta_full` y otras RPCs). Para que los reportes de cruce
+  demográfico y de candidato funcionen encuesta tras encuesta sin curar
+  a mano cada vez, conviene sumar nuevos valores de `clave_base` (p. ej.
+  `candidato_intendente`, `edad`, `genero`, `nivel_educativo`,
+  `situacion_laboral`) que se asignen al armar las preguntas de la
+  encuesta.
+- `opciones_pregunta.orden` ya existe
+  (`schema.sql:3241-3246`) — el reporte por pregunta puede usarlo
+  directo para respetar el orden de las opciones, tal como pide el
+  prompt.
+- El matching fuzzy del "Otro" contra candidatos puede apoyarse en la
+  tabla `clasificaciones_texto_libre` que ya existe, en vez de construir
+  un clasificador nuevo desde cero: para la pregunta de candidato se
+  pre-cargan las categorías con los nombres de los candidatos (+ alias
+  conocidos), y un matching automático (normalizado a minúsculas +
+  distancia de edición tipo Levenshtein) sugiere la categoría para cada
+  respuesta de texto libre nueva — el admin la confirma o corrige igual
+  que hoy, no se pierde la revisión humana, solo se le ahorra el tipeo.
+
+### Los 10 reportes pedidos
+1. Por zona — nombre + completadas, orden desc, total al pie.
+2. Por encuestador — nombre + completadas (sin no-respuesta), orden
+   desc, total al pie.
+3. Comparativo de candidatos por zona — tabla por zona con cada
+   candidato y sus votos, "Otro" fusionado por matching fuzzy (ver
+   arriba), orden desc dentro de cada zona.
+4. Completo por pregunta y zona — una sección por pregunta (excepto
+   `participa`), tabla por zona con cada opción, cantidad y porcentaje,
+   respetando `opciones_pregunta.orden`, "Otro" excluido como opción
+   propia y fusionado cuando aplica, orden desc.
+5. No-respuesta por zona — tasa de rechazo (no-respuesta / total
+   sesiones) por zona.
+6. Actividad por encuestador — completadas + no-respuesta + tasa de
+   rechazo, para evaluación de campo.
+7. Evolución horaria — completadas acumuladas por hora del día, zona
+   horaria de Argentina (UTC-3).
+8. Distribución geográfica — sesiones por zona con completadas,
+   no-respuesta y lat/lng promedio, para cruzar con el KMZ.
+9. Perfil demográfico — cruce edad / nivel educativo / situación
+   laboral / género, absolutos y porcentajes por zona.
+10. Intención de voto cruzada con perfil — candidato x edad x género
+    (ej. hombres de 30-45 que votarían a un candidato puntual).
+
+### Implementación técnica propuesta
+- **Backend** (corregido 5/sep/2026 — el proyecto NO usa Render, solo
+  Supabase + el panel desplegado en Vercel): generar los PDFs con
+  Puppeteer (HTML/CSS → PDF), no con `window.print()`, pero corriéndolo
+  como **Vercel Serverless Function** dentro del mismo proyecto del
+  panel — no hace falta un hosting nuevo. Se agrega una carpeta `/api`
+  en la raíz (hoy no existe; `vercel.json` solo tiene rewrites/headers
+  para el SPA, Vercel detecta `/api` igual aunque el resto sea un Vite
+  SPA) con un endpoint tipo `/api/reportes/[tipo].js` que recibe
+  `encuesta_id`, pide los datos a Supabase, arma el HTML reusando el
+  estilo de `generarHTML` existente, y lo renderiza a PDF con
+  `puppeteer-core` + `@sparticuz/chromium` (el combo estándar para correr
+  Chromium headless dentro del límite de tamaño de una función
+  serverless tipo Lambda).
+- A tener en cuenta al implementar: límite de tiempo de ejecución de
+  Vercel (10s en Hobby, hasta 60s en Pro — revisar qué plan se usa,
+  puede quedar corto para reportes con muchas zonas/preguntas) y cold
+  start de Chromium en el primer request.
+- CSP de `vercel.json` no necesita cambios: `connect-src` ya incluye
+  `'self'`, y el endpoint `/api/...` es mismo origen.
+- **Frontend**: en `EncuestaDetalle.jsx` (o una pestaña "Reportes" ahí
+  mismo), un botón "Descargar PDF" por cada uno de los 10 reportes ya
+  definidos (con checkboxes opcionales para incluir/sacar preguntas o
+  columnas puntuales dentro de ese reporte), que llama al backend con
+  `encuesta_id` + la selección y dispara la descarga. El admin nunca
+  arma el cruce a mano — solo elige qué mostrar.
+- Cada PDF: fecha/hora de generación en el encabezado, logo/branding
+  Metr1ka (verde `#52B788`), filas alternadas, totales al pie,
+  porcentajes donde aplique.
+- **Reportes existentes en `Reportes.jsx`**: mejorarlos en paralelo
+  (pedido explícito, no queda afuera) — evaluar si conviene migrarlos al
+  mismo pipeline de Puppeteer para tener un solo mecanismo de PDF en vez
+  de dos (`window.print()` para lo viejo, Puppeteer para lo nuevo).
+
+### Verificación al implementar
+- Con una encuesta de prueba con varias zonas, candidatos con variantes
+  de escritura en "Otro" (mayúsculas, apodos, errores de tipeo), y
+  respuestas demográficas cargadas, generar los 10 reportes y confirmar:
+  orden desc correcto, totales al pie, matching fuzzy del candidato,
+  zona horaria de la evolución horaria, orden de opciones según
+  `opciones_pregunta.orden`.
+- Confirmar que los reportes existentes en el panel siguen funcionando
+  igual mientras se decide si migran al mismo pipeline (no regresión).
+
+---
+
 ## Verificación al implementar
 - **Mobile**: `npx tsc --noEmit` en `metr1ka-app` + lectura de diffs. No se
   compila/corre la app hasta que se decida explícitamente.
