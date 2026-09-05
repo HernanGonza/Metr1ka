@@ -46,6 +46,43 @@ const DEFAULT_TIPO = {
   texto_libre:     null,
 }
 
+/* ── Encabezado de columna ordenable (flechita ▲▼) ── */
+function ThSort({ label, campo, sort, onSort, align = 'left' }) {
+  const activo = sort.campo === campo
+  return (
+    <th
+      onClick={() => onSort(campo)}
+      style={{
+        padding: '10px 16px', textAlign: align, fontSize: 12, fontWeight: 700,
+        color: activo ? 'var(--ink)' : 'var(--ink3)', cursor: 'pointer',
+        userSelect: 'none', whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+      <span style={{ marginLeft: 4, opacity: activo ? 1 : 0.3 }}>
+        {activo ? (sort.dir === 'asc' ? '▲' : '▼') : '▲'}
+      </span>
+    </th>
+  )
+}
+
+function alternarOrden(campo, setSort) {
+  setSort(prev => prev.campo === campo ? { campo, dir: prev.dir === 'desc' ? 'asc' : 'desc' } : { campo, dir: 'desc' })
+}
+
+function ordenarLista(lista, sort, getValor) {
+  if (!sort.campo) return lista
+  const dir = sort.dir === 'asc' ? 1 : -1
+  return [...lista].sort((a, b) => {
+    const va = getValor(a, sort.campo)
+    const vb = getValor(b, sort.campo)
+    if (typeof va === 'string' || typeof vb === 'string') {
+      return String(va ?? '').localeCompare(String(vb ?? '')) * dir
+    }
+    return ((va ?? 0) - (vb ?? 0)) * dir
+  })
+}
+
 /* ── Tabla para preguntas de tipo Matriz ── */
 function MatrizTabla({ pregunta, filas, color }) {
   const filasDef    = (pregunta.config_matriz?.filas    || []).map(f => typeof f === 'string' ? f : f.texto || f)
@@ -590,15 +627,14 @@ function MapaEncuesta({ sesiones, columnas, onCargar, loading }) {
 
 function PorZonaTabla({ statsZona, loading, onCargar }) {
   const [abiertas, setAbiertas] = useState({})
+  const [sort, setSort] = useState({ campo: null, dir: 'desc' })
   useEffect(() => { if (!statsZona && !loading) onCargar() }, [])
 
   if (loading && !statsZona) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink3)', fontSize: 13 }}>Cargando zonas…</div>
   if (!statsZona) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink3)', fontSize: 13 }}><button onClick={onCargar} style={{ padding: '6px 14px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', background: 'var(--paper)', cursor: 'pointer', fontSize: 13 }}>Cargar estadísticas por zona</button></div>
 
-  const zonas = statsZona.por_zona || []
+  const zonas = ordenarLista(statsZona.por_zona || [], sort, (z, campo) => z[campo])
   const tot   = statsZona.totales || {}
-  const th = { padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }
-  const thR = { ...th, textAlign: 'right' }
   const td = { padding: '9px 16px', fontSize: 13 }
   const tdR = { ...td, textAlign: 'right', fontWeight: 600, fontFamily: 'var(--font-num)', fontVariantNumeric: 'tabular-nums' }
   const nz = (n, col) => ({ ...tdR, color: n === 0 ? 'var(--metric-zero)' : col })
@@ -616,11 +652,11 @@ function PorZonaTabla({ statsZona, loading, onCargar }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-              <th style={th}>Zona</th>
-              <th style={th}>Equipo</th>
-              <th style={thR}>Completadas</th>
-              <th style={thR}>No respuesta</th>
-              <th style={thR}>Total</th>
+              <ThSort label="Zona" campo="zona_nombre" sort={sort} onSort={c => alternarOrden(c, setSort)} />
+              <ThSort label="Equipo" campo="equipo_nombre" sort={sort} onSort={c => alternarOrden(c, setSort)} />
+              <ThSort label="Completadas" campo="completadas" sort={sort} onSort={c => alternarOrden(c, setSort)} align="right" />
+              <ThSort label="No respuesta" campo="no_respuesta" sort={sort} onSort={c => alternarOrden(c, setSort)} align="right" />
+              <ThSort label="Total" campo="total" sort={sort} onSort={c => alternarOrden(c, setSort)} align="right" />
             </tr>
           </thead>
           <tbody>
@@ -703,6 +739,7 @@ function EquiposSnapshot({ snap }) {
 function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipos, filtros, onFiltroChange, loadingR, sesionesGPS, onCargarMapa, loadingGPS, statsZona, onCargarZonas, loadingZonas, configSnapshot }) {
   const [vista, setVista] = useState('resumen')
   const [encZonasAbiertas, setEncZonasAbiertas] = useState({})
+  const [sortEnc, setSortEnc] = useState({ campo: null, dir: 'desc' })
 
   const filasPorPregunta = useMemo(() => {
     const map = {}
@@ -726,6 +763,13 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
   const encuestadoresFiltrados = useMemo(() =>
     filtros.equipo_id ? encuestadores.filter(e => e.equipo_id === filtros.equipo_id) : encuestadores,
     [encuestadores, filtros.equipo_id]
+  )
+
+  const encuestadoresOrdenados = useMemo(() =>
+    ordenarLista(encuestadoresFiltrados, sortEnc, (e, campo) =>
+      campo === 'completadas' ? (e.completadas ?? e.total) : e[campo]
+    ),
+    [encuestadoresFiltrados, sortEnc]
   )
 
   const kpis = [
@@ -845,16 +889,16 @@ function VistaResultados({ preguntas, resumen, respuestas, encuestadores, equipo
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
   <thead>
     <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-      <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>Encuestador</th>
-      <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>Equipo</th>
-      <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>Zonas</th>
-      <th style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>Completadas</th>
-      <th style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>No respuesta</th>
-      <th style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>Total</th>
+      <ThSort label="Encuestador" campo="nombre_completo" sort={sortEnc} onSort={c => alternarOrden(c, setSortEnc)} />
+      <ThSort label="Equipo" campo="equipo_nombre" sort={sortEnc} onSort={c => alternarOrden(c, setSortEnc)} />
+      <ThSort label="Zonas" campo="zonas" sort={sortEnc} onSort={c => alternarOrden(c, setSortEnc)} />
+      <ThSort label="Completadas" campo="completadas" sort={sortEnc} onSort={c => alternarOrden(c, setSortEnc)} align="right" />
+      <ThSort label="No respuesta" campo="no_respuesta" sort={sortEnc} onSort={c => alternarOrden(c, setSortEnc)} align="right" />
+      <ThSort label="Total" campo="total" sort={sortEnc} onSort={c => alternarOrden(c, setSortEnc)} align="right" />
     </tr>
   </thead>
   <tbody>
-    {encuestadoresFiltrados.map((enc, i) => {
+    {encuestadoresOrdenados.map((enc, i) => {
       const key = enc.encuestador_id || i
       const zonas = (enc.por_zona || []).slice().sort((a, b) => b.total - a.total)
       const open = !!encZonasAbiertas[key]
