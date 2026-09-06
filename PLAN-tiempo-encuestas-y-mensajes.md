@@ -139,6 +139,16 @@ el resto del plan.
 
 ## 3. OTA — actualizaciones sin recompilar
 
+### Estado: implementado (5/sep/2026), pendiente probar ciclo `eas update`
+Código ya en `metr1ka-app`: `expo-updates@~29.0.17` instalado, `app.json`
+(`runtimeVersion.policy: fingerprint` + `updates.url` + `fallbackToCacheTimeout: 0`),
+`eas.json` (`channel` en `preview`/`production`) y el chequeo de update en
+`app/_layout.tsx` (cold-start only, gateado por `__DEV__`/`Updates.isEnabled`).
+`npx tsc --noEmit` sin errores nuevos. Falta: correr `eas update --branch preview`
+(requiere `eas` CLI + login del usuario, no disponible en este entorno) y
+confirmar que un build `preview` levanta el cambio sin reinstalar, antes de
+usar el canal `production`. Sin commitear todavía.
+
 ### Objetivo
 Poder publicar cambios de JS/assets de `metr1ka-app` (fixes, ajustes de UI,
 lo de tiempo/mensajes de este mismo plan, etc.) sin tener que generar un APK
