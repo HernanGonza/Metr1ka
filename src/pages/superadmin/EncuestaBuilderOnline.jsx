@@ -423,6 +423,7 @@ export default function EncuestaBuilderOnline() {
                 index={i}
                 total={preguntas.length}
                 todasPreguntas={preguntas}
+                esOnline
                 onUpdate={updated => updatePregunta(i, updated)}
                 onDelete={deletePregunta}
                 onMove={movePregunta}

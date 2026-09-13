@@ -124,7 +124,14 @@ export function PanelCondicionales({ pregunta, todasPreguntas, index, onChange }
 }
 
 // ── Tarjeta de pregunta ──
-export function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDelete, onMove }) {
+export function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate, onDelete, onMove, esOnline }) {
+  // "Participación" (¿desea participar?) no aplica a una encuesta online:
+  // si alguien abre el link y acepta el modal de términos, ya decidió
+  // participar — no tiene sentido volver a preguntarlo como si fuera la
+  // pregunta 1. Se saca directamente de las opciones, no alcanza con "no
+  // precargarla" (ver EncuestaBuilderOnline.jsx) porque nada impedía
+  // elegirla a mano acá.
+  const claveBaseOpciones = esOnline ? CLAVE_BASE_OPCIONES.filter(o => o.value !== 'participa') : CLAVE_BASE_OPCIONES
   const [expanded, setExpanded]         = useState(true)
   const [showCond, setShowCond]         = useState(false)
   const tieneOpciones = TIPOS_CON_OPCIONES.includes(pregunta.tipo)
@@ -202,7 +209,7 @@ export function PreguntaCard({ pregunta, index, total, todasPreguntas, onUpdate,
               <select value={pregunta.clave_base || ''}
                 onChange={e => onUpdate({ ...pregunta, clave_base: e.target.value || null })}
                 style={inputStyle}>
-                {CLAVE_BASE_OPCIONES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {claveBaseOpciones.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
           </div>
