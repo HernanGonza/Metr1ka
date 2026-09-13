@@ -31,6 +31,7 @@ import DashboardAdmin     from './pages/admin/Dashboard'
 import MapaAdmin          from './pages/admin/Mapa'
 import EncuestasAdmin     from './pages/admin/Encuestas'
 import EncuestaDetalle    from './pages/admin/EncuestaDetalle'
+import EncuestaDetalleOnline from './pages/admin/EncuestaDetalleOnline'
 import EquiposAdmin       from './pages/admin/Equipos'
 import CoordinadoresAdmin from './pages/admin/Coordinadores'
 import EncuestadoresAdmin from './pages/admin/Encuestadores'
@@ -85,6 +86,7 @@ export default function App() {
               <Route path="/dashboard"     element={<DashboardAdmin />} />
               <Route path="/mapa"          element={<MapaAdmin />} />
               <Route path="/encuestas"     element={<EncuestasAdmin />} />
+              <Route path="/encuestas/online/:id" element={<EncuestaDetalleOnline />} />
               <Route path="/encuestas/:id" element={<EncuestaDetalle />} />
               <Route path="/equipos"       element={<EquiposAdmin />} />
               <Route path="/coordinadores" element={<CoordinadoresAdmin />} />

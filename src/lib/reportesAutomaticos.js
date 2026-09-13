@@ -1054,26 +1054,31 @@ function reportePerfilVotante(ctx) {
 
 // ── Definiciones + dispatcher ──
 
+// `soloCampo: true` marca los reportes armados explícitamente por zona o
+// por encuestador (título y cálculo lo dicen) — no aplican a una encuesta
+// online, que no tiene ninguno de los dos conceptos (ver
+// ReportesAutomaticos.jsx, prop `tipoEncuesta`). El resto solo usa
+// `ctx.crudo`/`ctx.preguntas` y funciona igual para los dos tipos.
 export const REPORTES_DEFS = [
-  { id: 'por_zona',            titulo: 'Por zona',                          descripcion: 'Completadas por zona, orden desc.' },
-  { id: 'por_encuestador',     titulo: 'Por encuestador',                   descripcion: 'Completadas por encuestador, orden desc.' },
-  { id: 'candidatos_zona',     titulo: 'Comparativo de candidatos por zona', descripcion: 'Requiere pregunta "Candidato a intendente".' },
-  { id: 'completo_pregunta_zona', titulo: 'Completo por pregunta y zona',   descripcion: 'Todas las preguntas de opciones, desglosadas por zona.' },
-  { id: 'no_respuesta_zona',   titulo: 'No-respuesta por zona',             descripcion: 'Tasa de rechazo por zona.' },
-  { id: 'actividad_encuestador', titulo: 'Actividad por encuestador',       descripcion: 'Completadas, no-respuesta y tasa de rechazo.' },
+  { id: 'por_zona',            titulo: 'Por zona',                          descripcion: 'Completadas por zona, orden desc.', soloCampo: true },
+  { id: 'por_encuestador',     titulo: 'Por encuestador',                   descripcion: 'Completadas por encuestador, orden desc.', soloCampo: true },
+  { id: 'candidatos_zona',     titulo: 'Comparativo de candidatos por zona', descripcion: 'Requiere pregunta "Candidato a intendente".', soloCampo: true },
+  { id: 'completo_pregunta_zona', titulo: 'Completo por pregunta y zona',   descripcion: 'Todas las preguntas de opciones, desglosadas por zona.', soloCampo: true },
+  { id: 'no_respuesta_zona',   titulo: 'No-respuesta por zona',             descripcion: 'Tasa de rechazo por zona.', soloCampo: true },
+  { id: 'actividad_encuestador', titulo: 'Actividad por encuestador',       descripcion: 'Completadas, no-respuesta y tasa de rechazo.', soloCampo: true },
   { id: 'evolucion_horaria',   titulo: 'Evolución horaria',                 descripcion: 'Completadas acumuladas por hora (ARG, UTC-3).' },
-  { id: 'distribucion_geo',    titulo: 'Distribución geográfica',           descripcion: 'Sesiones por zona con lat/lng promedio.' },
-  { id: 'perfil_demografico',  titulo: 'Perfil demográfico',                descripcion: 'Edad / género / nivel educativo / situación laboral por zona.' },
+  { id: 'distribucion_geo',    titulo: 'Distribución geográfica',           descripcion: 'Sesiones por zona con lat/lng promedio.', soloCampo: true },
+  { id: 'perfil_demografico',  titulo: 'Perfil demográfico',                descripcion: 'Edad / género / nivel educativo / situación laboral por zona.', soloCampo: true },
   { id: 'voto_por_perfil',     titulo: 'Intención de voto cruzada con perfil', descripcion: 'Candidato x edad x género. Requiere candidato + edad o género.' },
   { id: 'resumen_ejecutivo',   titulo: 'Resumen ejecutivo',                 descripcion: 'Una carilla con los indicadores clave, para entregar a un cliente en 30 segundos.' },
-  { id: 'competitividad_zona', titulo: 'Competitividad por zona',           descripcion: 'Diferencia entre 1° y 2° candidato en cada zona, con nivel de reñidez.' },
-  { id: 'agenda_tematica',     titulo: 'Agenda temática por zona',          descripcion: 'Candidato ganador y principal problema de cada zona, agrupado por candidato.' },
+  { id: 'competitividad_zona', titulo: 'Competitividad por zona',           descripcion: 'Diferencia entre 1° y 2° candidato en cada zona, con nivel de reñidez.', soloCampo: true },
+  { id: 'agenda_tematica',     titulo: 'Agenda temática por zona',          descripcion: 'Candidato ganador y principal problema de cada zona, agrupado por candidato.', soloCampo: true },
   { id: 'corte_generacional',  titulo: 'Corte generacional',                descripcion: 'Candidato x grupo etario, tabla de contingencia y barras apiladas.' },
-  { id: 'indice_participacion', titulo: 'Índice de participación por zona', descripcion: 'Tasa de participación por zona, como indicador de subrepresentación.' },
+  { id: 'indice_participacion', titulo: 'Índice de participación por zona', descripcion: 'Tasa de participación por zona, como indicador de subrepresentación.', soloCampo: true },
   { id: 'consistencia_interna', titulo: 'Consistencia interna',             descripcion: 'Sesiones con combinaciones de respuestas incoherentes.' },
-  { id: 'evolucion_encuestador', titulo: 'Evolución de operativo por encuestador', descripcion: 'Franja de mayor actividad, horas activo y ritmo entre sesiones.' },
-  { id: 'mapa_tematico',       titulo: 'Mapa de calor temático completo',   descripcion: 'Opción ganadora por zona, una sección por pregunta.' },
-  { id: 'no_respuesta_geo',    titulo: 'No-respuesta geográfica',           descripcion: 'Tasa de rechazo por zona con interpretación automática.' },
+  { id: 'evolucion_encuestador', titulo: 'Evolución de operativo por encuestador', descripcion: 'Franja de mayor actividad, horas activo y ritmo entre sesiones.', soloCampo: true },
+  { id: 'mapa_tematico',       titulo: 'Mapa de calor temático completo',   descripcion: 'Opción ganadora por zona, una sección por pregunta.', soloCampo: true },
+  { id: 'no_respuesta_geo',    titulo: 'No-respuesta geográfica',           descripcion: 'Tasa de rechazo por zona con interpretación automática.', soloCampo: true },
   { id: 'perfil_votante',      titulo: 'Perfil del votante por candidato',  descripcion: 'Para cada candidato con ≥5 votos, quién lo vota (edad, género, educación, situación laboral).' },
 ]
 

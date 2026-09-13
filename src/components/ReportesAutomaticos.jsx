@@ -337,7 +337,13 @@ function PanelPreguntasEspeciales({ preguntas, overrides, setOverrides }) {
   )
 }
 
-export default function ReportesAutomaticos({ encuesta, preguntas, statsZona, onCargarZonas, loadingZonas }) {
+export default function ReportesAutomaticos({ encuesta, preguntas, statsZona, onCargarZonas, loadingZonas, tipoEncuesta }) {
+  // Encuestas online no tienen zona ni encuestador — los reportes marcados
+  // `soloCampo` (ver reportesAutomaticos.js) no aplican y ni se muestran.
+  const defs = useMemo(
+    () => tipoEncuesta === 'online' ? REPORTES_DEFS.filter(d => !d.soloCampo) : REPORTES_DEFS,
+    [tipoEncuesta]
+  )
   const [crudo, setCrudo]       = useState(null)
   const [cargando, setCargando] = useState(false)
   const [error, setError]       = useState('')
@@ -387,9 +393,9 @@ export default function ReportesAutomaticos({ encuesta, preguntas, statsZona, on
   const resultados = useMemo(() => {
     if (!crudo) return {}
     const out = {}
-    for (const def of REPORTES_DEFS) out[def.id] = calcularReporte(def.id, ctx)
+    for (const def of defs) out[def.id] = calcularReporte(def.id, ctx)
     return out
-  }, [crudo, ctx])
+  }, [crudo, ctx, defs])
 
   function descargarPDF(def) {
     const resultado = resultados[def.id]
@@ -420,7 +426,7 @@ export default function ReportesAutomaticos({ encuesta, preguntas, statsZona, on
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <PanelPreguntasEspeciales preguntas={preguntas} overrides={overrides} setOverrides={setOverrides} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-        {REPORTES_DEFS.map(def => {
+        {defs.map(def => {
           const resultado = resultados[def.id]
           const disponible = !!resultado && (
             resultado.tipo === 'resumen' ? true :
@@ -453,7 +459,7 @@ export default function ReportesAutomaticos({ encuesta, preguntas, statsZona, on
 
       {abierto && resultados[abierto] && (
         <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: 18, overflowX: 'auto' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>{REPORTES_DEFS.find(d => d.id === abierto)?.titulo}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>{defs.find(d => d.id === abierto)?.titulo}</div>
           <VistaResultado resultado={resultados[abierto]} />
         </div>
       )}

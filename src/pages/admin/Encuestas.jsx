@@ -18,11 +18,20 @@ const ESTADO_CONFIG = {
 const FILTROS         = ['todas', 'pendiente', 'en_proceso', 'para_revisar', 'publicada']
 const FILTROS_ACTIVAS = ['todas', 'pendiente', 'en_proceso', 'para_revisar', 'publicada']
 
+// Encuestas online tienen su propio apartado (ver EncuestaCardOnline más
+// abajo) — no comparten tarjeta ni tipos de filtro con las de campo.
 const TIPO_CONFIG = {
   domiciliaria: { label: 'Domiciliaria', icon: '🏠', color: 'var(--accent)', bg: '#d8f3dc' },
   callejera:    { label: 'Callejera',    icon: '🚶', color: '#0369a1', bg: '#e0f2fe' },
   telefonica:   { label: 'Telefónica',   icon: '📞', color: '#7c3aed', bg: '#f3e8ff' },
-  online:       { label: 'Online',       icon: '🌐', color: '#b45309', bg: '#fef3c7' },
+}
+
+const ESTADO_ONLINE_CONFIG = {
+  pendiente:    { label: 'Pendiente',    color: '#b45309', bg: '#fef3c7' },
+  en_proceso:   { label: 'En proceso',   color: '#0369a1', bg: '#e0f2fe' },
+  para_revisar: { label: 'Para revisar', color: '#7c3aed', bg: '#f3e8ff' },
+  publicada:    { label: 'Publicada',    color: 'var(--accent)', bg: '#d8f3dc' },
+  completada:   { label: 'Completada',   color: 'var(--ink2)', bg: 'var(--surface2)' },
 }
 
 // ── Modal solicitar encuesta ──
@@ -271,6 +280,59 @@ function EncuestaCard({ encuesta, equipos, onApprove, onZonas, onSimular, onView
   )
 }
 
+// Tarjeta de encuesta online — deliberadamente distinta de EncuestaCard: sin
+// zonas, sin equipos, sin "solicitar/aprobar" (las arma el equipo de
+// Metr1ka), mostrando en cambio el dominio asignado y la cantidad de
+// respuestas recibidas.
+function EncuestaCardOnline({ encuesta, total, onView, mostrarOrg, orgNombre }) {
+  const cfg = ESTADO_ONLINE_CONFIG[encuesta.estado_produccion] || ESTADO_ONLINE_CONFIG.pendiente
+  const fmtFecha = (iso) => iso ? new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : null
+
+  return (
+    <div className={styles.encuestaCard} onClick={onView} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column' }}>
+      <div className={styles.encuestaHeader}>
+        <h4 style={{ fontSize: 15, lineHeight: 1.3 }}>{encuesta.nombre}</h4>
+        <span style={{ padding: '3px 10px', borderRadius: 100, fontSize: 11, fontWeight: 700, background: cfg.bg, color: cfg.color, whiteSpace: 'nowrap', flexShrink: 0 }}>
+          {cfg.label}
+        </span>
+      </div>
+
+      {encuesta.descripcion && <p className={styles.encuestaDesc}>{encuesta.descripcion}</p>}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, margin: '4px 0' }}>
+        <span style={{ fontSize: 12 }}>🌐</span>
+        {encuesta.subdominio
+          ? <span style={{ fontSize: 12, color: 'var(--accent2)', fontFamily: 'DM Mono, monospace' }}>{encuesta.subdominio}.metr1ka.com</span>
+          : <span style={{ fontSize: 12, color: 'var(--ink3)', fontStyle: 'italic' }}>Sin dominio asignado</span>}
+      </div>
+
+      {(encuesta.publicar_desde || encuesta.publicar_hasta) && (
+        <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 4 }}>
+          ⏱ {fmtFecha(encuesta.publicar_desde) || 'sin inicio'} → {fmtFecha(encuesta.publicar_hasta) || 'sin cierre'}
+        </div>
+      )}
+
+      <div className={styles.encuestaMeta}>
+        {mostrarOrg && orgNombre && <span style={{ fontWeight: 600, color: 'var(--accent2)', marginRight: 8 }}>🏢 {orgNombre}</span>}
+        Creada: {new Date(encuesta.creado_en).toLocaleDateString('es-AR')}
+        <span style={{ marginLeft: 10, padding: '1px 7px', borderRadius: 100, fontSize: 11, background: 'var(--accent-light)', color: 'var(--accent2)', fontWeight: 600 }}>
+          {total ?? 0} respuesta{total === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      <div style={{ paddingTop: 10, borderTop: '1px solid var(--border)', marginTop: 8 }} onClick={e => e.stopPropagation()}>
+        <button onClick={onView} style={{
+          width: '100%', padding: '9px 14px', background: 'var(--surface)', color: 'var(--ink2)',
+          border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13,
+          fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans',
+        }}>
+          📊 Ver resultados
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Encuestas() {
   const { perfil }    = useAuth()
   const navigate      = useNavigate()
@@ -288,6 +350,13 @@ export default function Encuestas() {
   const [vistaCompletadas, setVistaCompletadas] = useState(false)
   const [confirmModal, setConfirmModal] = useState(null) // { id, nombre }
 
+  // Encuestas online — apartado separado dentro de la misma pantalla
+  // "Encuestas" (no comparten fetch, tarjeta ni filtros con las de campo).
+  const [seccion,          setSeccion]          = useState('campo') // 'campo' | 'online'
+  const [encuestasOnline,  setEncuestasOnline]  = useState([])
+  const [loadingOnline,    setLoadingOnline]    = useState(true)
+  const [conteosOnline,    setConteosOnline]    = useState({}) // { [encuesta_id]: total }
+
   const esSuperadmin = perfil?.rol === 'superadmin'
 
   const fetchData = useCallback(async () => {
@@ -296,6 +365,7 @@ export default function Encuestas() {
     try {
       let encQ = supabase.from('encuestas')
         .select('*, config_muestreo, encuesta_zonas(id, nombre, equipo_id, geofencing_activo, orden)')
+        .neq('tipo_encuesta', 'online')
         .order('creado_en', { ascending: false })
       if (!esSuperadmin) encQ = encQ.eq('organizacion_id', perfil.organizacion_id)
 
@@ -325,6 +395,32 @@ export default function Encuestas() {
   }, [perfil, esSuperadmin])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  const fetchOnline = useCallback(async () => {
+    if (!perfil) return
+    setLoadingOnline(true)
+    try {
+      let q = supabase.from('encuestas')
+        .select('id, nombre, descripcion, estado_produccion, creado_en, organizacion_id, subdominio, publicar_desde, publicar_hasta')
+        .eq('tipo_encuesta', 'online')
+        .order('creado_en', { ascending: false })
+      if (!esSuperadmin) q = q.eq('organizacion_id', perfil.organizacion_id)
+      const { data, error } = await q
+      if (error) throw error
+      setEncuestasOnline(data || [])
+
+      if (!esSuperadmin && perfil.organizacion_id) {
+        const { data: conteos } = await supabase.rpc('contar_respuestas_online', { p_org_id: perfil.organizacion_id })
+        setConteosOnline(Object.fromEntries((conteos || []).map(c => [c.encuesta_id, c.total])))
+      }
+    } catch (err) {
+      console.error('Error cargando encuestas online:', err)
+    } finally {
+      setLoadingOnline(false)
+    }
+  }, [perfil, esSuperadmin])
+
+  useEffect(() => { fetchOnline() }, [fetchOnline])
 
   async function handleApprove(id) {
     try {
@@ -373,9 +469,13 @@ export default function Encuestas() {
   const hayFiltrosExtra = filtroOrg || filtroTipo || busqueda
   const inp = { padding: '7px 10px', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontFamily: 'DM Sans', background: 'var(--paper)' }
 
+  const onlineFiltradas = encuestasOnline.filter(e =>
+    !busqueda || e.nombre.toLowerCase().includes(busqueda.toLowerCase())
+  )
+
   return (
     <div className={styles.page}>
-      <Topbar title="Encuestas" action={{ label: '+ Solicitar encuesta', onClick: () => setShowRequest(true) }} />
+      <Topbar title="Encuestas" action={seccion === 'campo' ? { label: '+ Solicitar encuesta', onClick: () => setShowRequest(true) } : null} />
 
       {showRequest && (
         <RequestModal
@@ -399,6 +499,59 @@ export default function Encuestas() {
 
       <div className={styles.content}>
 
+        {/* Apartado — de campo vs. online: lógicas y pantallas distintas
+            (encuestadores/zonas/equipos no existen en una encuesta online) */}
+        <div className={styles.filtroBar} style={{ marginBottom: 14 }}>
+          <button
+            className={`${styles.filtroBtn} ${seccion === 'campo' ? styles.filtroBtnActivo : ''}`}
+            onClick={() => setSeccion('campo')}
+            style={{ fontWeight: seccion === 'campo' ? 700 : 400 }}>
+            De campo
+            <span className={styles.filtroCount}>{encuestas.length}</span>
+          </button>
+          <button
+            className={`${styles.filtroBtn} ${seccion === 'online' ? styles.filtroBtnActivo : ''}`}
+            onClick={() => setSeccion('online')}
+            style={{ fontWeight: seccion === 'online' ? 700 : 400 }}>
+            🌐 Online
+            <span className={styles.filtroCount}>{encuestasOnline.length}</span>
+          </button>
+        </div>
+
+        {seccion === 'online' ? (
+          <>
+            <div style={{ position: 'relative', maxWidth: 340, marginBottom: 14 }}>
+              <input
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                placeholder="Buscar por nombre..."
+                style={{ ...inp, width: '100%', paddingLeft: 32, boxSizing: 'border-box' }}
+              />
+              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink3)', fontSize: 13, pointerEvents: 'none' }}>🔍</span>
+            </div>
+            {loadingOnline ? (
+              <Spinner center size="lg" />
+            ) : onlineFiltradas.length === 0 ? (
+              <div className={styles.empty}>
+                <p>{busqueda ? 'No hay encuestas online que coincidan con la búsqueda.' : 'Todavía no hay encuestas online para esta organización.'}</p>
+              </div>
+            ) : (
+              <div className={styles.grid}>
+                {onlineFiltradas.map(enc => (
+                  <EncuestaCardOnline
+                    key={enc.id}
+                    encuesta={enc}
+                    total={conteosOnline[enc.id]}
+                    mostrarOrg={esSuperadmin}
+                    orgNombre={esSuperadmin ? organizaciones.find(o => o.id === enc.organizacion_id)?.nombre : null}
+                    onView={() => navigate(`/encuestas/online/${enc.id}`)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+        <>
         {/* Filtros extra — búsqueda, org (superadmin), tipo */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
@@ -525,6 +678,8 @@ export default function Encuestas() {
               />
             ))}
           </div>
+        )}
+        </>
         )}
       </div>
     </div>
