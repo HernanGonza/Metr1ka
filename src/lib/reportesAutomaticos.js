@@ -55,14 +55,33 @@ export function buscarPregunta(preguntas, claveBase) {
 export const CLAVES_ESPECIALES = [
   { clave: 'candidato_intendente', label: 'Candidato a intendente' },
   { clave: 'candidato_gobernador', label: 'Candidato a gobernador' },
-  { clave: 'participa',            label: 'Participación (¿va a votar?)' },
+  { clave: 'candidato_presidente', label: 'Candidato a presidente' },
+  // OJO: distinto de 'probabilidad_voto' — esta es la pregunta de
+  // participación DE LA ENCUESTA (¿respondió o no?), no la intención de
+  // voto en la elección. Confundirlas rompe esCompletada() en silencio
+  // (ver reportes_participa_vs_probabilidad_voto, set/2026): esCompletada
+  // exige que la respuesta sea literalmente 'Sí', así que solo una pregunta
+  // si_no puede ir acá — por eso el selector la restringe a ese tipo
+  // (ver TIPOS_ELEGIBLES_POR_CLAVE en ReportesAutomaticos.jsx).
+  { clave: 'participa',            label: 'Participación en la encuesta (¿respondió? Sí/No)' },
   { clave: 'edad',                 label: 'Edad' },
   { clave: 'sexo',                 label: 'Género' },
   { clave: 'nivel_educativo',      label: 'Nivel educativo' },
   { clave: 'situacion_laboral',    label: 'Situación laboral' },
   { clave: 'evaluacion_gestion',   label: 'Evaluación de gestión' },
   { clave: 'problema_principal',   label: 'Principal problema' },
-  { clave: 'probabilidad_voto',    label: 'Probabilidad de voto' },
+  // Intención/certeza de voto en la elección — NO usar para 'participa'.
+  { clave: 'probabilidad_voto',    label: 'Probabilidad de voto en la elección' },
+]
+
+// Cargos con reporte comparativo propio (por zona, competitividad, corte
+// generacional, etc.) — mismo cálculo que para intendente, parametrizado
+// por la clave especial del candidato. Ver REPORTES_DEFS más abajo: por
+// cada entrada de REPORTES_POR_CARGO se generan 2 reportes extra (uno por
+// cargo, además del de intendente que ya existía con su id original).
+export const CARGOS_CANDIDATO = [
+  { clave: 'candidato_gobernador', sufijo: 'gobernador', nombre: 'Gobernador' },
+  { clave: 'candidato_presidente', sufijo: 'presidente', nombre: 'Presidente' },
 ]
 
 // Igual que buscarPregunta, pero antes de la detección automática por
@@ -187,8 +206,11 @@ function reportePorEncuestador(ctx) {
 }
 
 // ── 3. Comparativo de candidatos por zona ──
-function reporteCandidatosPorZona(ctx) {
-  const pCand = preguntaEspecial(ctx, 'candidato_intendente')
+// `claveCand` permite reusar este mismo cálculo para intendente/gobernador/
+// presidente (ver REPORTES_POR_CARGO) — todos son "candidato_* → zona",
+// solo cambia qué pregunta especial se busca.
+function reporteCandidatosPorZona(ctx, claveCand = 'candidato_intendente') {
+  const pCand = preguntaEspecial(ctx, claveCand)
   if (!pCand) return null
   const pParticipa = preguntaEspecial(ctx, 'participa')
   const opciones = opcionesDe(pCand)
@@ -239,6 +261,12 @@ function reporteCompletoPorPreguntaYZona(ctx) {
       const total = Object.values(conteo).reduce((a, b) => a + b, 0)
       const fila = { zona, total }
       ordenOpciones.forEach(op => { fila[op] = conteo[op] || 0 })
+      // _top: opción más votada de esta zona + su % — no es una columna de
+      // la tabla (el key empieza con "_" a propósito), la usa el gráfico de
+      // barras de la sección en ReportesAutomaticos.jsx (una barra por zona
+      // con la opción ganadora, en vez de una barra por cada opción x zona).
+      const topOp = ordenOpciones.reduce((mejor, op) => (fila[op] > (fila[mejor] || 0) ? op : mejor), null)
+      if (topOp && fila[topOp] > 0) fila._top = { opcion: topOp, pct: pct(fila[topOp], total) }
       return fila
     }).sort((a, b) => b.total - a.total)
     return {
@@ -380,10 +408,16 @@ function reporteDemografico(ctx) {
     const filas = Object.entries(porZona).map(([zona, conteo]) => {
       const total = Object.values(conteo).reduce((a, b) => a + b, 0)
       const fila = { zona, total }
+      let topOp = null
       opciones.forEach(op => {
         const n = conteo[op] || 0
         fila[op] = `${n} (${pct(n, total)}%)`
+        if (n > (conteo[topOp] || 0)) topOp = op
       })
+      // _top, igual que en reporteCompletoPorPreguntaYZona: categoría más
+      // frecuente de esta zona + su %, para el gráfico de barras (no es
+      // columna de tabla).
+      if (topOp && conteo[topOp] > 0) fila._top = { opcion: topOp, pct: pct(conteo[topOp], total) }
       return fila
     }).sort((a, b) => b.total - a.total)
     if (filas.length) {
@@ -398,8 +432,8 @@ function reporteDemografico(ctx) {
 }
 
 // ── 10. Intención de voto cruzada con perfil — candidato x edad x género ──
-function reporteVotoPorPerfil(ctx) {
-  const pCand  = preguntaEspecial(ctx, 'candidato_intendente')
+function reporteVotoPorPerfil(ctx, claveCand = 'candidato_intendente') {
+  const pCand  = preguntaEspecial(ctx, claveCand)
   const pEdad  = preguntaEspecial(ctx, 'edad')
   const pSexo  = preguntaEspecial(ctx, 'sexo')
   if (!pCand || (!pEdad && !pSexo)) return null
@@ -508,6 +542,7 @@ function reporteResumenEjecutivo(ctx) {
 
   const pIntendente = preguntaEspecial(ctx, 'candidato_intendente')
   const pGobernador = preguntaEspecial(ctx, 'candidato_gobernador')
+  const pPresidente = preguntaEspecial(ctx, 'candidato_presidente')
   const pGestion    = preguntaEspecial(ctx, 'evaluacion_gestion')
   const pProblema   = preguntaEspecial(ctx, 'problema_principal')
 
@@ -540,6 +575,7 @@ function reporteResumenEjecutivo(ctx) {
     tasaParticipacion: pct(completadas, total),
     candidatoIntendente: pIntendente ? topN(pIntendente, ctx, pParticipa, 3) : null,
     candidatoGobernador: pGobernador ? topN(pGobernador, ctx, pParticipa, 2) : null,
+    candidatoPresidente: pPresidente ? topN(pPresidente, ctx, pParticipa, 2) : null,
     evaluacionGestion,
     problemaPrincipal: pProblema ? topN(pProblema, ctx, pParticipa, 3) : null,
   }
@@ -558,8 +594,8 @@ function nivelCompetitividad(diff) {
   return NIVELES_COMPETITIVIDAD.find(n => diff < n.max) || NIVELES_COMPETITIVIDAD[NIVELES_COMPETITIVIDAD.length - 1]
 }
 
-function reporteCompetitividadZona(ctx) {
-  const pCand = preguntaEspecial(ctx, 'candidato_intendente')
+function reporteCompetitividadZona(ctx, claveCand = 'candidato_intendente') {
+  const pCand = preguntaEspecial(ctx, claveCand)
   if (!pCand) return null
   const pParticipa = preguntaEspecial(ctx, 'participa')
   const opciones = opcionesDe(pCand)
@@ -607,8 +643,8 @@ function reporteCompetitividadZona(ctx) {
 
 // ── 13. Agenda temática por zona — candidato ganador + principal problema
 //        de cada zona, agrupados en un resumen por candidato ganador ──
-function reporteAgendaTematica(ctx) {
-  const pCand = preguntaEspecial(ctx, 'candidato_intendente')
+function reporteAgendaTematica(ctx, claveCand = 'candidato_intendente') {
+  const pCand = preguntaEspecial(ctx, claveCand)
   const pProblema = preguntaEspecial(ctx, 'problema_principal')
   if (!pCand || !pProblema) return null
   const pParticipa = preguntaEspecial(ctx, 'participa')
@@ -666,8 +702,8 @@ function reporteAgendaTematica(ctx) {
 
 // ── 14. Corte generacional — candidato x grupo etario, tabla de
 //        contingencia con totales + matriz en % para el gráfico apilado ──
-function reporteCorteGeneracional(ctx) {
-  const pCand = preguntaEspecial(ctx, 'candidato_intendente')
+function reporteCorteGeneracional(ctx, claveCand = 'candidato_intendente') {
+  const pCand = preguntaEspecial(ctx, claveCand)
   const pEdad = preguntaEspecial(ctx, 'edad')
   if (!pCand || !pEdad) return null
   const pParticipa = preguntaEspecial(ctx, 'participa')
@@ -786,11 +822,11 @@ function reglaGestionVsVoto(ctx, pParticipa) {
   }
 }
 
-// Regla 2 requiere clave_base 'probabilidad_voto', que hoy no está entre las
-// opciones de CLAVE_BASE_OPCIONES (EncuestaBuilder.jsx) — queda lista para
-// cuando se agregue esa opción; hasta entonces `buscarPregunta` no la
-// encuentra y la regla se omite sola (mismo criterio del resto del archivo:
-// nunca crashear, mostrar solo lo que aplica a la encuesta actual).
+// Regla 2 requiere clave_base 'probabilidad_voto' (ya en CLAVE_BASE_OPCIONES,
+// EncuestaBuilder.jsx) o el override manual equivalente — si la encuesta no
+// la tiene taggeada, `preguntaEspecial` no la encuentra y la regla se omite
+// sola (mismo criterio del resto del archivo: nunca crashear, mostrar solo
+// lo que aplica a la encuesta actual).
 function reglaProbabilidadVsVoto(ctx, pParticipa) {
   const pProb = preguntaEspecial(ctx, 'probabilidad_voto')
   const pCand = preguntaEspecial(ctx, 'candidato_intendente')
@@ -996,8 +1032,8 @@ function distribucionSobre(filas, pregunta, opciones) {
   return opciones.filter(o => conteo[o]).map(o => ({ opcion: o, pct: pct(conteo[o], total) })).sort((a, b) => b.pct - a.pct)
 }
 
-function reportePerfilVotante(ctx) {
-  const pCand = preguntaEspecial(ctx, 'candidato_intendente')
+function reportePerfilVotante(ctx, claveCand = 'candidato_intendente') {
+  const pCand = preguntaEspecial(ctx, claveCand)
   if (!pCand) return null
   const pParticipa = preguntaEspecial(ctx, 'participa')
   const pEdad = preguntaEspecial(ctx, 'edad')
@@ -1059,28 +1095,82 @@ function reportePerfilVotante(ctx) {
 // online, que no tiene ninguno de los dos conceptos (ver
 // ReportesAutomaticos.jsx, prop `tipoEncuesta`). El resto solo usa
 // `ctx.crudo`/`ctx.preguntas` y funciona igual para los dos tipos.
-export const REPORTES_DEFS = [
-  { id: 'por_zona',            titulo: 'Por zona',                          descripcion: 'Completadas por zona, orden desc.', soloCampo: true },
-  { id: 'por_encuestador',     titulo: 'Por encuestador',                   descripcion: 'Completadas por encuestador, orden desc.', soloCampo: true },
-  { id: 'candidatos_zona',     titulo: 'Comparativo de candidatos por zona', descripcion: 'Requiere pregunta "Candidato a intendente".', soloCampo: true },
-  { id: 'completo_pregunta_zona', titulo: 'Completo por pregunta y zona',   descripcion: 'Todas las preguntas de opciones, desglosadas por zona.', soloCampo: true },
-  { id: 'no_respuesta_zona',   titulo: 'No-respuesta por zona',             descripcion: 'Tasa de rechazo por zona.', soloCampo: true },
-  { id: 'actividad_encuestador', titulo: 'Actividad por encuestador',       descripcion: 'Completadas, no-respuesta y tasa de rechazo.', soloCampo: true },
-  { id: 'evolucion_horaria',   titulo: 'Evolución horaria',                 descripcion: 'Completadas acumuladas por hora (ARG, UTC-3).' },
-  { id: 'distribucion_geo',    titulo: 'Distribución geográfica',           descripcion: 'Sesiones por zona con lat/lng promedio.', soloCampo: true },
-  { id: 'perfil_demografico',  titulo: 'Perfil demográfico',                descripcion: 'Edad / género / nivel educativo / situación laboral por zona.', soloCampo: true },
-  { id: 'voto_por_perfil',     titulo: 'Intención de voto cruzada con perfil', descripcion: 'Candidato x edad x género. Requiere candidato + edad o género.' },
-  { id: 'resumen_ejecutivo',   titulo: 'Resumen ejecutivo',                 descripcion: 'Una carilla con los indicadores clave, para entregar a un cliente en 30 segundos.' },
-  { id: 'competitividad_zona', titulo: 'Competitividad por zona',           descripcion: 'Diferencia entre 1° y 2° candidato en cada zona, con nivel de reñidez.', soloCampo: true },
-  { id: 'agenda_tematica',     titulo: 'Agenda temática por zona',          descripcion: 'Candidato ganador y principal problema de cada zona, agrupado por candidato.', soloCampo: true },
-  { id: 'corte_generacional',  titulo: 'Corte generacional',                descripcion: 'Candidato x grupo etario, tabla de contingencia y barras apiladas.' },
-  { id: 'indice_participacion', titulo: 'Índice de participación por zona', descripcion: 'Tasa de participación por zona, como indicador de subrepresentación.', soloCampo: true },
-  { id: 'consistencia_interna', titulo: 'Consistencia interna',             descripcion: 'Sesiones con combinaciones de respuestas incoherentes.' },
-  { id: 'evolucion_encuestador', titulo: 'Evolución de operativo por encuestador', descripcion: 'Franja de mayor actividad, horas activo y ritmo entre sesiones.', soloCampo: true },
-  { id: 'mapa_tematico',       titulo: 'Mapa de calor temático completo',   descripcion: 'Opción ganadora por zona, una sección por pregunta.', soloCampo: true },
-  { id: 'no_respuesta_geo',    titulo: 'No-respuesta geográfica',           descripcion: 'Tasa de rechazo por zona con interpretación automática.', soloCampo: true },
-  { id: 'perfil_votante',      titulo: 'Perfil del votante por candidato',  descripcion: 'Para cada candidato con ≥5 votos, quién lo vota (edad, género, educación, situación laboral).' },
+// `categoria` agrupa la grilla de reportes en ReportesAutomaticos.jsx (antes
+// era una sola grilla con los 32 mezclados — con intendente/gobernador/
+// presidente por separado, más fácil encontrar el que se necesita). El
+// orden de CATEGORIAS_ORDEN más abajo es el orden en que se muestran los
+// grupos en pantalla.
+const REPORTES_DEFS_BASE = [
+  { id: 'resumen_ejecutivo',   categoria: 'Resumen',    titulo: 'Resumen ejecutivo',                 descripcion: 'Una carilla con los indicadores clave (intendente, gobernador y presidente si están cargados), para entregar a un cliente en 30 segundos.' },
+
+  { id: 'por_zona',            categoria: 'Operativo',  titulo: 'Por zona',                          descripcion: 'Completadas por zona, orden desc.', soloCampo: true },
+  { id: 'por_encuestador',     categoria: 'Operativo',  titulo: 'Por encuestador',                   descripcion: 'Completadas por encuestador, orden desc.', soloCampo: true },
+  { id: 'no_respuesta_zona',   categoria: 'Operativo',  titulo: 'No-respuesta por zona',             descripcion: 'Tasa de rechazo por zona.', soloCampo: true },
+  { id: 'actividad_encuestador', categoria: 'Operativo', titulo: 'Actividad por encuestador',        descripcion: 'Completadas, no-respuesta y tasa de rechazo.', soloCampo: true },
+  { id: 'evolucion_horaria',   categoria: 'Operativo',  titulo: 'Evolución horaria',                 descripcion: 'Completadas acumuladas por hora (ARG, UTC-3).' },
+  { id: 'distribucion_geo',    categoria: 'Operativo',  titulo: 'Distribución geográfica',           descripcion: 'Sesiones por zona con lat/lng promedio.', soloCampo: true },
+  { id: 'indice_participacion', categoria: 'Operativo', titulo: 'Índice de participación por zona',  descripcion: 'Tasa de participación por zona, como indicador de subrepresentación.', soloCampo: true },
+  { id: 'consistencia_interna', categoria: 'Operativo', titulo: 'Consistencia interna',              descripcion: 'Sesiones con combinaciones de respuestas incoherentes.' },
+  { id: 'evolucion_encuestador', categoria: 'Operativo', titulo: 'Evolución de operativo por encuestador', descripcion: 'Franja de mayor actividad, horas activo y ritmo entre sesiones.', soloCampo: true },
+  { id: 'no_respuesta_geo',    categoria: 'Operativo',  titulo: 'No-respuesta geográfica',           descripcion: 'Tasa de rechazo por zona con interpretación automática.', soloCampo: true },
+
+  { id: 'candidatos_zona',     categoria: 'Intendente', titulo: 'Comparativo de candidatos a intendente por zona', descripcion: 'Requiere pregunta "Candidato a intendente".', soloCampo: true },
+  { id: 'competitividad_zona', categoria: 'Intendente', titulo: 'Competitividad por zona — Intendente', descripcion: 'Diferencia entre 1° y 2° candidato a intendente en cada zona, con nivel de reñidez.', soloCampo: true },
+  { id: 'agenda_tematica',     categoria: 'Intendente', titulo: 'Agenda temática por zona — Intendente', descripcion: 'Candidato a intendente ganador y principal problema de cada zona, agrupado por candidato.', soloCampo: true },
+  { id: 'corte_generacional',  categoria: 'Intendente', titulo: 'Corte generacional — Intendente',   descripcion: 'Candidato a intendente x grupo etario, con barras por grupo.' },
+  { id: 'voto_por_perfil',     categoria: 'Intendente', titulo: 'Intención de voto cruzada con perfil — Intendente', descripcion: 'Candidato a intendente x edad x género. Requiere candidato + edad o género.' },
+  { id: 'perfil_votante',      categoria: 'Intendente', titulo: 'Perfil del votante por candidato — Intendente', descripcion: 'Para cada candidato a intendente con ≥5 votos, quién lo vota (edad, género, educación, situación laboral).' },
+
+  { id: 'completo_pregunta_zona', categoria: 'General', titulo: 'Completo por pregunta y zona',      descripcion: 'Todas las preguntas de opciones, desglosadas por zona.', soloCampo: true },
+  { id: 'perfil_demografico',  categoria: 'General',    titulo: 'Perfil demográfico',                descripcion: 'Edad / género / nivel educativo / situación laboral por zona.', soloCampo: true },
+  { id: 'mapa_tematico',       categoria: 'General',    titulo: 'Mapa de calor temático completo',   descripcion: 'Opción ganadora por zona, una sección por pregunta.', soloCampo: true },
 ]
+
+// Orden de las categorías en la grilla — las que no están acá (no debería
+// pasar, pero por si se agrega un reporte nuevo sin categoría) van al final
+// en el orden en que aparecen.
+export const CATEGORIAS_ORDEN = ['Resumen', 'Operativo', 'Intendente', 'Gobernador', 'Presidente', 'General']
+
+// Reportes que existen "por cargo" — intendente ya está arriba con su id
+// original (no se toca, para no romper nada que lo referencie por ese id
+// exacto); acá solo se generan las variantes de gobernador/presidente,
+// reusando el mismo cálculo parametrizado por claveCand (ver
+// reporteCandidatosPorZona, reporteCompetitividadZona, etc. más arriba).
+const REPORTES_POR_CARGO = [
+  { base: 'candidatos_zona',     soloCampo: true,
+    titulo: cargo => `Comparativo de candidatos a ${cargo.toLowerCase()} por zona`,
+    descripcion: cargo => `Requiere pregunta "Candidato a ${cargo.toLowerCase()}".` },
+  { base: 'competitividad_zona', soloCampo: true,
+    titulo: cargo => `Competitividad por zona — ${cargo}`,
+    descripcion: cargo => `Diferencia entre 1° y 2° candidato a ${cargo.toLowerCase()} en cada zona, con nivel de reñidez.` },
+  { base: 'agenda_tematica',     soloCampo: true,
+    titulo: cargo => `Agenda temática por zona — ${cargo}`,
+    descripcion: cargo => `Candidato a ${cargo.toLowerCase()} ganador y principal problema de cada zona, agrupado por candidato.` },
+  { base: 'corte_generacional',  soloCampo: false,
+    titulo: cargo => `Corte generacional — ${cargo}`,
+    descripcion: cargo => `Candidato a ${cargo.toLowerCase()} x grupo etario, con barras por grupo.` },
+  { base: 'voto_por_perfil',     soloCampo: false,
+    titulo: cargo => `Intención de voto cruzada con perfil — ${cargo}`,
+    descripcion: cargo => `Candidato a ${cargo.toLowerCase()} x edad x género. Requiere candidato + edad o género.` },
+  { base: 'perfil_votante',      soloCampo: false,
+    titulo: cargo => `Perfil del votante por candidato — ${cargo}`,
+    descripcion: cargo => `Para cada candidato a ${cargo.toLowerCase()} con ≥5 votos, quién lo vota (edad, género, educación, situación laboral).` },
+]
+
+export const REPORTES_DEFS = [
+  ...REPORTES_DEFS_BASE,
+  ...CARGOS_CANDIDATO.flatMap(cargo => REPORTES_POR_CARGO.map(r => ({
+    id: `${r.base}_${cargo.sufijo}`,
+    categoria: cargo.nombre,
+    titulo: r.titulo(cargo.nombre),
+    descripcion: r.descripcion(cargo.nombre),
+    soloCampo: r.soloCampo,
+  }))),
+]
+
+// Mapa sufijo de id ('_gobernador' / '_presidente') → clave especial del
+// candidato correspondiente, derivado de CARGOS_CANDIDATO.
+const CARGO_POR_SUFIJO = Object.fromEntries(CARGOS_CANDIDATO.map(c => [c.sufijo, c.clave]))
 
 // ctx = { preguntas, statsZona, crudo }
 // Devuelve null si el reporte no aplica a esta encuesta (p. ej. no tiene
@@ -1107,6 +1197,23 @@ export function calcularReporte(id, ctx) {
     case 'mapa_tematico':          return reporteMapaTematicoCompleto(ctx)
     case 'no_respuesta_geo':       return reporteNoRespuestaGeografica(ctx)
     case 'perfil_votante':         return reportePerfilVotante(ctx)
-    default:                       return null
   }
+
+  // Variantes por cargo (gobernador/presidente), generadas en
+  // REPORTES_POR_CARGO — mismo cálculo que la versión de intendente de
+  // arriba, parametrizado con la clave especial del candidato que toque.
+  const m = /^(.+)_(gobernador|presidente)$/.exec(id)
+  if (m) {
+    const claveCand = CARGO_POR_SUFIJO[m[2]]
+    switch (m[1]) {
+      case 'candidatos_zona':      return reporteCandidatosPorZona(ctx, claveCand)
+      case 'competitividad_zona':  return reporteCompetitividadZona(ctx, claveCand)
+      case 'agenda_tematica':      return reporteAgendaTematica(ctx, claveCand)
+      case 'corte_generacional':   return reporteCorteGeneracional(ctx, claveCand)
+      case 'voto_por_perfil':      return reporteVotoPorPerfil(ctx, claveCand)
+      case 'perfil_votante':       return reportePerfilVotante(ctx, claveCand)
+      default:                     return null
+    }
+  }
+  return null
 }

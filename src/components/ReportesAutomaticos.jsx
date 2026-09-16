@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { REPORTES_DEFS, calcularReporte, PALETA_REPORTES, CLAVES_ESPECIALES, buscarPregunta } from '../lib/reportesAutomaticos'
+import { REPORTES_DEFS, CATEGORIAS_ORDEN, calcularReporte, PALETA_REPORTES, CLAVES_ESPECIALES, buscarPregunta } from '../lib/reportesAutomaticos'
 import { generarPDF } from '../lib/generarPDF'
 import { Select } from './ui'
 
@@ -53,32 +53,19 @@ function graficoLineaSVG(filas) {
   </svg>`
 }
 
-// Barras apiladas SVG — "Corte generacional" (14): una barra por grupo
-// etario, apilada por candidato, en % (matrizPct ya viene calculado así).
-function svgBarrasApiladas({ grupos, candidatos, matrizPct }) {
-  const w = Math.max(420, grupos.length * 100), h = 260, pad = 40, legendH = 30
-  const anchoGrupo = (w - pad * 2) / grupos.length
-  const barW = Math.min(60, anchoGrupo - 20)
-  const altoChart = h - pad * 2 - legendH
-  const bars = matrizPct.map((g, i) => {
-    const cx = pad + i * anchoGrupo + anchoGrupo / 2
-    let acumulado = 0
-    const rects = g.valores.map((v, ci) => {
-      const alto = (v / 100) * altoChart
-      const y = h - pad - acumulado - alto
-      acumulado += alto
-      return `<rect x="${(cx - barW / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${barW}" height="${alto.toFixed(1)}" fill="${PALETA_REPORTES[ci % PALETA_REPORTES.length]}"/>`
-    }).join('')
-    return `${rects}<text x="${cx.toFixed(1)}" y="${h - pad + 14}" font-size="9" fill="#888" text-anchor="middle">${String(g.grupo).slice(0, 14)}</text>`
-  }).join('')
-  const legend = candidatos.map((c, i) => `<g transform="translate(${pad + i * 140},${legendH - 16})">
-    <rect width="10" height="10" fill="${PALETA_REPORTES[i % PALETA_REPORTES.length]}"/><text x="14" y="9" font-size="10" fill="#555">${String(c).slice(0, 18)}</text>
-  </g>`).join('')
-  return `<svg width="${w}" height="${h}" style="margin-bottom:18px">
-    <line x1="${pad}" y1="${h - pad}" x2="${w - pad}" y2="${h - pad}" stroke="#e5e7eb"/>
-    ${bars}
-    ${legend}
-  </svg>`
+// Barras horizontales por grupo etario SVG — "Corte generacional" (14): un
+// bloque de barras (una por candidato) por cada grupo etario. Antes eran
+// apiladas (un segmento por candidato dentro de la misma barra) — se
+// cambió a barras separadas por pedido explícito ("no quiero barras
+// apiladas"), mismo widget que usan candidatos_zona/competitividad_zona
+// (filaBarra), solo que agrupado por grupo etario en vez de por zona.
+function corteGeneracionalBarrasHTML({ candidatos, matrizPct }) {
+  if (!matrizPct?.length) return ''
+  return `<div style="margin-bottom:14px">${matrizPct.map(g => `
+    <div style="margin-bottom:16px">
+      <div style="font-size:13px;font-weight:700;color:#1a472a;margin-bottom:6px">${g.grupo}</div>
+      ${candidatos.map((c, i) => filaBarra(c, g.valores[i], PALETA_REPORTES[i % PALETA_REPORTES.length])).join('')}
+    </div>`).join('')}</div>`
 }
 
 // Múltiples líneas SVG — "Evolución por encuestador" (17): una serie por
@@ -124,12 +111,87 @@ function barraSVG(pct, color, width = 280, height = 16) {
   </svg>`
 }
 
-function filaBarra(nombre, pct, color) {
+// Fila de barra genérica — `valor` no tiene por qué ser un porcentaje de
+// 100 (ej. cantidad de completadas): el ancho de la barra es `valor/max`,
+// y el número mostrado es `valor` + `sufijo` tal cual. `filaBarra` (abajo)
+// es el caso particular de siempre-porcentaje que ya usaban resumen
+// ejecutivo / perfil votante / candidatos por zona.
+function filaBarraValor(nombre, valor, max, color, sufijo = '') {
+  const anchoPct = max > 0 ? Math.min(100, Math.round((valor / max) * 100)) : 0
   return `<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
     <div style="width:200px;font-size:14px;font-weight:600;text-align:right">${nombre}</div>
-    ${barraSVG(pct, color)}
-    <div style="width:50px;font-size:15px;font-weight:800;color:${color}">${pct}%</div>
+    ${barraSVG(anchoPct, color)}
+    <div style="width:60px;font-size:15px;font-weight:800;color:${color}">${valor}${sufijo}</div>
   </div>`
+}
+
+function filaBarra(nombre, pct, color) {
+  return filaBarraValor(nombre, pct, 100, color, '%')
+}
+
+// Gráfico de barras genérico — una fila por elemento de `filas`, leyendo
+// `labelKey`/`valorKey`. Sin `opts.max` usa el mayor valor del propio
+// conjunto (para cantidades tipo "completadas"); con `opts.max: 100` y
+// `opts.sufijo: '%'` sirve para tasas/porcentajes. Cubre los reportes que
+// son "una fila = una zona/encuestador/regla + un número" (por_zona,
+// por_encuestador, no_respuesta_zona, actividad_encuestador,
+// distribucion_geo, indice_participacion, no_respuesta_geo).
+function barChartHTML(filas, labelKey, valorKey, opts = {}) {
+  if (!filas?.length) return ''
+  const { sufijo = '', max, colores, color = '#1a472a' } = opts
+  const m = max ?? Math.max(...filas.map(f => Number(f[valorKey]) || 0), 1)
+  return `<div style="margin-bottom:14px">${
+    filas.map((f, i) => filaBarraValor(f[labelKey], f[valorKey], m, colores ? colores[i % colores.length] : color, sufijo)).join('')
+  }</div>`
+}
+
+// Normaliza las filas de una sección "zona × opciones" (completo_pregunta_zona,
+// perfil_demografico: usan `_top`; mapa_tematico: ya trae opcion_ganadora/pct
+// directo) a {zona, pct} con la opción ganadora en el label — una barra por
+// zona en vez de una barra por cada opción x zona (eso sería ilegible con
+// muchas opciones).
+function normalizarTop(filas) {
+  return (filas || []).map(f => {
+    const opcion = f._top?.opcion ?? f.opcion_ganadora
+    const valor = f._top?.pct ?? f.pct
+    return { zona: opcion ? `${f.zona} — ${opcion}` : f.zona, pct: valor }
+  })
+}
+
+// Barras de "Intención de voto cruzada con perfil" — una fila = un perfil
+// (género/edad), con una barra por candidato dentro de ese perfil. Los
+// valores en `resultado.filas` son conteos crudos (no %), por eso se
+// recalcula el % sobre el total de cada fila acá mismo.
+function votoPorPerfilBarrasHTML({ columnas, filas }) {
+  const candidatoKeys = (columnas || []).map(c => c.key).filter(k => k !== 'perfil' && k !== 'total')
+  if (!candidatoKeys.length || !filas?.length) return ''
+  return filas.map(f => `<div style="margin-bottom:16px">
+    <div style="font-size:13px;font-weight:700;color:#1a472a;margin-bottom:6px">${f.perfil}</div>
+    ${candidatoKeys.map((c, i) => filaBarra(c, f.total > 0 ? Math.round((f[c] / f.total) * 1000) / 10 : 0, PALETA_REPORTES[i % PALETA_REPORTES.length])).join('')}
+  </div>`).join('')
+}
+
+// Barras para una sección de "candidatos por zona" (candidatos_zona y sus
+// variantes _gobernador/_presidente) — una fila por candidato de esa zona,
+// mismo widget que el resumen ejecutivo (filaBarra), coloreado con
+// PALETA_REPORTES para diferenciar candidatos dentro de la sección.
+function seccionBarrasHTML(filas) {
+  if (!filas?.length) return ''
+  return `<div style="margin-bottom:14px">${
+    filas.map((f, i) => filaBarra(f.candidato, f.porcentaje, PALETA_REPORTES[i % PALETA_REPORTES.length])).join('')
+  }</div>`
+}
+
+// Barras para "Competitividad por zona" — 1° y 2° candidato de cada zona,
+// agrupados bajo el nombre de la zona (a diferencia de seccionBarrasHTML,
+// acá todas las zonas van en el mismo reporte, no una por sección).
+function competitividadBarrasHTML(filas) {
+  if (!filas?.length) return ''
+  return filas.map(f => `<div style="margin-bottom:14px">
+    <div style="font-size:13px;font-weight:700;color:#1a472a;margin-bottom:4px">${f.zona}</div>
+    ${filaBarra(f.candidato1, f.pct1, '#1a472a')}
+    ${f.candidato2 && f.candidato2 !== '—' ? filaBarra(f.candidato2, f.pct2, '#52B788') : ''}
+  </div>`).join('')
 }
 
 // Resumen ejecutivo — una sola carilla, fuente grande, sin tablas
@@ -150,6 +212,9 @@ function cuerpoResumenEjecutivo(r) {
   }
   if (r.candidatoGobernador) {
     bloques.push(`<div class="sec">Intención de voto — Gobernador</div>${r.candidatoGobernador.top.map((c, i) => filaBarra(c.nombre, c.pct, ['#1a472a', '#52B788'][i] || '#94a3b8')).join('')}`)
+  }
+  if (r.candidatoPresidente) {
+    bloques.push(`<div class="sec">Intención de voto — Presidente</div>${r.candidatoPresidente.top.map((c, i) => filaBarra(c.nombre, c.pct, ['#1a472a', '#52B788'][i] || '#94a3b8')).join('')}`)
   }
   if (r.evaluacionGestion) {
     const ev = r.evaluacionGestion
@@ -186,6 +251,7 @@ function cuerpoConsistenciaInterna(r) {
     <div class="sec">${regla.nombre}</div>
     <div class="callout">${regla.descripcion}</div>
     <div style="font-size:13px;margin-bottom:10px"><b>${regla.cantidad}</b> sesión${regla.cantidad === 1 ? '' : 'es'} afectada${regla.cantidad === 1 ? '' : 's'} (${regla.pct}% del total de completadas).</div>
+    ${filaBarra('Afectadas', regla.pct, '#c0392b')}
     ${regla.muestra.length ? `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px">
       <thead><tr style="background:#f3f4f6"><th style="text-align:left">Zona</th><th style="text-align:left">Encuestador</th></tr></thead>
       <tbody>${regla.muestra.map((m, i) => `<tr style="background:${i % 2 === 0 ? '#fff' : '#fafaf8'}"><td>${m.zona}</td><td>${m.encuestador}</td></tr>`).join('')}</tbody>
@@ -214,6 +280,22 @@ function cuerpoPerfilVotante(r) {
   return callout + secciones
 }
 
+// Reportes "una fila = zona/encuestador/regla + un número" — mapeo directo
+// a barChartHTML/BarChart, sin lógica especial. Los que no están acá
+// (candidatos_zona*, competitividad_zona*, agenda_tematica*,
+// corte_generacional*, voto_por_perfil*, evolucion_horaria,
+// evolucion_encuestador) tienen su propio gráfico porque su forma de datos
+// no entra en "label + valor" simple.
+const GRAFICO_SIMPLE_POR_ID = {
+  por_zona:              { labelKey: 'zona',        valorKey: 'completadas' },
+  por_encuestador:       { labelKey: 'encuestador',  valorKey: 'completadas' },
+  no_respuesta_zona:     { labelKey: 'zona',         valorKey: 'tasa', sufijo: '%', max: 100 },
+  actividad_encuestador: { labelKey: 'encuestador',  valorKey: 'completadas' },
+  distribucion_geo:      { labelKey: 'zona',         valorKey: 'total' },
+  indice_participacion:  { labelKey: 'zona',         valorKey: 'tasa', sufijo: '%', max: 100 },
+  no_respuesta_geo:      { labelKey: 'zona',         valorKey: 'tasa', sufijo: '%', max: 100 },
+}
+
 function generarHTMLReporte(def, resultado, encuesta) {
   const fecha = new Date().toLocaleString('es-AR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
@@ -234,20 +316,56 @@ function generarHTMLReporte(def, resultado, encuesta) {
           resultado.secciones.map((s, i) => `<a href="#preg${i}" style="color:#1a472a;margin-right:12px">${i + 1}. ${s.titulo}</a>`).join('')
         }</div>`
       : ''
-    cuerpo = indice + resultado.secciones.map((s, i) =>
-      `<div class="sec" id="preg${i}">${s.titulo}</div>${tablaHTML(s)}`
-    ).join('')
+    // candidatos_zona (e intendente/gobernador/presidente): cada sección es
+    // una zona con {candidato, votos, porcentaje} — barra por candidato.
+    // completo_pregunta_zona/perfil_demografico/mapa_tematico: cada sección
+    // es zona × muchas opciones — una barra por zona con la opción ganadora
+    // (normalizarTop), no una barra por cada opción x zona (ilegible).
+    const conBarrasCandidato = def.id.startsWith('candidatos_zona')
+    const conBarrasTop = ['completo_pregunta_zona', 'perfil_demografico', 'mapa_tematico'].includes(def.id)
+    cuerpo = indice + resultado.secciones.map((s, i) => {
+      const grafico = conBarrasCandidato ? seccionBarrasHTML(s.filas)
+        : conBarrasTop ? barChartHTML(normalizarTop(s.filas), 'zona', 'pct', { sufijo: '%', max: 100 })
+        : ''
+      return `<div class="sec" id="preg${i}">${s.titulo}</div>${grafico}${tablaHTML(s)}`
+    }).join('')
   } else {
     // Callout con la síntesis en texto (competitividad_zona, agenda_tematica,
     // indice_participacion, no_respuesta_geo) — antes que nada.
     const callout = resultado.sintesis ? `<div class="callout">${resultado.sintesis}</div>` : ''
     let grafico = ''
     if (def.id === 'evolucion_horaria') grafico = graficoLineaSVG(resultado.filas)
-    else if (def.id === 'corte_generacional') grafico = svgBarrasApiladas(resultado)
+    // corte_generacional_gobernador / _presidente comparten esta misma
+    // forma de resultado (matrizPct) — ver REPORTES_POR_CARGO en
+    // reportesAutomaticos.js — así que el chequeo es por prefijo, no id exacto.
+    else if (def.id.startsWith('corte_generacional')) grafico = corteGeneracionalBarrasHTML(resultado)
     else if (def.id === 'evolucion_encuestador') grafico = svgLineasEncuestadores(resultado.series)
-    // agenda_tematica: tabla-resumen por candidato ganador antes del
-    // detalle zona x zona.
-    const resumen = def.id === 'agenda_tematica' ? tablaResumenAgendaHTML(resultado.resumenPorCandidato) : ''
+    // competitividad_zona (e intendente/gobernador/presidente): 1° vs 2°
+    // candidato de cada zona, mismo widget de barras que candidatos_zona.
+    else if (def.id.startsWith('competitividad_zona')) grafico = competitividadBarrasHTML(resultado.filas)
+    // agenda_tematica (e intendente/gobernador/presidente): barra por zona
+    // con el candidato ganador de esa zona (debajo del resumen general).
+    else if (def.id.startsWith('agenda_tematica')) {
+      grafico = barChartHTML(
+        (resultado.filas || []).map(f => ({ zona: `${f.zona} — ${f.candidato_ganador}`, pct: f.pct_candidato })),
+        'zona', 'pct', { sufijo: '%', max: 100 }
+      )
+    }
+    // voto_por_perfil (e intendente/gobernador/presidente): una barra por
+    // candidato, agrupadas por perfil (género/edad).
+    else if (def.id.startsWith('voto_por_perfil')) grafico = votoPorPerfilBarrasHTML(resultado)
+    // GRAFICO_SIMPLE_POR_ID: el resto de los reportes "zona/encuestador + un
+    // número" (por_zona, no_respuesta_zona, etc. — ver el mapa más arriba).
+    else if (GRAFICO_SIMPLE_POR_ID[def.id]) {
+      const { labelKey, valorKey, sufijo, max } = GRAFICO_SIMPLE_POR_ID[def.id]
+      grafico = barChartHTML(resultado.filas, labelKey, valorKey, { sufijo, max })
+    }
+    // agenda_tematica (y sus variantes _gobernador/_presidente): tabla-resumen
+    // por candidato ganador + sus barras, antes del detalle zona x zona.
+    const resumen = def.id.startsWith('agenda_tematica')
+      ? tablaResumenAgendaHTML(resultado.resumenPorCandidato) +
+        seccionBarrasHTML((resultado.resumenPorCandidato || []).map(r => ({ candidato: r.candidato, porcentaje: r.pct })))
+      : ''
     cuerpo = callout + resumen + grafico + tablaHTML(resultado)
   }
 
@@ -278,6 +396,17 @@ ${cuerpo}
 // tratar una pregunta como "de opciones" (ver opcionesDe/EXCLUIR).
 const TIPOS_ELEGIBLES = ['si_no', 'escala', 'opcion_multiple']
 
+// 'participa' es un caso especial: esCompletada() en reportesAutomaticos.js
+// compara la respuesta con el literal 'Sí', así que solo una pregunta
+// si_no puede cumplir ese rol — cualquier otro tipo rompe en silencio TODOS
+// los reportes que dependen de `crudo` (candidatos, perfil, competitividad,
+// etc.), no solo el que se esté mirando. Pasó en producción (San Ignacio,
+// set/2026): se asignó ahí la pregunta de "probabilidad de voto en la
+// elección" por error, que es un concepto distinto (ver CLAVES_ESPECIALES
+// en reportesAutomaticos.js) y no tiene respuestas 'Sí'/'No'.
+const TIPOS_ELEGIBLES_POR_CLAVE = { participa: ['si_no'] }
+function tiposElegiblesPara(clave) { return TIPOS_ELEGIBLES_POR_CLAVE[clave] || TIPOS_ELEGIBLES }
+
 function claveOverrides(encuestaId) {
   return `metr1ka:overridesEspeciales:${encuestaId}`
 }
@@ -289,7 +418,6 @@ function claveOverrides(encuestaId) {
 // encuesta" aunque la data exista (ver preguntaEspecial en reportesAutomaticos.js).
 function PanelPreguntasEspeciales({ preguntas, overrides, setOverrides }) {
   const [abierto, setAbierto] = useState(false)
-  const elegibles = useMemo(() => (preguntas || []).filter(p => TIPOS_ELEGIBLES.includes(p.tipo)), [preguntas])
 
   return (
     // OJO: sin overflow:hidden acá — recortaba el desplegable del Select cuando
@@ -312,6 +440,7 @@ function PanelPreguntasEspeciales({ preguntas, overrides, setOverrides }) {
           </p>
           {CLAVES_ESPECIALES.map(({ clave, label }) => {
             const auto = buscarPregunta(preguntas, clave)
+            const elegibles = (preguntas || []).filter(p => tiposElegiblesPara(clave).includes(p.tipo))
             return (
               <div key={clave} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{ width: 200, fontSize: 12, fontWeight: 600 }}>{label}</div>
@@ -333,6 +462,37 @@ function PanelPreguntasEspeciales({ preguntas, overrides, setOverrides }) {
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+// Tarjeta de un reporte dentro de la grilla — extraída para no duplicar el
+// cálculo de `disponible` ni el JSX una vez por grupo de categoría.
+function TarjetaReporte({ def, resultado, abierto, onVer, onDescargar }) {
+  const disponible = !!resultado && (
+    resultado.tipo === 'resumen' ? true :
+    resultado.tipo === 'consistencia' ? resultado.reglas.length > 0 :
+    resultado.tipo === 'perfil_votante' ? resultado.candidatos.length > 0 :
+    resultado.secciones ? resultado.secciones.length > 0 : resultado.filas?.length > 0
+  )
+  return (
+    <div style={{
+      background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)',
+      padding: 16, display: 'flex', flexDirection: 'column', gap: 8, opacity: disponible ? 1 : 0.5,
+    }}>
+      <div style={{ fontSize: 14, fontWeight: 700 }}>{def.titulo}</div>
+      <div style={{ fontSize: 12, color: 'var(--ink3)', flex: 1 }}>{def.descripcion}</div>
+      {!disponible && <div style={{ fontSize: 11, color: 'var(--ink3)', fontStyle: 'italic' }}>No disponible para esta encuesta.</div>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={onVer} disabled={!disponible} style={{
+          flex: 1, padding: '7px 10px', background: 'var(--surface)', border: '1.5px solid var(--border2)',
+          borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: disponible ? 'pointer' : 'default', fontFamily: 'DM Sans',
+        }}>{abierto ? 'Ocultar' : 'Ver'}</button>
+        <button onClick={onDescargar} disabled={!disponible} style={{
+          flex: 1, padding: '7px 10px', background: 'var(--accent)', color: '#fff', border: 'none',
+          borderRadius: 'var(--r)', fontSize: 12, fontWeight: 700, cursor: disponible ? 'pointer' : 'default', fontFamily: 'DM Sans',
+        }}>↓ PDF</button>
+      </div>
     </div>
   )
 }
@@ -397,6 +557,18 @@ export default function ReportesAutomaticos({ encuesta, preguntas, statsZona, on
     return out
   }, [crudo, ctx, defs])
 
+  // Agrupa `defs` por categoría (Resumen/Operativo/Intendente/Gobernador/
+  // Presidente/General, ver CATEGORIAS_ORDEN) para que la grilla no sea 32
+  // tarjetas mezcladas — cada grupo se muestra como su propia sección con
+  // encabezado. Tiene que ir antes del `if (!crudo) return` de abajo — los
+  // hooks no pueden llamarse condicionalmente.
+  const grupos = useMemo(() => {
+    const porCategoria = {}
+    defs.forEach(def => { (porCategoria[def.categoria] = porCategoria[def.categoria] || []).push(def) })
+    const categorias = [...CATEGORIAS_ORDEN.filter(c => porCategoria[c]), ...Object.keys(porCategoria).filter(c => !CATEGORIAS_ORDEN.includes(c))]
+    return categorias.map(categoria => ({ categoria, items: porCategoria[categoria] }))
+  }, [defs])
+
   function descargarPDF(def) {
     const resultado = resultados[def.id]
     if (!resultado) return
@@ -425,42 +597,32 @@ export default function ReportesAutomaticos({ encuesta, preguntas, statsZona, on
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <PanelPreguntasEspeciales preguntas={preguntas} overrides={overrides} setOverrides={setOverrides} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-        {defs.map(def => {
-          const resultado = resultados[def.id]
-          const disponible = !!resultado && (
-            resultado.tipo === 'resumen' ? true :
-            resultado.tipo === 'consistencia' ? resultado.reglas.length > 0 :
-            resultado.tipo === 'perfil_votante' ? resultado.candidatos.length > 0 :
-            resultado.secciones ? resultado.secciones.length > 0 : resultado.filas?.length > 0
-          )
-          return (
-            <div key={def.id} style={{
-              background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)',
-              padding: 16, display: 'flex', flexDirection: 'column', gap: 8, opacity: disponible ? 1 : 0.5,
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+        {grupos.map(({ categoria, items }) => (
+          <div key={categoria}>
+            <div style={{
+              fontSize: 12, fontWeight: 800, color: 'var(--accent2)', textTransform: 'uppercase',
+              letterSpacing: 0.6, marginBottom: 10, paddingBottom: 6, borderBottom: '2px solid var(--border)',
             }}>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>{def.titulo}</div>
-              <div style={{ fontSize: 12, color: 'var(--ink3)', flex: 1 }}>{def.descripcion}</div>
-              {!disponible && <div style={{ fontSize: 11, color: 'var(--ink3)', fontStyle: 'italic' }}>No disponible para esta encuesta.</div>}
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => setAbierto(abierto === def.id ? null : def.id)} disabled={!disponible} style={{
-                  flex: 1, padding: '7px 10px', background: 'var(--surface)', border: '1.5px solid var(--border2)',
-                  borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: disponible ? 'pointer' : 'default', fontFamily: 'DM Sans',
-                }}>{abierto === def.id ? 'Ocultar' : 'Ver'}</button>
-                <button onClick={() => descargarPDF(def)} disabled={!disponible} style={{
-                  flex: 1, padding: '7px 10px', background: 'var(--accent)', color: '#fff', border: 'none',
-                  borderRadius: 'var(--r)', fontSize: 12, fontWeight: 700, cursor: disponible ? 'pointer' : 'default', fontFamily: 'DM Sans',
-                }}>↓ PDF</button>
-              </div>
+              {categoria}
             </div>
-          )
-        })}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+              {items.map(def => (
+                <TarjetaReporte
+                  key={def.id} def={def} resultado={resultados[def.id]}
+                  abierto={abierto === def.id} onVer={() => setAbierto(abierto === def.id ? null : def.id)}
+                  onDescargar={() => descargarPDF(def)}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
 
       {abierto && resultados[abierto] && (
         <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: 18, overflowX: 'auto' }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>{defs.find(d => d.id === abierto)?.titulo}</div>
-          <VistaResultado resultado={resultados[abierto]} />
+          <VistaResultado def={defs.find(d => d.id === abierto)} resultado={resultados[abierto]} />
         </div>
       )}
     </div>
@@ -558,6 +720,7 @@ function VistaConsistenciaInterna({ r }) {
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent2)', marginBottom: 6 }}>{regla.nombre}</div>
           <div style={CALLOUT_STYLE}>{regla.descripcion}</div>
           <div style={{ fontSize: 12, marginBottom: 8 }}><b>{regla.cantidad}</b> sesión{regla.cantidad === 1 ? '' : 'es'} afectada{regla.cantidad === 1 ? '' : 's'} ({regla.pct}% del total de completadas).</div>
+          <FilaBarra nombre="Afectadas" pct={regla.pct} color="#c0392b" />
           {regla.muestra.length > 0 && (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
@@ -616,24 +779,156 @@ function VistaPerfilVotante({ r }) {
   )
 }
 
-function VistaResultado({ resultado }) {
+// Fila de barra horizontal reusable en pantalla — `valor` no tiene por qué
+// ser un % de 100 (ancho de barra = valor/max); `FilaBarra` es el caso
+// particular de siempre-porcentaje que ya usaban Resumen ejecutivo / Perfil
+// votante / candidatos por zona.
+function FilaBarraValor({ nombre, valor, max, color, sufijo = '' }) {
+  const anchoPct = max > 0 ? Math.min(100, Math.round((valor / max) * 100)) : 0
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+      <div style={{ width: 160, fontSize: 12, fontWeight: 600, textAlign: 'right' }}>{nombre}</div>
+      <div style={{ flex: 1, background: 'var(--surface)', borderRadius: 4, height: 12, overflow: 'hidden' }}>
+        <div style={{ width: `${anchoPct}%`, background: color, height: '100%' }} />
+      </div>
+      <div style={{ width: 60, fontSize: 13, fontWeight: 800, color }}>{valor}{sufijo}</div>
+    </div>
+  )
+}
+
+function FilaBarra({ nombre, pct, color }) {
+  return <FilaBarraValor nombre={nombre} valor={pct} max={100} color={color} sufijo="%" />
+}
+
+// Gráfico de barras genérico en pantalla — mismo criterio que barChartHTML
+// (versión PDF): una fila por elemento, leyendo labelKey/valorKey. Cubre
+// por_zona, por_encuestador, no_respuesta_zona, actividad_encuestador,
+// distribucion_geo, indice_participacion, no_respuesta_geo (ver
+// GRAFICO_SIMPLE_POR_ID más abajo).
+function BarChart({ filas, labelKey, valorKey, sufijo = '', max, colores, color = '#1a472a' }) {
+  if (!filas?.length) return null
+  const m = max ?? Math.max(...filas.map(f => Number(f[valorKey]) || 0), 1)
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {filas.map((f, i) => (
+        <FilaBarraValor key={f[labelKey] + i} nombre={f[labelKey]} valor={f[valorKey]} max={m} color={colores ? colores[i % colores.length] : color} sufijo={sufijo} />
+      ))}
+    </div>
+  )
+}
+
+// Barras de una sección "candidatos por zona" — una fila por candidato,
+// coloreada con PALETA_REPORTES (mismo criterio que la versión PDF,
+// seccionBarrasHTML más arriba).
+function SeccionBarras({ filas }) {
+  if (!filas?.length) return null
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {filas.map((f, i) => <FilaBarra key={f.candidato} nombre={f.candidato} pct={f.porcentaje} color={PALETA_REPORTES[i % PALETA_REPORTES.length]} />)}
+    </div>
+  )
+}
+
+// Barras de "Competitividad por zona" — 1° vs 2° candidato de cada zona.
+function CompetitividadBarras({ filas }) {
+  if (!filas?.length) return null
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {filas.map(f => (
+        <div key={f.zona} style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent2)', marginBottom: 4 }}>{f.zona}</div>
+          <FilaBarra nombre={f.candidato1} pct={f.pct1} color="#1a472a" />
+          {f.candidato2 && f.candidato2 !== '—' && <FilaBarra nombre={f.candidato2} pct={f.pct2} color="#52B788" />}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Barras por grupo etario de "Corte generacional" — reemplaza el gráfico
+// apilado anterior (rechazado explícitamente: "no quiero barras apiladas");
+// un bloque de barras (una por candidato) por cada grupo etario.
+function CorteGeneracionalBarras({ candidatos, matrizPct }) {
+  if (!matrizPct?.length) return null
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {matrizPct.map(g => (
+        <div key={g.grupo} style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent2)', marginBottom: 4 }}>{g.grupo}</div>
+          {candidatos.map((c, i) => <FilaBarra key={c} nombre={c} pct={g.valores[i]} color={PALETA_REPORTES[i % PALETA_REPORTES.length]} />)}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Barras de "Intención de voto cruzada con perfil" — una barra por
+// candidato, agrupadas por perfil. Los valores de `filas` son conteos
+// crudos (no %): se recalcula el % sobre el total de cada fila acá mismo,
+// igual que votoPorPerfilBarrasHTML (versión PDF).
+function VotoPorPerfilBarras({ columnas, filas }) {
+  const candidatoKeys = (columnas || []).map(c => c.key).filter(k => k !== 'perfil' && k !== 'total')
+  if (!candidatoKeys.length || !filas?.length) return null
+  return (
+    <div style={{ marginBottom: 14 }}>
+      {filas.map(f => (
+        <div key={f.perfil} style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent2)', marginBottom: 4 }}>{f.perfil}</div>
+          {candidatoKeys.map((c, i) => (
+            <FilaBarra key={c} nombre={c} pct={f.total > 0 ? Math.round((f[c] / f.total) * 1000) / 10 : 0} color={PALETA_REPORTES[i % PALETA_REPORTES.length]} />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function VistaResultado({ def, resultado }) {
   if (resultado.tipo === 'resumen') return <VistaResumenEjecutivo r={resultado} />
   if (resultado.tipo === 'consistencia') return <VistaConsistenciaInterna r={resultado} />
   if (resultado.tipo === 'perfil_votante') return <VistaPerfilVotante r={resultado} />
   if (resultado.secciones) {
+    // candidatos_zona (intendente/gobernador/presidente): barra por
+    // candidato. completo_pregunta_zona/perfil_demografico/mapa_tematico:
+    // barra por zona con la opción ganadora (normalizarTop) — mismo
+    // criterio que generarHTMLReporte más arriba.
+    const conBarrasCandidato = def?.id?.startsWith('candidatos_zona')
+    const conBarrasTop = ['completo_pregunta_zona', 'perfil_demografico', 'mapa_tematico'].includes(def?.id)
     return resultado.secciones.map((s, i) => (
       <div key={i} style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent2)', marginBottom: 8 }}>{s.titulo}</div>
+        {conBarrasCandidato && <SeccionBarras filas={s.filas} />}
+        {conBarrasTop && <BarChart filas={normalizarTop(s.filas)} labelKey="zona" valorKey="pct" sufijo="%" max={100} />}
         <VistaTabla {...s} />
       </div>
     ))
   }
+  const simple = GRAFICO_SIMPLE_POR_ID[def?.id]
   return (
     <>
       {resultado.sintesis && <div style={CALLOUT_STYLE}>{resultado.sintesis}</div>}
+      {def?.id?.startsWith('competitividad_zona') && <CompetitividadBarras filas={resultado.filas} />}
+      {def?.id?.startsWith('corte_generacional') && <CorteGeneracionalBarras candidatos={resultado.candidatos} matrizPct={resultado.matrizPct} />}
+      {def?.id?.startsWith('voto_por_perfil') && <VotoPorPerfilBarras columnas={resultado.columnas} filas={resultado.filas} />}
+      {def?.id?.startsWith('agenda_tematica') && (
+        <BarChart
+          filas={(resultado.filas || []).map(f => ({ zona: `${f.zona} — ${f.candidato_ganador}`, pct: f.pct_candidato }))}
+          labelKey="zona" valorKey="pct" sufijo="%" max={100}
+        />
+      )}
+      {simple && <BarChart filas={resultado.filas} labelKey={simple.labelKey} valorKey={simple.valorKey} sufijo={simple.sufijo} max={simple.max} />}
+      {def?.id === 'evolucion_horaria' && (
+        <div style={{ marginBottom: 14 }} dangerouslySetInnerHTML={{ __html: graficoLineaSVG(resultado.filas) }} />
+      )}
+      {def?.id === 'evolucion_encuestador' && (
+        <div style={{ marginBottom: 14 }} dangerouslySetInnerHTML={{ __html: svgLineasEncuestadores(resultado.series) }} />
+      )}
       {resultado.resumenPorCandidato && (
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent2)', marginBottom: 8 }}>Resumen por candidato ganador</div>
+          {def?.id?.startsWith('agenda_tematica') && (
+            <SeccionBarras filas={resultado.resumenPorCandidato.map(r => ({ candidato: r.candidato, porcentaje: r.pct }))} />
+          )}
           <VistaTabla
             columnas={[{ key: 'candidato', label: 'Candidato ganador' }, { key: 'problema', label: 'Principal problema' }, { key: 'pct', label: '%', num: true }]}
             filas={resultado.resumenPorCandidato}

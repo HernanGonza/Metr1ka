@@ -23,12 +23,17 @@ export const CLAVE_BASE_OPCIONES = [
   { value: 'participa',            label: 'Participación (¿participa de la encuesta?)' },
   { value: 'candidato_intendente', label: 'Candidato a intendente' },
   { value: 'candidato_gobernador', label: 'Candidato a gobernador' },
+  { value: 'candidato_presidente', label: 'Candidato a presidente' },
   { value: 'edad',                 label: 'Edad' },
   { value: 'sexo',                 label: 'Género' },
   { value: 'nivel_educativo',      label: 'Nivel educativo' },
   { value: 'situacion_laboral',    label: 'Situación laboral' },
   { value: 'evaluacion_gestion',   label: 'Evaluación de gestión' },
   { value: 'problema_principal',   label: 'Principal problema' },
+  // Distinta de 'participa': esta es la certeza/probabilidad de voto en la
+  // elección, no si respondió la encuesta. No confundir las dos al taguear
+  // preguntas (ver reportesAutomaticos.js, esCompletada()).
+  { value: 'probabilidad_voto',    label: 'Probabilidad de voto en la elección' },
 ]
 export const ESTADO_CONFIG = {
   pendiente:    { label: 'Pendiente',    color: '#b45309', bg: '#fef3c7' },
