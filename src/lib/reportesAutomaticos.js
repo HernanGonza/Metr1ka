@@ -68,7 +68,11 @@ export const CLAVES_ESPECIALES = [
   { clave: 'sexo',                 label: 'Género' },
   { clave: 'nivel_educativo',      label: 'Nivel educativo' },
   { clave: 'situacion_laboral',    label: 'Situación laboral' },
-  { clave: 'evaluacion_gestion',   label: 'Evaluación de gestión' },
+  // Gestión municipal y provincial son preguntas distintas en la encuesta —
+  // separadas para poder asignar cada una a su pregunta correspondiente
+  // (antes era una sola clave 'evaluacion_gestion' que las mezclaba).
+  { clave: 'evaluacion_gestion_intendente', label: 'Evaluación de gestión — Intendente/Municipal' },
+  { clave: 'evaluacion_gestion_gobernador', label: 'Evaluación de gestión — Gobernador/Provincial' },
   { clave: 'problema_principal',   label: 'Principal problema' },
   // Intención/certeza de voto en la elección — NO usar para 'participa'.
   { clave: 'probabilidad_voto',    label: 'Probabilidad de voto en la elección' },
@@ -476,11 +480,11 @@ function reporteVotoPorPerfil(ctx, claveCand = 'candidato_intendente') {
 // ... } que ReportesAutomaticos.jsx renderiza con fuente grande y barras,
 // pensado para entregarle a un cliente en 30 segundos.
 //
-// Requiere clave_base 'candidato_gobernador' / 'evaluacion_gestion' /
-// 'problema_principal' además de las 3 ya en uso (candidato_intendente,
-// participa) — agregadas a CLAVE_BASE_OPCIONES en EncuestaBuilder.jsx. Si
-// la encuesta no tiene esas preguntas etiquetadas, la sección
-// correspondiente simplemente no aparece (queda en null).
+// Requiere clave_base 'candidato_gobernador' / 'evaluacion_gestion_intendente'
+// / 'evaluacion_gestion_gobernador' / 'problema_principal' además de las 3 ya
+// en uso (candidato_intendente, participa) — agregadas a CLAVE_BASE_OPCIONES
+// en EncuestaBuilder.jsx. Si la encuesta no tiene esas preguntas etiquetadas,
+// la sección correspondiente simplemente no aparece (queda en null).
 const CLASIFICACION_GESTION = {
   positivo: ['buena', 'muy buena', 'excelente', 'aprueba', 'positiva'],
   neutro:   ['regular', 'ni buena ni mala', 'neutral', 'neutra'],
@@ -493,6 +497,31 @@ function clasificarGestion(opcion) {
     if (palabras.some(p => norm.includes(normalizarTexto(p)))) return clase
   }
   return null
+}
+
+// Evaluación de gestión municipal (intendente) y provincial (gobernador) son
+// preguntas distintas en la encuesta — antes era una sola clave
+// 'evaluacion_gestion' que las mezclaba. `pGestion` ya es el resultado de
+// preguntaEspecial(ctx, 'evaluacion_gestion_intendente' | '_gobernador').
+function calcularEvaluacionGestion(pGestion, ctx, pParticipa) {
+  if (!pGestion) return null
+  const conteo = { positivo: 0, neutro: 0, negativo: 0 }
+  let totalGestion = 0
+  for (const f of ctx.crudo?.filas || []) {
+    if (!esCompletada(f, pParticipa)) continue
+    const crudo = f.respuestas?.[String(pGestion.id)]
+    if (!crudo) continue
+    const clase = clasificarGestion(crudo)
+    if (!clase) continue
+    conteo[clase]++
+    totalGestion++
+  }
+  if (totalGestion === 0) return null
+  return {
+    positivo: pct(conteo.positivo, totalGestion),
+    neutro:   pct(conteo.neutro, totalGestion),
+    negativo: pct(conteo.negativo, totalGestion),
+  }
 }
 
 function topN(pregunta, ctx, pParticipa, n) {
@@ -543,30 +572,9 @@ function reporteResumenEjecutivo(ctx) {
   const pIntendente = preguntaEspecial(ctx, 'candidato_intendente')
   const pGobernador = preguntaEspecial(ctx, 'candidato_gobernador')
   const pPresidente = preguntaEspecial(ctx, 'candidato_presidente')
-  const pGestion    = preguntaEspecial(ctx, 'evaluacion_gestion')
+  const pGestionIntendente = preguntaEspecial(ctx, 'evaluacion_gestion_intendente')
+  const pGestionGobernador = preguntaEspecial(ctx, 'evaluacion_gestion_gobernador')
   const pProblema   = preguntaEspecial(ctx, 'problema_principal')
-
-  let evaluacionGestion = null
-  if (pGestion) {
-    const conteo = { positivo: 0, neutro: 0, negativo: 0 }
-    let totalGestion = 0
-    for (const f of ctx.crudo?.filas || []) {
-      if (!esCompletada(f, pParticipa)) continue
-      const crudo = f.respuestas?.[String(pGestion.id)]
-      if (!crudo) continue
-      const clase = clasificarGestion(crudo)
-      if (!clase) continue
-      conteo[clase]++
-      totalGestion++
-    }
-    if (totalGestion > 0) {
-      evaluacionGestion = {
-        positivo: pct(conteo.positivo, totalGestion),
-        neutro:   pct(conteo.neutro, totalGestion),
-        negativo: pct(conteo.negativo, totalGestion),
-      }
-    }
-  }
 
   return {
     tipo: 'resumen',
@@ -576,7 +584,8 @@ function reporteResumenEjecutivo(ctx) {
     candidatoIntendente: pIntendente ? topN(pIntendente, ctx, pParticipa, 3) : null,
     candidatoGobernador: pGobernador ? topN(pGobernador, ctx, pParticipa, 2) : null,
     candidatoPresidente: pPresidente ? topN(pPresidente, ctx, pParticipa, 2) : null,
-    evaluacionGestion,
+    evaluacionGestionIntendente: calcularEvaluacionGestion(pGestionIntendente, ctx, pParticipa),
+    evaluacionGestionGobernador: calcularEvaluacionGestion(pGestionGobernador, ctx, pParticipa),
     problemaPrincipal: pProblema ? topN(pProblema, ctx, pParticipa, 3) : null,
   }
 }
@@ -786,15 +795,16 @@ function reporteIndiceParticipacion(ctx) {
 
 // ── 16. Consistencia interna — sesiones con combinaciones de respuestas
 //        incoherentes, según 3 reglas heurísticas ──
-// Regla 1 usa 'evaluacion_gestion' (no 'gestion_intendente', como decía el
-// spec original) — es el clave_base real que usa este proyecto, ver
-// CLAVE_BASE_OPCIONES en EncuestaBuilder.jsx. El modelo de datos no tiene
-// "espacio político" por candidato, así que se aproxima "el candidato
-// oficialista" como el más elegido entre quienes evalúan la gestión
-// positivamente — es la única señal disponible sin agregar metadata nueva.
-function reglaGestionVsVoto(ctx, pParticipa) {
-  const pGestion = preguntaEspecial(ctx, 'evaluacion_gestion')
-  const pCand = preguntaEspecial(ctx, 'candidato_intendente')
+// Regla 1: evaluación de gestión vs candidato votado — se corre una vez para
+// intendente (evaluacion_gestion_intendente + candidato_intendente) y otra
+// para gobernador (evaluacion_gestion_gobernador + candidato_gobernador),
+// son preguntas y candidatos distintos. El modelo de datos no tiene "espacio
+// político" por candidato, así que se aproxima "el candidato oficialista"
+// como el más elegido entre quienes evalúan la gestión positivamente — es
+// la única señal disponible sin agregar metadata nueva.
+function reglaGestionVsVoto(ctx, pParticipa, claveGestion, claveCand, nombreCargo) {
+  const pGestion = preguntaEspecial(ctx, claveGestion)
+  const pCand = preguntaEspecial(ctx, claveCand)
   if (!pGestion || !pCand) return null
   const opcionesCand = opcionesDe(pCand)
   const segCand = buscarSeguimientoOtro(ctx.preguntas, pCand)
@@ -815,8 +825,8 @@ function reglaGestionVsVoto(ctx, pParticipa) {
   if (!afectadas.length) return null
   const totalCompletadas = (ctx.crudo?.filas || []).filter(f => esCompletada(f, pParticipa)).length
   return {
-    nombre: 'Evalúa la gestión bien pero vota a otro candidato',
-    descripcion: `Se aproxima "candidato oficialista" como ${oficialista} — el más elegido entre quienes evalúan la gestión positivamente (no hay dato de espacio político por candidato).`,
+    nombre: `Evalúa la gestión de ${nombreCargo.toLowerCase()} bien pero vota a otro candidato`,
+    descripcion: `Se aproxima "candidato oficialista" (${nombreCargo}) como ${oficialista} — el más elegido entre quienes evalúan la gestión de ${nombreCargo.toLowerCase()} positivamente (no hay dato de espacio político por candidato).`,
     cantidad: afectadas.length, pct: pct(afectadas.length, totalCompletadas),
     muestra: afectadas.slice(0, 10).map(p => ({ zona: p.fila.zona_nombre || '—', encuestador: p.fila.encuestador || '—' })),
   }
@@ -883,7 +893,12 @@ function reglaNsNcConTexto(ctx, pParticipa) {
 
 function reporteConsistenciaInterna(ctx) {
   const pParticipa = preguntaEspecial(ctx, 'participa')
-  const reglas = [reglaGestionVsVoto(ctx, pParticipa), reglaProbabilidadVsVoto(ctx, pParticipa), reglaNsNcConTexto(ctx, pParticipa)].filter(Boolean)
+  const reglas = [
+    reglaGestionVsVoto(ctx, pParticipa, 'evaluacion_gestion_intendente', 'candidato_intendente', 'Intendente'),
+    reglaGestionVsVoto(ctx, pParticipa, 'evaluacion_gestion_gobernador', 'candidato_gobernador', 'Gobernador'),
+    reglaProbabilidadVsVoto(ctx, pParticipa),
+    reglaNsNcConTexto(ctx, pParticipa),
+  ].filter(Boolean)
   return reglas.length ? { tipo: 'consistencia', reglas } : null
 }
 

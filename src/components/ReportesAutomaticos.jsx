@@ -216,9 +216,16 @@ function cuerpoResumenEjecutivo(r) {
   if (r.candidatoPresidente) {
     bloques.push(`<div class="sec">Intención de voto — Presidente</div>${r.candidatoPresidente.top.map((c, i) => filaBarra(c.nombre, c.pct, ['#1a472a', '#52B788'][i] || '#94a3b8')).join('')}`)
   }
-  if (r.evaluacionGestion) {
-    const ev = r.evaluacionGestion
-    bloques.push(`<div class="sec">Evaluación de gestión</div>
+  if (r.evaluacionGestionIntendente) {
+    const ev = r.evaluacionGestionIntendente
+    bloques.push(`<div class="sec">Evaluación de gestión — Intendente</div>
+      ${filaBarra('Positiva', ev.positivo, '#2d8f4e')}
+      ${filaBarra('Neutra', ev.neutro, '#b45309')}
+      ${filaBarra('Negativa', ev.negativo, '#c0392b')}`)
+  }
+  if (r.evaluacionGestionGobernador) {
+    const ev = r.evaluacionGestionGobernador
+    bloques.push(`<div class="sec">Evaluación de gestión — Gobernador</div>
       ${filaBarra('Positiva', ev.positivo, '#2d8f4e')}
       ${filaBarra('Neutra', ev.neutro, '#b45309')}
       ${filaBarra('Negativa', ev.negativo, '#c0392b')}`)
@@ -696,11 +703,21 @@ function VistaResumenEjecutivo({ r }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent2)', margin: '18px 0 8px' }}>Intención de voto — Gobernador</div>
         {r.candidatoGobernador.top.map((c, i) => fila(c.nombre, c.pct, ['#1a472a', '#52B788'][i] || '#94a3b8'))}
       </>)}
-      {r.evaluacionGestion && (<>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent2)', margin: '18px 0 8px' }}>Evaluación de gestión</div>
-        {fila('Positiva', r.evaluacionGestion.positivo, '#2d8f4e')}
-        {fila('Neutra', r.evaluacionGestion.neutro, '#b45309')}
-        {fila('Negativa', r.evaluacionGestion.negativo, '#c0392b')}
+      {r.candidatoPresidente && (<>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent2)', margin: '18px 0 8px' }}>Intención de voto — Presidente</div>
+        {r.candidatoPresidente.top.map((c, i) => fila(c.nombre, c.pct, ['#1a472a', '#52B788'][i] || '#94a3b8'))}
+      </>)}
+      {r.evaluacionGestionIntendente && (<>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent2)', margin: '18px 0 8px' }}>Evaluación de gestión — Intendente</div>
+        {fila('Positiva', r.evaluacionGestionIntendente.positivo, '#2d8f4e')}
+        {fila('Neutra', r.evaluacionGestionIntendente.neutro, '#b45309')}
+        {fila('Negativa', r.evaluacionGestionIntendente.negativo, '#c0392b')}
+      </>)}
+      {r.evaluacionGestionGobernador && (<>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent2)', margin: '18px 0 8px' }}>Evaluación de gestión — Gobernador</div>
+        {fila('Positiva', r.evaluacionGestionGobernador.positivo, '#2d8f4e')}
+        {fila('Neutra', r.evaluacionGestionGobernador.neutro, '#b45309')}
+        {fila('Negativa', r.evaluacionGestionGobernador.negativo, '#c0392b')}
       </>)}
       {r.problemaPrincipal && (<>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent2)', margin: '18px 0 8px' }}>Principal problema</div>

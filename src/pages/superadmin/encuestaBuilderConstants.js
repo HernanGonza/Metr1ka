@@ -28,7 +28,11 @@ export const CLAVE_BASE_OPCIONES = [
   { value: 'sexo',                 label: 'Género' },
   { value: 'nivel_educativo',      label: 'Nivel educativo' },
   { value: 'situacion_laboral',    label: 'Situación laboral' },
-  { value: 'evaluacion_gestion',   label: 'Evaluación de gestión' },
+  // Gestión municipal y provincial son preguntas distintas en la encuesta —
+  // separadas para poder taguear cada una con su clave (antes una sola
+  // 'evaluacion_gestion' las mezclaba).
+  { value: 'evaluacion_gestion_intendente', label: 'Evaluación de gestión — Intendente/Municipal' },
+  { value: 'evaluacion_gestion_gobernador', label: 'Evaluación de gestión — Gobernador/Provincial' },
   { value: 'problema_principal',   label: 'Principal problema' },
   // Distinta de 'participa': esta es la certeza/probabilidad de voto en la
   // elección, no si respondió la encuesta. No confundir las dos al taguear
