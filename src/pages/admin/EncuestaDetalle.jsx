@@ -9,6 +9,13 @@ import ReportesAutomaticos from '../../components/ReportesAutomaticos'
 import ReporteVisualZona from '../../components/ReporteVisualZona'
 import PreguntaChart from '../../components/PreguntaChart'
 import MapaSesiones from '../../components/MapaSesiones'
+import { PanelMargenError, EstadisticasResumen, PanelCompetitividad, PanelProyeccion } from '../../components/PanelesEstadisticos'
+import { ScoreCalidad, DetalleEncuestador, AlertaMismoLugar, ExplicacionCalidad } from '../../components/CalidadEncuestador'
+import { useRespuestasCrudas } from '../../hooks/useRespuestasCrudas'
+import { leerOverrides, preguntaEspecial, esCompletada } from '../../lib/reportesAutomaticos'
+import { indiceCompetitividad, proyeccion } from '../../lib/competitividad'
+import { noRespuestaSelectiva } from '../../lib/noRespuestaSelectiva'
+import { scoreCalidad, sesionesPorEncuestador } from '../../lib/calidadEncuestador'
 import styles from './Page.module.css'
 
 const ESTADO_CONFIG = {
@@ -116,7 +123,7 @@ function VistaProduccion({ encuesta, preguntas }) {
 }
 
 
-function PorZonaTabla({ statsZona, loading, onCargar }) {
+function PorZonaTabla({ statsZona, loading, onCargar, alertasSelectivas = {} }) {
   const [abiertas, setAbiertas] = useState({})
   const [sort, setSort] = useState({ campo: null, dir: 'desc' })
   useEffect(() => { if (!statsZona && !loading) onCargar() }, [])
@@ -139,6 +146,20 @@ function PorZonaTabla({ statsZona, loading, onCargar }) {
         {tot.sin_zona > 0 && <span style={{ color: 'var(--gold)' }}><b style={{ fontFamily: 'var(--font-num)', fontSize: 16, fontWeight: 500 }}>{tot.sin_zona}</b> sin zona</span>}
         {tot.fuera_de_poligono > 0 && <span style={{ color: 'var(--ink3)' }} title="El GPS cayó fuera del polígono; se asignó la zona más cercana">{tot.fuera_de_poligono} fuera de polígono</span>}
       </div>
+      {Object.keys(alertasSelectivas).length > 0 && (
+        <div style={{ background: 'var(--warning-light)', border: '1px solid #f59e0b', borderRadius: 'var(--r2)', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#b45309', textTransform: 'uppercase', letterSpacing: 0.5 }}>No-respuesta selectiva</div>
+          {Object.values(alertasSelectivas).map(a => (
+            <div key={a.mensaje} style={{ fontSize: 13, color: 'var(--ink2)' }}>
+              {a.mensaje}
+              <span style={{ fontSize: 11, color: 'var(--ink3)' }}> (rechazo {a.tasa}%, {a.completadas} completadas{a.desvios.length > 1 ? `; también ${a.desvios.slice(1, 3).map(d => `${d.categoria} ${d.diff > 0 ? '+' : ''}${d.diff}pp`).join(', ')}` : ''})</span>
+            </div>
+          ))}
+          <div style={{ fontSize: 11, color: 'var(--ink3)' }}>
+            Zonas con rechazo &gt; 25% y al menos 20 completadas: se compara la edad y el género de los que respondieron contra el total de la encuesta (desvío &gt; 10pp).
+          </div>
+        </div>
+      )}
       <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -162,6 +183,7 @@ function PorZonaTabla({ statsZona, loading, onCargar }) {
                       <span style={{ display: 'inline-block', width: 14, color: 'var(--ink3)' }}>{open ? '▾' : '▸'}</span>
                       {z.zona_nombre}
                       {z.fuera_de_poligono > 0 && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--ink3)' }}>({z.fuera_de_poligono} aprox.)</span>}
+                      {alertasSelectivas[z.zona_id] && <span title={alertasSelectivas[z.zona_id].mensaje} style={{ marginLeft: 6, cursor: 'help' }}>⚠️</span>}
                     </td>
                     <td style={{ ...td, color: 'var(--ink3)' }}>{z.equipo_nombre || '—'}</td>
                     <td style={nz(z.completadas, 'var(--accent)')}>{z.completadas}</td>
@@ -227,11 +249,58 @@ function EquiposSnapshot({ snap }) {
   )
 }
 
+// Fecha calendario (YYYY-MM-DD) en hora argentina — mismo criterio que el
+// `completada_en::date` de las RPC, para comparar con los filtros de fecha.
+function fechaARG(iso) {
+  return iso ? new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }) : null
+}
+
+// Las sesiones del mapa se cargan una sola vez sin filtros (get_respuestas_crudas),
+// así que los filtros de la barra superior se aplican acá, antes de pasarlas
+// a MapaSesiones. La RPC devuelve el NOMBRE del encuestador/equipo (no el id),
+// por eso se resuelve id → nombre con las listas ya cargadas.
+function filtrarSesionesMapa(sesiones, filtros, encuestadores, equipos) {
+  const nombreEnc = filtros.encuestador_id
+    ? encuestadores.find(e => e.encuestador_id === filtros.encuestador_id)?.nombre_completo
+    : null
+  const nombreEq = filtros.equipo_id ? equipos.find(eq => eq.id === filtros.equipo_id)?.nombre : null
+  return (sesiones || []).filter(s => {
+    if (filtros.encuestador_id && s.encuestador !== nombreEnc) return false
+    if (filtros.equipo_id && s.equipo !== nombreEq) return false
+    const f = fechaARG(s.fecha)
+    if (filtros.fecha_desde && (!f || f < filtros.fecha_desde)) return false
+    if (filtros.fecha_hasta && (!f || f > filtros.fecha_hasta)) return false
+    return true
+  })
+}
+
 function VistaResultados({ encuesta, preguntas, resumen, respuestas, encuestadores, equipos, filtros, onFiltroChange, loadingR, sesionesGPS, onCargarMapa, loadingGPS, statsZona, onCargarZonas, loadingZonas, configSnapshot, tiempoStats }) {
   const [vista, setVista] = useState('resumen')
   const [subVistaAnalisis, setSubVistaAnalisis] = useState('visual') // 'visual' | 'reportes' — sub-selector de la tab fusionada "Análisis y reportes"
   const [encZonasAbiertas, setEncZonasAbiertas] = useState({})
   const [sortEnc, setSortEnc] = useState({ campo: null, dir: 'desc' })
+  const [encDetalle, setEncDetalle] = useState(null) // encuestador_id con "Ver detalle" abierto
+
+  // Respuestas crudas sin filtros para los indicadores estadísticos; se
+  // recargan cuando cambia el total de completadas (respuestas nuevas).
+  const { crudo, cargando: cargandoCrudo } = useRespuestasCrudas(encuesta, resumen?.total_participaron)
+  const ctxEstad = useMemo(
+    () => (crudo ? { preguntas, crudo, overrides: leerOverrides(encuesta.id) } : null),
+    [crudo, preguntas, encuesta.id]
+  )
+  const competitividad = useMemo(() => (ctxEstad ? indiceCompetitividad(ctxEstad) : null), [ctxEstad])
+  const proy = useMemo(
+    () => (ctxEstad && encuesta.estado_produccion === 'publicada' ? proyeccion(ctxEstad) : null),
+    [ctxEstad, encuesta.estado_produccion]
+  )
+  const alertasSelectivas = useMemo(() => (ctxEstad ? noRespuestaSelectiva(ctxEstad, statsZona) : {}), [ctxEstad, statsZona])
+  const sesionesEnc = useMemo(() => sesionesPorEncuestador(crudo), [crudo])
+  const scores = useMemo(() => {
+    if (!ctxEstad) return {}
+    const out = {}
+    encuestadores.forEach(e => { out[e.encuestador_id] = scoreCalidad(ctxEstad, e, sesionesEnc[e.nombre_completo] || []) })
+    return out
+  }, [ctxEstad, encuestadores, sesionesEnc])
 
   const filasPorPregunta = useMemo(() => {
     const map = {}
@@ -256,6 +325,22 @@ function VistaResultados({ encuesta, preguntas, resumen, respuestas, encuestador
     filtros.equipo_id ? encuestadores.filter(e => e.equipo_id === filtros.equipo_id) : encuestadores,
     [encuestadores, filtros.equipo_id]
   )
+
+  // `filtros` es un objeto nuevo en cada render: se memoiza sobre sus valores.
+  const { equipo_id: fEquipo, encuestador_id: fEncuestador, fecha_desde: fDesde, fecha_hasta: fHasta } = filtros
+  // Completadas vs no-respuesta en el mapa (mismo criterio que los reportes:
+  // esCompletada con la pregunta de participación, respetando overrides).
+  const [estadoMapa, setEstadoMapa] = useState('todas') // todas | completadas | no_respuesta
+  const sesionesMapaBase = useMemo(
+    () => filtrarSesionesMapa(sesionesGPS, { equipo_id: fEquipo, encuestador_id: fEncuestador, fecha_desde: fDesde, fecha_hasta: fHasta }, encuestadores, equipos),
+    [sesionesGPS, fEquipo, fEncuestador, fDesde, fHasta, encuestadores, equipos]
+  )
+  const conteoMapa = useMemo(() => {
+    const pParticipa = preguntaEspecial({ preguntas, overrides: leerOverrides(encuesta.id) }, 'participa')
+    const completadas = sesionesMapaBase.filter(f => esCompletada(f, pParticipa))
+    return { todas: sesionesMapaBase, completadas, no_respuesta: sesionesMapaBase.filter(f => !completadas.includes(f)) }
+  }, [sesionesMapaBase, preguntas, encuesta.id])
+  const sesionesMapa = conteoMapa[estadoMapa]
 
   const encuestadoresOrdenados = useMemo(() =>
     ordenarLista(encuestadoresFiltrados, sortEnc, (e, campo) =>
@@ -375,10 +460,16 @@ function VistaResultados({ encuesta, preguntas, resumen, respuestas, encuestador
       </div>
 
       {vista === 'resumen' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 14 }}>
-          {preguntas.filter(p => !p.clave_base || p.clave_base === 'edad' || p.clave_base === 'sexo').slice(0, 4).map((p, i) => (
-            <PreguntaChart key={p.id} pregunta={p} filas={filasPorPregunta[String(p.id)] || []} paletaIdx={i} />
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <PanelMargenError n={resumen?.total_participaron || 0} />
+          <PanelCompetitividad comp={competitividad} />
+          <PanelProyeccion proy={proy} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 14 }}>
+            {preguntas.filter(p => !p.clave_base || p.clave_base === 'edad' || p.clave_base === 'sexo').slice(0, 4).map((p, i) => (
+              <PreguntaChart key={p.id} pregunta={p} filas={filasPorPregunta[String(p.id)] || []} paletaIdx={i} />
+            ))}
+          </div>
+          <EstadisticasResumen encuesta={encuesta} preguntas={preguntas} crudo={crudo} cargando={cargandoCrudo} />
         </div>
       )}
 
@@ -406,7 +497,10 @@ function VistaResultados({ encuesta, preguntas, resumen, respuestas, encuestador
               ))}
             </div>
           )}
-          <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
+          <ExplicacionCalidad />
+          {/* overflowX auto (antes overflow hidden): con las columnas de calidad
+              la tabla puede ser más ancha que la pantalla y cortaba las últimas. */}
+          <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
   <thead>
     <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
@@ -416,6 +510,8 @@ function VistaResultados({ encuesta, preguntas, resumen, respuestas, encuestador
       <ThSort label="Completadas" campo="completadas" sort={sortEnc} onSort={c => alternarOrden(c, setSortEnc)} align="right" />
       <ThSort label="No respuesta" campo="no_respuesta" sort={sortEnc} onSort={c => alternarOrden(c, setSortEnc)} align="right" />
       <ThSort label="Total" campo="total" sort={sortEnc} onSort={c => alternarOrden(c, setSortEnc)} align="right" />
+      <th style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: 'var(--ink3)', whiteSpace: 'nowrap' }}>Score de calidad</th>
+      <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'var(--ink3)', whiteSpace: 'nowrap' }} title="Encuestas mucho más cortas de lo normal hechas en el mismo lugar, o superpuestas con la anterior">Carga rápida</th>
     </tr>
   </thead>
   <tbody>
@@ -428,21 +524,44 @@ function VistaResultados({ encuesta, preguntas, resumen, respuestas, encuestador
       <tr onClick={() => zonas.length && setEncZonasAbiertas(p => ({ ...p, [key]: !p[key] }))}
           style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'var(--paper)' : 'var(--surface)', cursor: zonas.length ? 'pointer' : 'default' }}>
         <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 600 }}>
-          {zonas.length > 0 && <span style={{ display: 'inline-block', width: 14, color: 'var(--ink3)' }}>{open ? '▾' : '▸'}</span>}
-          {enc.nombre_completo}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span>
+              {zonas.length > 0 && <span style={{ display: 'inline-block', width: 14, color: 'var(--ink3)' }}>{open ? '▾' : '▸'}</span>}
+              {enc.nombre_completo}
+            </span>
+            {/* En la primera columna para que nunca quede fuera de la pantalla. */}
+            <button onClick={e => { e.stopPropagation(); setEncDetalle(d => d === key ? null : key) }} disabled={!crudo}
+              style={{ padding: '3px 9px', fontSize: 11, fontWeight: 600, border: `1.5px solid ${encDetalle === key ? 'var(--accent)' : 'var(--border2)'}`, borderRadius: 'var(--r)', background: encDetalle === key ? 'var(--accent-light)' : 'var(--paper)', color: encDetalle === key ? 'var(--accent)' : 'var(--ink2)', cursor: crudo ? 'pointer' : 'default', fontFamily: 'DM Sans', whiteSpace: 'nowrap' }}>
+              {!crudo ? 'Cargando…' : encDetalle === key ? '▲ Ocultar detalle' : '📍 Ver detalle'}
+            </button>
+          </div>
         </td>
         <td style={{ padding: '10px 16px', fontSize: 13, color: 'var(--ink3)' }}>{enc.equipo_nombre || '—'}</td>
-        <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--ink2)' }}>{enc.zonas || '—'}</td>
+        <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--ink2)', maxWidth: 220 }}>{enc.zonas || '—'}</td>
         {[[enc.completadas ?? enc.total, 'var(--accent)'], [enc.no_respuesta ?? 0, 'var(--danger)'], [enc.total, 'var(--ink2)']].map(([n, c], j) => (
           <td key={j} style={{ padding: '10px 16px', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-num)', fontVariantNumeric: 'tabular-nums', color: n === 0 ? 'var(--metric-zero)' : c, textAlign: 'right' }}>{n}</td>
         ))}
+        <td style={{ padding: '10px 16px', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+          {crudo ? <ScoreCalidad score={scores[enc.encuestador_id]} /> : <span style={{ fontSize: 11, color: 'var(--ink3)' }}>…</span>}
+        </td>
+        <td style={{ padding: '10px 16px' }}>
+          <AlertaMismoLugar trayecto={crudo ? scores[enc.encuestador_id]?.trayecto : null} />
+        </td>
       </tr>
+      {encDetalle === key && (
+        <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+          <td colSpan={8} style={{ padding: 0 }}>
+            <DetalleEncuestador nombre={enc.nombre_completo} sesiones={sesionesEnc[enc.nombre_completo] || []} score={scores[enc.encuestador_id]} />
+          </td>
+        </tr>
+      )}
       {open && zonas.map(z => (
         <tr key={key + (z.zona_id || 'sz')} style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
           <td style={{ padding: '8px 16px 8px 38px', fontSize: 12, color: 'var(--ink2)' }} colSpan={3}>{z.zona_nombre}</td>
           {[[z.completadas, 'var(--accent)'], [z.no_respuesta, 'var(--danger)'], [z.total, 'var(--ink2)']].map(([n, c], j) => (
             <td key={j} style={{ padding: '8px 16px', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-num)', fontVariantNumeric: 'tabular-nums', color: n === 0 ? 'var(--metric-zero)' : c, textAlign: 'right' }}>{n}</td>
           ))}
+          <td colSpan={2} />
         </tr>
       ))}
       </Fragment>
@@ -455,18 +574,29 @@ function VistaResultados({ encuesta, preguntas, resumen, respuestas, encuestador
       )}
 
       {vista === 'zonas' && (
-        <PorZonaTabla statsZona={statsZona} loading={loadingZonas} onCargar={onCargarZonas} />
+        <PorZonaTabla statsZona={statsZona} loading={loadingZonas} onCargar={onCargarZonas} alertasSelectivas={alertasSelectivas} />
       )}
 
       {vista === 'equipos' && <EquiposSnapshot snap={configSnapshot} />}
 
       {vista === 'mapa' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[['todas', 'Todas', 'var(--ink2)'], ['completadas', '✅ Completadas', 'var(--accent)'], ['no_respuesta', '🚫 No respuesta', 'var(--danger)']].map(([v, label, color]) => (
+            <button key={v} onClick={() => setEstadoMapa(v)}
+              style={{ padding: '5px 12px', borderRadius: 100, border: `1.5px solid ${estadoMapa === v ? color : 'var(--border2)'}`, background: estadoMapa === v ? 'var(--surface)' : 'var(--paper)', color: estadoMapa === v ? color : 'var(--ink3)', fontSize: 12, fontWeight: estadoMapa === v ? 700 : 400, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+              {label} <span style={{ fontFamily: 'var(--font-num)' }}>({conteoMapa[v].length})</span>
+            </button>
+          ))}
+        </div>
         <MapaSesiones
-          sesiones={sesionesGPS || []}
+          sesiones={sesionesMapa}
           columnas={preguntas.filter(p => ['opcion_multiple','si_no'].includes(p.tipo) && p.clave_base !== 'participa')}
-          onCargar={onCargarMapa}
+          // Una vez cargadas, un filtro sin resultados no debe volver a ofrecer "Cargar mapa".
+          onCargar={sesionesGPS?.length ? null : onCargarMapa}
           loading={loadingGPS}
         />
+        </div>
       )}
 
       {vista === 'analisis' && (

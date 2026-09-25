@@ -6,6 +6,11 @@ import { Spinner } from '../../components/ui'
 import Chart from 'chart.js/auto'
 import { generarPDF } from '../../lib/generarPDF'
 import CompararEncuestas from '../../components/CompararEncuestas'
+import { ResultadoChiCuadrado } from '../../components/PanelesEstadisticos'
+import { margenFormateado, intervaloConfianza } from '../../lib/margenError'
+import { chiCuadrado } from '../../lib/chiCuadrado'
+import { errorBarsPlugin, errorBarsDeConteos, maxConWhiskers } from '../../lib/chartErrorBars'
+import { pieMargenHTML, explicacionMargenHTML, chiCuadradoHTML } from '../../lib/estadisticaPDF'
 import { Select } from '../../components/ui'
 import styles from './Page.module.css'
 import { BarChart2, PieChart, FileText, Download, Filter, RefreshCw, ChevronDown, ChevronUp, Zap, Plus, Trash2, MapPin, Scale } from 'lucide-react'
@@ -45,13 +50,17 @@ function MiniChart({ pregunta, filas, tipo = 'bar', color = 'var(--accent)' }) {
     const values = Object.values(datos)
     const total  = values.reduce((a, b) => a + b, 0)
     const isPie  = tipo === 'pie' || tipo === 'doughnut'
+    // IC 95% de cada opción, en conteos (whiskers) — no aplica a tortas.
+    const errorBars = isPie ? null : errorBarsDeConteos(values, total)
 
     chartRef.current = new Chart(ref.current.getContext('2d'), {
       type: isPie ? 'doughnut' : tipo === 'horizontal' ? 'bar' : 'bar',
+      plugins: isPie ? [] : [errorBarsPlugin],
       data: {
         labels,
         datasets: [{
           data: values,
+          errorBars,
           backgroundColor: isPie ? PALETA.slice(0, labels.length) : color,
           borderRadius: isPie ? 0 : 5,
           borderSkipped: false,
@@ -68,14 +77,16 @@ function MiniChart({ pregunta, filas, tipo = 'bar', color = 'var(--accent)' }) {
             callbacks: {
               label: ctx => {
                 const pct = total ? Math.round(ctx.raw / total * 100) : 0
-                return ` ${ctx.raw} respuestas (${pct}%)`
+                const ic = total ? intervaloConfianza(total, ctx.raw / total) : null
+                const icTxt = ic ? ` · IC 95%: ${(ic.lo * 100).toFixed(1)}–${(ic.hi * 100).toFixed(1)}%` : ''
+                return ` ${ctx.raw} respuestas (${pct}%)${icTxt}`
               }
             }
           }
         },
         scales: isPie ? {} : {
-          x: { grid: { display: false }, ticks: { font: { size: 10 }, color: 'var(--ink4)', maxRotation: 30 } },
-          y: { display: tipo !== 'horizontal', beginAtZero: true, ticks: { font: { size: 10 } } },
+          x: { grid: { display: false }, ticks: { font: { size: 10 }, color: 'var(--ink4)', maxRotation: 30 }, ...(tipo === 'horizontal' ? { beginAtZero: true, suggestedMax: maxConWhiskers(errorBars) } : {}) },
+          y: { display: tipo !== 'horizontal', beginAtZero: true, ticks: { font: { size: 10 } }, ...(tipo !== 'horizontal' ? { suggestedMax: maxConWhiskers(errorBars) } : {}) },
         }
       }
     })
@@ -321,7 +332,8 @@ function PorPregunta({ preguntas, respuestasMap, encuestaId }) {
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.4 }}>{p.texto}</div>
                 <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
-                  {p.tipo} · {total} respuestas
+                  {p.tipo} · n = {total}
+                  {['si_no', 'escala', 'opcion_multiple'].includes(p.tipo) && total > 1 && <> · ME {margenFormateado(total)} (95%)</>}
                 </div>
               </div>
               {tipos.length > 0 && (
@@ -405,6 +417,13 @@ function GraficoCruce({ preguntas, sesiones, onRemove, onCruceChange, index }) {
     })
     return { tipo: 'bar', labelsX: valoresA, seriesY: valoresB, matriz }
   }, [pA?.id, pB?.id, tipoGrafico, sesiones])
+
+  // Test chi-cuadrado de independencia sobre la tabla de contingencia del cruce.
+  const chi2 = useMemo(() => {
+    if (datosCruce?.tipo !== 'bar') return null
+    const { labelsX, seriesY, matriz } = datosCruce
+    return chiCuadrado(labelsX.map(va => seriesY.map(vb => matriz[va]?.[vb] || 0)))
+  }, [datosCruce])
 
   // El canvas siempre está en el DOM — si lo condicionamos, el ref llega null cuando se monta
   useEffect(() => {
@@ -519,6 +538,8 @@ function GraficoCruce({ preguntas, sesiones, onRemove, onCruceChange, index }) {
       <div style={{ height: 340, position: 'relative', display: datosCruce ? 'block' : 'none' }}>
         <canvas ref={chartRef} />
       </div>
+
+      {chi2 && <ResultadoChiCuadrado res={chi2} />}
 
       {!datosCruce && pA && pB && (
         <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink3)', fontSize: 13 }}>
@@ -820,10 +841,16 @@ function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrud
       .sort((a,b) => b[1]-a[1])
       .map(([l, v]) => {
         const pct = Math.round(v / total * 100)
-        return `<div class="row"><span class="lbl">${l}</span><div class="track"><div class="fill" style="width:${pct}%;background:${color}"></div></div><span class="pct">${pct}% <span style="color:#999">(${v})</span></span></div>`
+        // Whisker del IC 95%: línea de p−ME a p+ME con topes en los extremos,
+        // superpuesta a la barra (la .track pasa a ser position:relative).
+        const ic = intervaloConfianza(total, v / total)
+        const whisker = ic ? `<div style="position:absolute;top:50%;left:${(ic.lo * 100).toFixed(1)}%;width:${((ic.hi - ic.lo) * 100).toFixed(1)}%;height:0;border-top:1.5px solid rgba(17,24,39,.75)"></div>
+          <div style="position:absolute;top:2px;bottom:2px;left:${(ic.lo * 100).toFixed(1)}%;border-left:1.5px solid rgba(17,24,39,.75)"></div>
+          <div style="position:absolute;top:2px;bottom:2px;left:${(ic.hi * 100).toFixed(1)}%;border-left:1.5px solid rgba(17,24,39,.75)"></div>` : ''
+        return `<div class="row"><span class="lbl">${l}</span><div class="track" style="position:relative;overflow:visible"><div class="fill" style="width:${pct}%;background:${color}"></div>${whisker}</div><span class="pct">${pct}% <span style="color:#999">(${v})</span></span></div>`
       }).join('')
 
-    return `<div class="preg"><div class="preg-h" style="border-color:${color}"><b>${p.texto}</b> <span class="badge">${p.tipo} · ${total} resp.</span></div><div class="barras">${barras}</div></div>`
+    return `<div class="preg"><div class="preg-h" style="border-color:${color}"><b>${p.texto}</b> <span class="badge">${p.tipo} · ${total} resp.</span></div><div class="barras">${barras}</div>${pieMargenHTML(total)}</div>`
   }).join('')
 
   // ── Cruces ──
@@ -906,6 +933,7 @@ function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrud
           <thead><tr><th style="padding:5px 8px;background:#f9fafb;font-size:10px;color:#666"></th>${thX}</tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
+        ${chiCuadradoHTML(chiCuadrado(labelsX.map(vx => seriesY.map(vy => matriz?.[vx]?.[vy] || 0))))}
       </div>`
     }).join('')
     return `<div class="sec" style="margin-top:28px">Cruzamientos de datos</div>${items}`
@@ -968,8 +996,9 @@ footer{margin-top:32px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:1
   <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#1a472a;text-transform:uppercase">METR1KA · Reporte</div>
   <h1>${cfg?.titulo || encuesta.nombre}</h1>
   ${cfg?.subtitulo ? `<div style="font-size:14px;color:#555;margin-top:4px;font-weight:500">${cfg.subtitulo}</div>` : ''}
-  <div class="meta"><span>📅 ${fecha}</span>${(resumen?.total_participaron || resumen?.total_sesiones) ? `<span>📊 ${resumen.total_participaron || resumen.total_sesiones} respuestas</span>` : ''}${cfg?.poblacion ? `<span>👥 Población: ${Number(cfg.poblacion).toLocaleString('es-AR')}</span>` : ''}${cfg?.electores ? `<span>🗳️ Electores: ${Number(cfg.electores).toLocaleString('es-AR')}</span>` : ''}</div>
+  <div class="meta"><span>📅 ${fecha}</span>${(resumen?.total_participaron || resumen?.total_sesiones) ? `<span>📊 ${resumen.total_participaron || resumen.total_sesiones} respuestas</span>` : ''}${cfg?.poblacion ? `<span>👥 Población: ${Number(cfg.poblacion).toLocaleString('es-AR')}</span>` : ''}${cfg?.electores ? `<span>🗳️ Electores: ${Number(cfg.electores).toLocaleString('es-AR')}</span>` : ''}${(resumen?.total_participaron || resumen?.total_sesiones) > 1 ? `<span>📐 Margen de error: ${margenFormateado(resumen.total_participaron || resumen.total_sesiones)} (95% de confianza)</span>` : ''}</div>
 </div>
+${explicacionMargenHTML(resumen?.total_participaron || resumen?.total_sesiones || 0)}
 <div class="kpis">
   <div class="kpi" style="border-top-color:#1a472a"><div class="kpi-v" style="color:#1a472a">${resumen?.total_participaron || resumen?.total_sesiones || 0}</div><div class="kpi-l">Total respuestas</div></div>
   <div class="kpi" style="border-top-color:#ef4444"><div class="kpi-v" style="color:#ef4444">${resumen?.total_no_respondieron||0}</div><div class="kpi-l">No respondieron</div></div>

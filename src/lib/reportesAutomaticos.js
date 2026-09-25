@@ -29,6 +29,7 @@
 //     configuradas.
 
 import { sugerirCategoria, normalizarTexto } from './fuzzyMatch'
+import { margenError } from './margenError'
 
 export const OTRO_SIN_IDENTIFICAR = 'Otro (sin identificar)'
 
@@ -100,6 +101,22 @@ export function preguntaEspecial(ctx, claveBase) {
     if (p) return p
   }
   return buscarPregunta(ctx?.preguntas, claveBase)
+}
+
+// Overrides manuales de preguntas especiales, guardados por encuesta en
+// localStorage (los edita PanelPreguntasEspeciales en ReportesAutomaticos.jsx).
+// Exportado para que otras vistas (panel estadístico del Resumen) lean la
+// misma configuración y no cuenten distinto que los reportes.
+export function claveOverrides(encuestaId) {
+  return `metr1ka:overridesEspeciales:${encuestaId}`
+}
+
+export function leerOverrides(encuestaId) {
+  if (!encuestaId) return {}
+  try {
+    const guardado = localStorage.getItem(claveOverrides(encuestaId))
+    return guardado ? JSON.parse(guardado) : {}
+  } catch { return {} }
 }
 
 export function opcionesDe(pregunta) {
@@ -180,6 +197,13 @@ function pct(n, total) {
   return total > 0 ? Math.round((n / total) * 1000) / 10 : 0
 }
 
+// ME específico de una opción (en puntos porcentuales, con 1 decimal) —
+// columna "ME" de las tablas de candidatos.
+function meOpcion(votos, total) {
+  const me = margenError(total, total > 0 ? votos / total : 0)
+  return me != null ? `±${(me * 100).toFixed(1)}` : '—'
+}
+
 // ── 1. Por zona — nombre + completadas, orden desc, total al pie ──
 function reportePorZona(ctx) {
   const filas = ordenarDesc((ctx.statsZona?.por_zona || []).map(z => ({
@@ -231,11 +255,11 @@ function reporteCandidatosPorZona(ctx, claveCand = 'candidato_intendente') {
   const secciones = Object.entries(porZona).map(([zona, conteo]) => {
     const filas = ordenarDesc(Object.entries(conteo).map(([candidato, votos]) => ({ candidato, votos })), 'votos')
     const total = filas.reduce((s, f) => s + f.votos, 0)
-    filas.forEach(f => { f.porcentaje = pct(f.votos, total) })
+    filas.forEach(f => { f.porcentaje = pct(f.votos, total); f.me = meOpcion(f.votos, total) })
     return {
       titulo: zona,
-      columnas: [{ key: 'candidato', label: 'Candidato' }, { key: 'votos', label: 'Votos', num: true }, { key: 'porcentaje', label: '%', num: true }],
-      filas, totalFila: { candidato: 'Total', votos: total, porcentaje: 100 },
+      columnas: [{ key: 'candidato', label: 'Candidato' }, { key: 'votos', label: 'Votos', num: true }, { key: 'porcentaje', label: '%', num: true }, { key: 'me', label: 'ME (±pp)', num: true }],
+      filas, totalFila: { candidato: 'Total', votos: total, porcentaje: 100, me: '' },
     }
   }).sort((a, b) => b.totalFila.votos - a.totalFila.votos)
   return { secciones }
@@ -329,7 +353,7 @@ function reporteActividadPorEncuestador(ctx) {
 
 // ── 7. Evolución horaria (completadas acumuladas por hora, UTC-3) ──
 // Argentina no tiene horario de verano desde 2009: el offset -3 es fijo.
-function horaArgentina(fechaISO) {
+export function horaArgentina(fechaISO) {
   const d = new Date(fechaISO)
   return (d.getUTCHours() + 24 - 3) % 24
 }
@@ -538,8 +562,8 @@ function topN(pregunta, ctx, pParticipa, n) {
   }
   const top = ordenarDesc(Object.entries(conteo).map(([nombre, votos]) => ({ nombre, votos })), 'votos')
     .slice(0, n)
-    .map(f => ({ nombre: f.nombre, pct: pct(f.votos, total) }))
-  return top.length ? { top } : null
+    .map(f => ({ nombre: f.nombre, pct: pct(f.votos, total), me: meOpcion(f.votos, total) }))
+  return top.length ? { top, n: total } : null
 }
 
 // Igual que topN pero sin recortar: devuelve TODAS las opciones de la

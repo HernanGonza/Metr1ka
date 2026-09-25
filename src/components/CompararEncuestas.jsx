@@ -3,6 +3,9 @@ import Chart from 'chart.js/auto'
 import { supabase } from '../lib/supabase'
 import { generarPDF } from '../lib/generarPDF'
 import { buscarPregunta, distribucionCompleta } from '../lib/reportesAutomaticos'
+import { normalizarTexto, sugerirCategoria } from '../lib/fuzzyMatch'
+import { diferenciaSignificativa, margenFormateado } from '../lib/margenError'
+import { bloqueEstadisticoHTML } from '../lib/estadisticaPDF'
 import { ArrowLeft, Download } from 'lucide-react'
 import { Select } from './ui'
 
@@ -40,12 +43,67 @@ async function cargarLado(encuestaId, orgId) {
 // Mergea la distribución de una misma pregunta (por clave_base) entre las
 // dos encuestas, opción por opción — asume mismo set de opciones (misma
 // clave_base → mismo tipo de pregunta en el diseño de la encuesta).
+// `significativa`: la diferencia supera la suma de los márgenes de error de
+// ambas encuestas (diferenciaSignificativa, lib/margenError.js).
+//
+// Como las preguntas de cada encuesta pueden estar redactadas distinto, las
+// OPCIONES también: se emparejan por texto normalizado y, si no hay igual,
+// por matching difuso (sugerirCategoria). Las opciones de B que no
+// emparejan con ninguna de A se agregan al final con 0 en A.
 function mergeDistribuciones(distA, distB) {
-  const porOpcionB = Object.fromEntries(distB.filas.map(f => [f.opcion, f]))
-  return distA.filas.map(fa => {
-    const fb = porOpcionB[fa.opcion] || { n: 0, pct: 0 }
-    return { opcion: fa.opcion, nA: fa.n, pctA: fa.pct, nB: fb.n, pctB: fb.pct, diff: Math.round((fb.pct - fa.pct) * 10) / 10 }
+  const usadasB = new Set()
+  const opcionesB = distB.filas.map(f => f.opcion)
+  const fila = (opcion, fa, fb) => ({
+    opcion, nA: fa.n, pctA: fa.pct, nB: fb.n, pctB: fb.pct, diff: Math.round((fb.pct - fa.pct) * 10) / 10,
+    totalA: distA.total, totalB: distB.total,
+    significativa: diferenciaSignificativa(distA.total, fa.pct / 100, distB.total, fb.pct / 100),
   })
+  const vacia = { n: 0, pct: 0 }
+  const filas = distA.filas.map(fa => {
+    const libres = opcionesB.filter(o => !usadasB.has(o))
+    const igual = libres.find(o => normalizarTexto(o) === normalizarTexto(fa.opcion))
+    const match = igual || sugerirCategoria(fa.opcion, libres)?.categoria
+    if (!match) return fila(fa.opcion, fa, vacia)
+    usadasB.add(match)
+    const fb = distB.filas.find(f => f.opcion === match)
+    return fila(match === fa.opcion || igual ? fa.opcion : `${fa.opcion} / ${match}`, fa, fb)
+  })
+  distB.filas.filter(fb => !usadasB.has(fb.opcion)).forEach(fb => filas.push(fila(fb.opcion, vacia, fb)))
+  return filas
+}
+
+const TIPOS_COMPARABLES = ['si_no', 'escala', 'opcion_multiple']
+
+function preguntasComparables(preguntas) {
+  return (preguntas || []).filter(p => TIPOS_COMPARABLES.includes(p.tipo))
+}
+
+// La pregunta de participación se cuenta sobre TODAS las sesiones (si no,
+// solo aparecerían los "Sí": el resto de las preguntas se cuenta solo sobre
+// completadas, que por definición respondieron "Sí").
+function distribucionDe(pregunta, preguntas, crudo) {
+  const pParticipa = buscarPregunta(preguntas, 'participa')
+  const esParticipa = pParticipa && pParticipa.id === pregunta.id
+  return distribucionCompleta(pregunta, preguntas, crudo, esParticipa ? null : pParticipa)
+}
+
+// Sugerencia de pareja en B para una pregunta de A: misma clave_base si
+// existe; si no, la de texto más parecido.
+function sugerirPareja(pA, preguntasB) {
+  if (!pA) return null
+  const candidatas = preguntasComparables(preguntasB)
+  if (pA.clave_base) {
+    const mismaClave = candidatas.find(q => q.clave_base === pA.clave_base)
+    if (mismaClave) return mismaClave
+  }
+  const texto = sugerirCategoria(pA.texto, candidatas.map(q => q.texto), {}, 0.3)?.categoria
+  return candidatas.find(q => q.texto === texto) || null
+}
+
+function pieSignificanciaHTML(filas) {
+  if (!filas.length) return ''
+  const { totalA, totalB } = filas[0]
+  return bloqueEstadisticoHTML(`n A = ${totalA} (${margenFormateado(totalA)}) · n B = ${totalB} (${margenFormateado(totalB)}). Una diferencia es significativa cuando supera la suma de los márgenes de error de ambas encuestas (95% de confianza).`)
 }
 
 function tablaComparacionHTML(filas, labelA, labelB) {
@@ -56,15 +114,16 @@ function tablaComparacionHTML(filas, labelA, labelB) {
       <td>${f.opcion}</td>
       <td style="text-align:right">${f.nA} (${f.pctA}%)</td>
       <td style="text-align:right">${f.nB} (${f.pctB}%)</td>
-      <td style="text-align:right;color:${color};font-weight:700">${signo}${f.diff}pp</td>
+      <td style="text-align:right;color:${f.significativa ? color : '#888'};font-weight:700">${signo}${f.diff}pp</td>
+      <td style="text-align:center">${f.significativa ? '✅' : '⚠️ dentro del margen'}</td>
     </tr>`
   }).join('')
   return `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px">
     <thead><tr style="background:#f3f4f6">
-      <th style="text-align:left">Opción</th><th style="text-align:right">${labelA}</th><th style="text-align:right">${labelB}</th><th style="text-align:right">Diferencia</th>
+      <th style="text-align:left">Opción</th><th style="text-align:right">${labelA}</th><th style="text-align:right">${labelB}</th><th style="text-align:right">Diferencia</th><th style="text-align:center">Significativa</th>
     </tr></thead>
     <tbody>${rows}</tbody>
-  </table>`
+  </table>${pieSignificanciaHTML(filas)}`
 }
 
 // Barras agrupadas SVG — dos barras (A/B) por opción, escaladas al máximo
@@ -130,7 +189,8 @@ export default function CompararEncuestas({ encuestas, perfil, onVolver }) {
   // tendría que ir corrigiendo.
   const [ladoA, setLadoA] = useState({ id: null, preguntas: [], crudo: null, error: '' })
   const [ladoB, setLadoB] = useState({ id: null, preguntas: [], crudo: null, error: '' })
-  const [claveBase, setClaveBase] = useState('')
+  const [pregIdA, setPregIdA] = useState('')
+  const [pregIdB, setPregIdB] = useState('')
   const chartRef = useRef(null)
   const chartInst = useRef(null)
 
@@ -172,28 +232,30 @@ export default function CompararEncuestas({ encuestas, perfil, onVolver }) {
   const cargandoB = !!idB && ladoB.id !== idB && !ladoB.error
   const ambasCargadas = !!(idA && idB && ladoA.id === idA && ladoB.id === idB && ladoA.crudo && ladoB.crudo)
 
-  const preguntasComunes = useMemo(() => {
-    if (!ambasCargadas) return []
-    return ladoA.preguntas.filter(p => p.clave_base && ladoB.preguntas.some(q => q.clave_base === p.clave_base))
-  }, [ambasCargadas, ladoA.preguntas, ladoB.preguntas])
+  const comparablesA = useMemo(() => (ambasCargadas ? preguntasComparables(ladoA.preguntas) : []), [ambasCargadas, ladoA.preguntas])
+  const comparablesB = useMemo(() => (ambasCargadas ? preguntasComparables(ladoB.preguntas) : []), [ambasCargadas, ladoB.preguntas])
 
-  // Pregunta activa: la elegida por el usuario si sigue entre las comunes,
-  // si no la primera disponible — derivado en render, sin efecto que
-  // "corrija" el estado después del hecho.
-  const claveBaseActiva = useMemo(() => {
-    if (!preguntasComunes.length) return ''
-    return preguntasComunes.some(p => p.clave_base === claveBase) ? claveBase : preguntasComunes[0].clave_base
-  }, [preguntasComunes, claveBase])
+  // Pregunta de cada lado: la elegida por el usuario si sigue existiendo;
+  // si no, la primera que no sea "participa" en A y la sugerida en B —
+  // derivado en render, sin efecto que "corrija" el estado.
+  const preguntaA = useMemo(() => {
+    return comparablesA.find(p => p.id === pregIdA)
+      || comparablesA.find(p => p.clave_base !== 'participa') || comparablesA[0] || null
+  }, [comparablesA, pregIdA])
+  const preguntaB = useMemo(() => {
+    return comparablesB.find(p => p.id === pregIdB) || sugerirPareja(preguntaA, ladoB.preguntas) || comparablesB[0] || null
+  }, [comparablesB, pregIdB, preguntaA, ladoB.preguntas])
 
-  const preguntaA = useMemo(() => buscarPregunta(ladoA.preguntas, claveBaseActiva), [ladoA.preguntas, claveBaseActiva])
-  const preguntaB = useMemo(() => buscarPregunta(ladoB.preguntas, claveBaseActiva), [ladoB.preguntas, claveBaseActiva])
+  function elegirPreguntaA(id) {
+    setPregIdA(id)
+    // Al cambiar A se vuelve a sugerir la pareja en B (el usuario la puede cambiar).
+    setPregIdB('')
+  }
 
   const filasComparacion = useMemo(() => {
     if (!preguntaA || !preguntaB || !ladoA.crudo || !ladoB.crudo) return []
-    const pParticipaA = buscarPregunta(ladoA.preguntas, 'participa')
-    const pParticipaB = buscarPregunta(ladoB.preguntas, 'participa')
-    const distA = distribucionCompleta(preguntaA, ladoA.preguntas, ladoA.crudo, pParticipaA)
-    const distB = distribucionCompleta(preguntaB, ladoB.preguntas, ladoB.crudo, pParticipaB)
+    const distA = distribucionDe(preguntaA, ladoA.preguntas, ladoA.crudo)
+    const distB = distribucionDe(preguntaB, ladoB.preguntas, ladoB.crudo)
     return mergeDistribuciones(distA, distB)
   }, [preguntaA, preguntaB, ladoA, ladoB])
 
@@ -224,23 +286,27 @@ export default function CompararEncuestas({ encuestas, perfil, onVolver }) {
   function descargarPDFPregunta() {
     if (!filasComparacion.length || !preguntaA) return
     const cuerpo = `${tablaComparacionHTML(filasComparacion, encA.nombre, encB.nombre)}${barrasAgrupadasSVG(filasComparacion, encA.nombre, encB.nombre)}`
-    const html = shellPDF(preguntaA.texto || 'Comparación', `${encA.nombre} (${fechaCorta(encA.creado_en)}) vs ${encB.nombre} (${fechaCorta(encB.creado_en)})`, cuerpo)
+    const titulo = preguntaA.texto === preguntaB.texto ? preguntaA.texto : `${preguntaA.texto} / ${preguntaB.texto}`
+    const html = shellPDF(titulo || 'Comparación', `${encA.nombre} (${fechaCorta(encA.creado_en)}) vs ${encB.nombre} (${fechaCorta(encB.creado_en)})`, cuerpo)
     generarPDF(html, `comparacion-${(preguntaA.texto || 'pregunta').replace(/[^\w-]+/g, '_')}.pdf`)
   }
 
   // Reporte 21 — Panel de seguimiento: todas las preguntas comunes, con
   // página de resumen (top 5 variaciones) al principio.
   function descargarPanelSeguimiento() {
-    if (!ambasCargadas || !preguntasComunes.length) return
-    const pParticipaA = buscarPregunta(ladoA.preguntas, 'participa')
-    const pParticipaB = buscarPregunta(ladoB.preguntas, 'participa')
+    if (!ambasCargadas) return
+    // Parejas: las de misma clave_base (detectables automáticamente) + la
+    // pareja elegida a mano en pantalla, si no estaba ya.
+    const parejas = comparablesA
+      .filter(pA => pA.clave_base)
+      .map(pA => [pA, comparablesB.find(q => q.clave_base === pA.clave_base)])
+      .filter(([, pB]) => pB)
+    if (preguntaA && preguntaB && !parejas.some(([a, b]) => a.id === preguntaA.id && b.id === preguntaB.id)) parejas.unshift([preguntaA, preguntaB])
+    if (!parejas.length) return
 
-    const secciones = preguntasComunes.map(pA => {
-      const pB = buscarPregunta(ladoB.preguntas, pA.clave_base)
-      const distA = distribucionCompleta(pA, ladoA.preguntas, ladoA.crudo, pParticipaA)
-      const distB = distribucionCompleta(pB, ladoB.preguntas, ladoB.crudo, pParticipaB)
-      const filas = mergeDistribuciones(distA, distB)
-      return { titulo: pA.texto || pA.clave_base, filas }
+    const secciones = parejas.map(([pA, pB]) => {
+      const filas = mergeDistribuciones(distribucionDe(pA, ladoA.preguntas, ladoA.crudo), distribucionDe(pB, ladoB.preguntas, ladoB.crudo))
+      return { titulo: pA.texto === pB.texto ? pA.texto : `${pA.texto} / ${pB.texto}`, filas }
     }).filter(s => s.filas.length)
 
     const variaciones = secciones.flatMap(s => s.filas.map(f => ({ pregunta: s.titulo, opcion: f.opcion, diff: f.diff })))
@@ -296,19 +362,27 @@ export default function CompararEncuestas({ encuestas, perfil, onVolver }) {
         </div>
       </div>
 
-      {ambasCargadas && preguntasComunes.length === 0 && (
+      {ambasCargadas && (!comparablesA.length || !comparablesB.length) && (
         <div style={{ ...box, textAlign: 'center', color: 'var(--ink3)', fontSize: 13 }}>
-          Estas dos encuestas no tienen ninguna pregunta con la misma clasificación (clave_base) — no hay nada para comparar.
+          Alguna de las dos encuestas no tiene preguntas de opciones (sí/no, escala u opción múltiple) — no hay nada para comparar.
         </div>
       )}
 
-      {ambasCargadas && preguntasComunes.length > 0 && (
+      {ambasCargadas && comparablesA.length > 0 && comparablesB.length > 0 && (
         <>
-          <div style={{ ...box, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)' }}>Pregunta a comparar</label>
-            <Select value={claveBaseActiva} onChange={e => setClaveBase(e.target.value)} style={{ ...inp, width: 'auto', flex: 1, minWidth: 240 }}>
-              {preguntasComunes.map(p => <option key={p.clave_base} value={p.clave_base}>{p.texto || p.clave_base}</option>)}
-            </Select>
+          <div style={{ ...box, display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 240 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: 4 }}>Pregunta de {encA?.nombre || 'A'}</label>
+              <Select value={preguntaA?.id || ''} onChange={e => elegirPreguntaA(e.target.value)} style={inp}>
+                {comparablesA.map(p => <option key={p.id} value={p.id}>{p.texto}</option>)}
+              </Select>
+            </div>
+            <div style={{ flex: 1, minWidth: 240 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', display: 'block', marginBottom: 4 }}>Pregunta de {encB?.nombre || 'B'}</label>
+              <Select value={preguntaB?.id || ''} onChange={e => setPregIdB(e.target.value)} style={inp}>
+                {comparablesB.map(p => <option key={p.id} value={p.id}>{p.texto}</option>)}
+              </Select>
+            </div>
             <button onClick={descargarPDFPregunta} disabled={!filasComparacion.length}
               style={{ padding: '8px 14px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 700, cursor: filasComparacion.length ? 'pointer' : 'not-allowed', opacity: filasComparacion.length ? 1 : 0.5, fontFamily: 'DM Sans', display: 'flex', alignItems: 'center', gap: 6 }}>
               <Download size={13} /> Descargar PDF
@@ -317,6 +391,10 @@ export default function CompararEncuestas({ encuestas, perfil, onVolver }) {
               style={{ padding: '8px 14px', background: 'var(--surface)', border: '1.5px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans', color: 'var(--ink2)', display: 'flex', alignItems: 'center', gap: 6 }}>
               <Download size={13} /> Exportar panel de seguimiento
             </button>
+            <div style={{ width: '100%', fontSize: 11, color: 'var(--ink3)' }}>
+              Elegí una pregunta de cada encuesta (pueden estar redactadas distinto). En B se sugiere automáticamente la más parecida; las opciones se emparejan por texto.
+              El panel de seguimiento incluye esta pareja más las preguntas con la misma clasificación en ambas encuestas.
+            </div>
           </div>
 
           {filasComparacion.length === 0 ? (
@@ -333,6 +411,7 @@ export default function CompararEncuestas({ encuestas, perfil, onVolver }) {
                     <th style={{ textAlign: 'right', padding: '6px 8px', color: 'var(--ink3)', fontSize: 11, textTransform: 'uppercase' }}>{encA.nombre}</th>
                     <th style={{ textAlign: 'right', padding: '6px 8px', color: 'var(--ink3)', fontSize: 11, textTransform: 'uppercase' }}>{encB.nombre}</th>
                     <th style={{ textAlign: 'right', padding: '6px 8px', color: 'var(--ink3)', fontSize: 11, textTransform: 'uppercase' }}>Diferencia</th>
+                    <th style={{ textAlign: 'center', padding: '6px 8px', color: 'var(--ink3)', fontSize: 11, textTransform: 'uppercase' }}>Significativa</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -341,13 +420,20 @@ export default function CompararEncuestas({ encuestas, perfil, onVolver }) {
                       <td style={{ padding: '8px' }}>{f.opcion}</td>
                       <td style={{ padding: '8px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{f.nA} ({f.pctA}%)</td>
                       <td style={{ padding: '8px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{f.nB} ({f.pctB}%)</td>
-                      <td style={{ padding: '8px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: f.diff > 0 ? 'var(--accent2)' : f.diff < 0 ? 'var(--danger)' : 'var(--ink3)' }}>
-                        {f.diff > 0 ? '+' : ''}{f.diff}pp
+                      <td style={{ padding: '8px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: !f.significativa ? 'var(--ink3)' : f.diff > 0 ? 'var(--accent2)' : 'var(--danger)' }}>
+                        {!f.significativa ? '→' : f.diff > 0 ? '↑' : '↓'} {f.diff > 0 ? '+' : ''}{f.diff}pp
+                      </td>
+                      <td style={{ padding: '8px', textAlign: 'center', fontSize: 12, color: f.significativa ? 'inherit' : 'var(--ink3)' }}>
+                        {f.significativa ? '✅' : '⚠️ dentro del margen'}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              <div style={{ background: 'var(--surface)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 11.5, color: 'var(--ink2)', marginTop: 10 }}>
+                n A = {filasComparacion[0].totalA} ({margenFormateado(filasComparacion[0].totalA)}) · n B = {filasComparacion[0].totalB} ({margenFormateado(filasComparacion[0].totalB)}).
+                Significativa = la diferencia supera la suma de los márgenes de error de ambas encuestas.
+              </div>
             </div>
           )}
         </>

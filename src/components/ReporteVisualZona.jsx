@@ -12,6 +12,11 @@ import {
   buscarSeguimientoOtro,
 } from '../lib/reportesAutomaticos'
 import { generarPDF } from '../lib/generarPDF'
+import { margenFormateado } from '../lib/margenError'
+import { errorBarsPlugin, errorBarsDeConteos, maxConWhiskers } from '../lib/chartErrorBars'
+import { encabezadoMuestraHTML, explicacionMargenHTML } from '../lib/estadisticaPDF'
+import { analizarClusters } from '../lib/clusters'
+import { leerOverrides } from '../lib/reportesAutomaticos'
 import { Select } from './ui'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend)
@@ -43,6 +48,10 @@ const PALETA_NOMINAL = ['#2563eb','#dc2626','#ea580c','#ca8a04','#65a30d','#1580
 const GRIS_OTROS      = '#94a3b8'
 const GRIS_ESPECIAL   = '#cbd5e1'
 const GRIS_SIN_DATOS  = '#e2e8f0'
+// Debajo de este n una zona no se colorea por su opción ganadora: con tan
+// pocos casos el margen de error (> ±18%) hace que el "ganador" sea ruido.
+const N_MINIMO_ZONA   = 30
+const GRIS_INSUFICIENTE = '#9ca3af'
 
 // Detección de preguntas "de escala" (Muy buena/Buena/Regular/Mala/Muy mala
 // y variantes) para usar semáforo verde→rojo en vez de la paleta nominal.
@@ -150,6 +159,45 @@ function calcularDatosPregunta(pregunta, preguntas, crudo) {
   return { porZona, global, colores, escalaLike, opciones, ordenLegend }
 }
 
+// ¿Es una pregunta de candidato? Por clave_base o por override manual
+// (panel "Preguntas especiales" de los reportes automáticos).
+function esPreguntaCandidato(pregunta, encuestaId) {
+  if (!pregunta) return false
+  if (pregunta.clave_base?.startsWith('candidato_')) return true
+  const ov = leerOverrides(encuestaId)
+  return ['candidato_intendente', 'candidato_gobernador', 'candidato_presidente'].some(c => ov[c] === pregunta.id)
+}
+
+function clustersDe(datos, zonas) {
+  if (!datos) return null
+  const nombres = Object.fromEntries((zonas || []).map(z => [z.id, z.nombre]))
+  return analizarClusters(datos.porZona, nombres)
+}
+
+const COLOR_TIPO_CLUSTER = { concentrado: '#7c3aed', disperso: '#0369a1', intermedio: '#6b7280' }
+
+function AnalisisClusters({ clusters }) {
+  if (!clusters) return null
+  return (
+    <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 18px' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>🧭 Análisis de clusters</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+        {clusters.candidatos.map(c => (
+          <div key={c.candidato} style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap', fontSize: 13 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 100, color: COLOR_TIPO_CLUSTER[c.tipo], background: `${COLOR_TIPO_CLUSTER[c.tipo]}15`, textTransform: 'capitalize', minWidth: 90, textAlign: 'center' }}>{c.tipo}</span>
+            <span><b>{c.candidato}</b>: {c.pctTop}% de sus {c.total} votos viene de {c.zonasTop.join(', ')} · presente en {c.zonasPresente}/{c.totalZonas} zonas</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.6, marginBottom: 8 }}>{clusters.sintesis}</div>
+      <div style={{ background: 'var(--surface)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 11.5, color: 'var(--ink2)' }}>
+        % de los votos de cada candidato que viene de sus 3 zonas con más votos: &gt; 60% concentrado, &lt; 40% disperso.
+        No corrige por el tamaño de muestra de cada zona.
+      </div>
+    </div>
+  )
+}
+
 /* ── Tablas HTML para el PDF (mismo look que ReportesAutomaticos.jsx) ── */
 function tablaHTMLGenerica(columnas, filas) {
   const th = columnas.map(c => `<th style="text-align:${c.num ? 'right' : 'left'}">${c.label}</th>`).join('')
@@ -166,10 +214,14 @@ function tablaResumenHTML(zonas, datos) {
     const conteo = datos.porZona[z.id]
     const total = Object.values(conteo).reduce((a, b) => a + b, 0)
     const ganador = ganadorDeZona(conteo)
-    return { zona: z.nombre, ganador: ganador?.opcion || '—', pct: total > 0 ? `${Math.round(ganador.n / total * 100)}%` : '—', total }
+    return {
+      zona: total < N_MINIMO_ZONA ? `${z.nombre} ⚠ muestra insuficiente` : z.nombre,
+      ganador: ganador?.opcion || '—', pct: total > 0 ? `${Math.round(ganador.n / total * 100)}%` : '—', total,
+      me: margenFormateado(total),
+    }
   }).sort((a, b) => b.total - a.total)
   return tablaHTMLGenerica(
-    [{ key: 'zona', label: 'Zona' }, { key: 'ganador', label: 'Opción ganadora' }, { key: 'pct', label: '%', num: true }, { key: 'total', label: 'Total completadas', num: true }],
+    [{ key: 'zona', label: 'Zona' }, { key: 'ganador', label: 'Opción ganadora' }, { key: 'pct', label: '%', num: true }, { key: 'total', label: 'Total completadas (n)', num: true }, { key: 'me', label: 'ME', num: true }],
     filas
   )
 }
@@ -200,7 +252,7 @@ function leyendaHTML(datos) {
   return `<div style="margin-bottom:12px">${chips}</div>`
 }
 
-function generarHTMLVisual(secciones, encuesta, esCompleto) {
+function generarHTMLVisual(secciones, encuesta, esCompleto, nTotal, sintesisClusters = []) {
   const fecha = new Date().toLocaleString('es-AR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' })
   const cuerpo = secciones.map(s => `
     <div class="sec">${s.titulo}</div>
@@ -229,9 +281,15 @@ function generarHTMLVisual(secciones, encuesta, esCompleto) {
   <div class="header">
     <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#52B788;text-transform:uppercase">METR1KA · Reporte visual interactivo por zona</div>
     <h1>${titulo}</h1>
+    ${encabezadoMuestraHTML(nTotal)}
     <div class="meta">Generado el ${fecha} (UTC-3)</div>
   </div>
+  ${explicacionMargenHTML(nTotal)}
   ${cuerpo}
+  ${sintesisClusters.length ? `<div class="sec" style="page-break-before:always">Análisis de clusters territoriales</div>
+    ${sintesisClusters.map(c => `<p style="font-size:12px;line-height:1.6;margin-bottom:10px">${esCompleto ? `<b>${c.titulo}.</b> ` : ''}${c.sintesis}</p>`).join('')}
+    <div style="background:#f3f4f6;border-radius:6px;padding:8px 12px;margin:4px 0 18px;font-size:10.5px;color:#555">% de los votos de cada candidato que viene de sus 3 zonas con más votos: &gt; 60% apoyo concentrado, &lt; 40% apoyo disperso. No corrige por el tamaño de muestra de cada zona.</div>` : ''}
+  <div style="font-size:10.5px;color:#555;margin:14px 0 6px">Zonas con menos de ${N_MINIMO_ZONA} respuestas se muestran en gris en el mapa (muestra insuficiente para estimar la opción ganadora).</div>
   <footer><span>METR1KA — metr1ka.com</span><span>${fecha}</span></footer>
   </body></html>`
 }
@@ -287,13 +345,16 @@ function MapaChoropleth({ containerRef, zonas, datos, onClickZona }) {
       const conteo = datos?.porZona?.[z.id]
       const ganador = ganadorDeZona(conteo)
       const total = conteo ? Object.values(conteo).reduce((a, b) => a + b, 0) : 0
-      const color = ganador ? (datos.colores[ganador.opcion] || GRIS_OTROS) : null
+      const insuficiente = ganador && total < N_MINIMO_ZONA
+      const colorGanador = ganador ? (datos.colores[ganador.opcion] || GRIS_OTROS) : null
+      const color = insuficiente ? GRIS_INSUFICIENTE : colorGanador
       const layer = L.geoJSON(feat, {
-        style: { color: '#374151', weight: 1.5, fillColor: color || GRIS_SIN_DATOS, fillOpacity: color ? 0.65 : 0.35 },
+        style: { color: '#374151', weight: 1.5, fillColor: color || GRIS_SIN_DATOS, fillOpacity: color ? (insuficiente ? 0.45 : 0.65) : 0.35 },
       })
       const pct = total > 0 && ganador ? Math.round(ganador.n / total * 100) : 0
       const tooltip = ganador
-        ? `<div style="font-family:'DM Sans',sans-serif;font-size:12px;line-height:1.5"><b>${z.nombre}</b><br/><span style="color:${color}">${ganador.opcion}</span>: ${ganador.n} (${pct}%)<br/><span style="color:#9ca3af;font-size:10px">Total: ${total} respuestas</span></div>`
+        ? `<div style="font-family:'DM Sans',sans-serif;font-size:12px;line-height:1.5"><b>${z.nombre}</b><br/><span style="color:${colorGanador}">${ganador.opcion}</span>: ${ganador.n} (${pct}%)<br/><span style="color:#6b7280;font-size:11px">n = ${total} · ME ${margenFormateado(total)}</span>${
+            insuficiente ? `<br/><span style="color:#b45309;font-size:11px;font-weight:700">⚠ Muestra insuficiente (n &lt; ${N_MINIMO_ZONA})</span>` : ''}</div>`
         : `<div style="font-family:'DM Sans',sans-serif;font-size:12px"><b>${z.nombre}</b><br/><span style="color:#9ca3af">Sin datos</span></div>`
       layer.bindTooltip(tooltip, { sticky: true })
       layer.on('click', () => onClickZona?.({ zona: z, conteo: conteo || {}, total }))
@@ -327,7 +388,10 @@ function ModalZonaDetalle({ info, colores, onClose }) {
           <div style={{ fontSize: 16, fontWeight: 800 }}>{zona.nombre}</div>
           <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--ink3)' }}>✕</button>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 14 }}>{total} respuestas</div>
+        <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 14 }}>
+          n = {total} · ME {margenFormateado(total)}
+          {total < N_MINIMO_ZONA && <span style={{ color: '#b45309', fontWeight: 700 }}> · ⚠ muestra insuficiente</span>}
+        </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: 'var(--surface)' }}>
@@ -411,7 +475,12 @@ function GraficosZona({ zonas, datos, tipoGrafico, comparativa, opcionComparativ
   if (comparativa) {
     const labels = zonasConDatos.map(z => z.nombre)
     const values = zonasConDatos.map(z => datos.porZona[z.id]?.[opcionComparativa] || 0)
-    const chartData = { labels, datasets: [{ label: opcionComparativa, data: values, backgroundColor: datos.colores[opcionComparativa] || GRIS_OTROS, borderRadius: 6 }] }
+    const errorBars = zonasConDatos.map((z, i) => {
+      const total = Object.values(datos.porZona[z.id] || {}).reduce((a, b) => a + b, 0)
+      return errorBarsDeConteos([values[i]], total)?.[0] || null
+    })
+    const chartData = { labels, datasets: [{ label: opcionComparativa, data: values, errorBars, backgroundColor: datos.colores[opcionComparativa] || GRIS_OTROS, borderRadius: 6 }] }
+    const ejeValor = tipoGrafico === 'barh' ? 'x' : 'y'
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -422,7 +491,11 @@ function GraficosZona({ zonas, datos, tipoGrafico, comparativa, opcionComparativ
           </Select>
         </div>
         <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: 16, height: 380 }}>
-          <Bar data={chartData} options={{ ...chartOptionsBase, indexAxis: tipoGrafico === 'barh' ? 'y' : 'x', plugins: { ...chartOptionsBase.plugins, legend: { display: false } } }} />
+          <Bar data={chartData} plugins={[errorBarsPlugin]} options={{
+            ...chartOptionsBase, indexAxis: tipoGrafico === 'barh' ? 'y' : 'x',
+            plugins: { ...chartOptionsBase.plugins, legend: { display: false } },
+            scales: { ...chartOptionsBase.scales, [ejeValor]: { ...chartOptionsBase.scales[ejeValor], suggestedMax: maxConWhiskers(errorBars) } },
+          }} />
         </div>
       </div>
     )
@@ -435,13 +508,24 @@ function GraficosZona({ zonas, datos, tipoGrafico, comparativa, opcionComparativ
         const entries = datos.ordenLegend.filter(op => conteo[op] != null).map(op => [op, conteo[op]])
         const chartData = construirChartData(entries, datos.colores)
         const total = entries.reduce((s, [, n]) => s + n, 0)
-        const ChartComp = tipoGrafico === 'torta' ? Pie : Bar
+        const esTorta = tipoGrafico === 'torta'
+        const ChartComp = esTorta ? Pie : Bar
+        let opciones = chartOptionsBase
+        if (!esTorta) {
+          const errorBars = errorBarsDeConteos(entries.map(([, n]) => n), total)
+          chartData.datasets[0].errorBars = errorBars
+          const ejeValor = tipoGrafico === 'barh' ? 'x' : 'y'
+          opciones = { ...chartOptionsBase, scales: { ...chartOptionsBase.scales, [ejeValor]: { ...chartOptionsBase.scales[ejeValor], suggestedMax: maxConWhiskers(errorBars) } } }
+        }
         return (
-          <div key={z.id} style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 16px' }}>
+          <div key={z.id} style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '14px 16px', opacity: total < N_MINIMO_ZONA ? 0.75 : 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{z.nombre}</div>
-            <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 10 }}>{total} respuestas</div>
+            <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 10 }}>
+              n = {total} · ME {margenFormateado(total)}
+              {total < N_MINIMO_ZONA && <span style={{ color: '#b45309', fontWeight: 700 }}> · ⚠ muestra insuficiente</span>}
+            </div>
             <div style={{ height: 200 }}>
-              <ChartComp data={chartData} options={chartOptionsBase} />
+              <ChartComp data={chartData} options={opciones} plugins={esTorta ? [] : [errorBarsPlugin]} />
             </div>
           </div>
         )
@@ -523,6 +607,11 @@ export default function ReporteVisualZona({ encuesta, preguntas }) {
 
   const datos = useMemo(() => calcularDatosPregunta(preguntaActual, preguntas, crudo), [preguntaActual, preguntas, crudo])
 
+  const clusters = useMemo(
+    () => (esPreguntaCandidato(preguntaActual, encuesta?.id) ? clustersDe(datos, zonas) : null),
+    [preguntaActual, encuesta?.id, datos, zonas]
+  )
+
   useEffect(() => {
     if (datos && (!opcionComparativa || !datos.ordenLegend.includes(opcionComparativa))) {
       setOpcionComparativa(datos.ordenLegend[0] || null)
@@ -549,14 +638,19 @@ export default function ReporteVisualZona({ encuesta, preguntas }) {
     try {
       const lista = modo === 'todas' ? preguntasElegibles : [preguntaActual]
       const secciones = []
+      const sintesisClusters = []
       for (const p of lista) {
         if (p.id !== preguntaId) { setPreguntaId(p.id); await new Promise(r => setTimeout(r, 50)) }
         const img = await capturarMapa()
         const d = calcularDatosPregunta(p, preguntas, crudo)
         secciones.push({ titulo: p.texto, img, leyendaHTML: leyendaHTML(d), resumenHTML: tablaResumenHTML(zonas, d), completoHTML: tablaCompletaHTML(zonas, d) })
+        const cl = esPreguntaCandidato(p, encuesta?.id) ? clustersDe(d, zonas) : null
+        if (cl) sintesisClusters.push({ titulo: p.texto, sintesis: cl.sintesis })
       }
       if (preguntaId !== preguntaOriginal) setPreguntaId(preguntaOriginal)
-      const html = generarHTMLVisual(secciones, encuesta, modo === 'todas')
+      const pParticipa = buscarPregunta(preguntas, 'participa')
+      const nTotal = (crudo.filas || []).filter(f => esCompletada(f, pParticipa)).length
+      const html = generarHTMLVisual(secciones, encuesta, modo === 'todas', nTotal, sintesisClusters)
       await generarPDF(html, `reporte-visual-${(encuesta?.nombre || 'encuesta').replace(/[^\w-]+/g, '_')}.pdf`)
     } catch (e) {
       console.error('exportarPDF visual:', e)
@@ -616,7 +710,14 @@ export default function ReporteVisualZona({ encuesta, preguntas }) {
           <div ref={mapDivRef} style={{ height: 520, width: '100%', borderRadius: 'var(--r2)', border: '1px solid var(--border)', overflow: 'hidden' }}>
             <MapaChoropleth containerRef={mapDivRef} zonas={zonas} datos={datos} onClickZona={setModalZona} />
           </div>
-          <div style={{ fontSize: 11, color: 'var(--ink3)' }}>Hacé clic en una zona para ver el detalle completo de respuestas.</div>
+          <div style={{ fontSize: 11, color: 'var(--ink3)' }}>
+            Hacé clic en una zona para ver el detalle completo de respuestas.
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginLeft: 10 }}>
+              <span style={{ width: 9, height: 9, borderRadius: 2, background: GRIS_INSUFICIENTE, display: 'inline-block' }} />
+              Zonas en gris: menos de {N_MINIMO_ZONA} respuestas (muestra insuficiente).
+            </span>
+          </div>
+          <AnalisisClusters clusters={clusters} />
         </div>
       )}
 

@@ -1,7 +1,17 @@
 import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { REPORTES_DEFS, CATEGORIAS_ORDEN, calcularReporte, PALETA_REPORTES, CLAVES_ESPECIALES, buscarPregunta } from '../lib/reportesAutomaticos'
+import { REPORTES_DEFS, CATEGORIAS_ORDEN, calcularReporte, PALETA_REPORTES, CLAVES_ESPECIALES, buscarPregunta, claveOverrides, leerOverrides, preguntaEspecial, esCompletada } from '../lib/reportesAutomaticos'
 import { generarPDF } from '../lib/generarPDF'
+import { margenError } from '../lib/margenError'
+import { indicesIndecision } from '../lib/indecision'
+import { correlacionGestionVoto } from '../lib/correlacion'
+import { cargarEncuestaAnterior, compararConAnterior } from '../lib/tendencia'
+import { indiceCompetitividad } from '../lib/competitividad'
+import { enriquecerActividad, colorScore, desgloseTexto, nivelAlertaMismoLugar, textoAlertaMismoLugar, MISMO_LUGAR_M, VENTANA_MIN } from '../lib/calidadEncuestador'
+import { UMBRAL_ALERTA_PCT } from '../lib/straightlining'
+import {
+  bloqueEstadisticoHTML, encabezadoMuestraHTML, pieMargenHTML, explicacionMargenHTML, indecisionHTML, correlacionHTML, tendenciaHTML,
+} from '../lib/estadisticaPDF'
 import { Select } from './ui'
 
 // Reportes automáticos — Sección 8 del plan. A diferencia de "Reportes" (el
@@ -102,13 +112,33 @@ function svgLineasEncuestadores(series) {
 }
 
 // Barra horizontal SVG — usada en el resumen ejecutivo (candidatos, top
-// problemas) en vez de un gráfico armado con Chart.js/canvas.
-function barraSVG(pct, color, width = 280, height = 16) {
+// problemas) en vez de un gráfico armado con Chart.js/canvas. Con `me` (en
+// puntos porcentuales) dibuja además el whisker del intervalo de confianza
+// al 95%: línea horizontal de p−ME a p+ME con topes verticales en los extremos.
+function barraSVG(pct, color, width = 280, height = 16, me = null) {
   const w = Math.max(2, Math.round((Math.min(100, pct) / 100) * width))
+  let whisker = ''
+  if (me != null && me > 0) {
+    const x1 = (Math.max(0, pct - me) / 100) * width
+    const x2 = (Math.min(100, pct + me) / 100) * width
+    const cy = height / 2
+    whisker = `<g stroke="#111827" stroke-opacity="0.75" stroke-width="1.5">
+      <line x1="${x1.toFixed(1)}" y1="${cy}" x2="${x2.toFixed(1)}" y2="${cy}"/>
+      <line x1="${x1.toFixed(1)}" y1="${cy - 4}" x2="${x1.toFixed(1)}" y2="${cy + 4}"/>
+      <line x1="${x2.toFixed(1)}" y1="${cy - 4}" x2="${x2.toFixed(1)}" y2="${cy + 4}"/>
+    </g>`
+  }
   return `<svg width="${width}" height="${height}" style="vertical-align:middle">
     <rect x="0" y="0" width="${width}" height="${height}" fill="#f3f4f6" rx="3"/>
     <rect x="0" y="0" width="${w}" height="${height}" fill="${color}" rx="3"/>
+    ${whisker}
   </svg>`
+}
+
+// ME numérico (pp) de una opción con `pct`% sobre `n` respuestas.
+function mePP(n, pct) {
+  const me = margenError(n, pct / 100)
+  return me != null ? me * 100 : null
 }
 
 // Fila de barra genérica — `valor` no tiene por qué ser un porcentaje de
@@ -116,17 +146,19 @@ function barraSVG(pct, color, width = 280, height = 16) {
 // y el número mostrado es `valor` + `sufijo` tal cual. `filaBarra` (abajo)
 // es el caso particular de siempre-porcentaje que ya usaban resumen
 // ejecutivo / perfil votante / candidatos por zona.
-function filaBarraValor(nombre, valor, max, color, sufijo = '') {
+function filaBarraValor(nombre, valor, max, color, sufijo = '', me = null) {
   const anchoPct = max > 0 ? Math.min(100, Math.round((valor / max) * 100)) : 0
   return `<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
     <div style="width:200px;font-size:14px;font-weight:600;text-align:right">${nombre}</div>
-    ${barraSVG(anchoPct, color)}
-    <div style="width:60px;font-size:15px;font-weight:800;color:${color}">${valor}${sufijo}</div>
+    ${barraSVG(anchoPct, color, 280, 16, me)}
+    <div style="width:${me != null ? 110 : 60}px;font-size:15px;font-weight:800;color:${color}">${valor}${sufijo}${
+      me != null ? ` <span style="font-size:10px;font-weight:400;color:#888">±${me.toFixed(1)}</span>` : ''}</div>
   </div>`
 }
 
-function filaBarra(nombre, pct, color) {
-  return filaBarraValor(nombre, pct, 100, color, '%')
+// `me` opcional (pp): agrega whisker de IC 95% y el ±ME al lado del valor.
+function filaBarra(nombre, pct, color, me = null) {
+  return filaBarraValor(nombre, pct, 100, color, '%', me)
 }
 
 // Gráfico de barras genérico — una fila por elemento de `filas`, leyendo
@@ -177,8 +209,11 @@ function votoPorPerfilBarrasHTML({ columnas, filas }) {
 // PALETA_REPORTES para diferenciar candidatos dentro de la sección.
 function seccionBarrasHTML(filas) {
   if (!filas?.length) return ''
+  // Con votos (candidatos_zona) se dibuja el IC de cada candidato sobre el
+  // total de la zona; el resumen de agenda temática no trae votos → sin whisker.
+  const total = filas.every(f => f.votos != null) ? filas.reduce((s, f) => s + f.votos, 0) : 0
   return `<div style="margin-bottom:14px">${
-    filas.map((f, i) => filaBarra(f.candidato, f.porcentaje, PALETA_REPORTES[i % PALETA_REPORTES.length])).join('')
+    filas.map((f, i) => filaBarra(f.candidato, f.porcentaje, PALETA_REPORTES[i % PALETA_REPORTES.length], total ? mePP(total, f.porcentaje) : null)).join('')
   }</div>`
 }
 
@@ -197,7 +232,7 @@ function competitividadBarrasHTML(filas) {
 // Resumen ejecutivo — una sola carilla, fuente grande, sin tablas
 // detalladas (Cambio 3). Forma propia { tipo: 'resumen', ... }, distinta
 // del resto de los reportes ({ columnas, filas } / { secciones }).
-function cuerpoResumenEjecutivo(r) {
+function cuerpoResumenEjecutivo(r, estad) {
   const bloques = []
   bloques.push(`<div style="display:flex;gap:24px;margin-bottom:28px">
     ${[['Completadas', r.completadas], ['Total intentos', r.total], ['Participación', `${r.tasaParticipacion}%`]]
@@ -208,13 +243,13 @@ function cuerpoResumenEjecutivo(r) {
   </div>`)
 
   if (r.candidatoIntendente) {
-    bloques.push(`<div class="sec">Intención de voto — Intendente</div>${r.candidatoIntendente.top.map((c, i) => filaBarra(c.nombre, c.pct, ['#1a472a', '#52B788', '#94a3b8'][i] || '#94a3b8')).join('')}`)
+    bloques.push(`<div class="sec">Intención de voto — Intendente</div>${r.candidatoIntendente.top.map((c, i) => filaBarra(c.nombre, c.pct, ['#1a472a', '#52B788', '#94a3b8'][i] || '#94a3b8', mePP(r.candidatoIntendente.n, c.pct))).join('')}${pieMargenHTML(r.candidatoIntendente.n, 'Margen de error general de la pregunta')}`)
   }
   if (r.candidatoGobernador) {
-    bloques.push(`<div class="sec">Intención de voto — Gobernador</div>${r.candidatoGobernador.top.map((c, i) => filaBarra(c.nombre, c.pct, ['#1a472a', '#52B788'][i] || '#94a3b8')).join('')}`)
+    bloques.push(`<div class="sec">Intención de voto — Gobernador</div>${r.candidatoGobernador.top.map((c, i) => filaBarra(c.nombre, c.pct, ['#1a472a', '#52B788'][i] || '#94a3b8', mePP(r.candidatoGobernador.n, c.pct))).join('')}${pieMargenHTML(r.candidatoGobernador.n, 'Margen de error general de la pregunta')}`)
   }
   if (r.candidatoPresidente) {
-    bloques.push(`<div class="sec">Intención de voto — Presidente</div>${r.candidatoPresidente.top.map((c, i) => filaBarra(c.nombre, c.pct, ['#1a472a', '#52B788'][i] || '#94a3b8')).join('')}`)
+    bloques.push(`<div class="sec">Intención de voto — Presidente</div>${r.candidatoPresidente.top.map((c, i) => filaBarra(c.nombre, c.pct, ['#1a472a', '#52B788'][i] || '#94a3b8', mePP(r.candidatoPresidente.n, c.pct))).join('')}${pieMargenHTML(r.candidatoPresidente.n, 'Margen de error general de la pregunta')}`)
   }
   if (r.evaluacionGestionIntendente) {
     const ev = r.evaluacionGestionIntendente
@@ -231,7 +266,26 @@ function cuerpoResumenEjecutivo(r) {
       ${filaBarra('Negativa', ev.negativo, '#c0392b')}`)
   }
   if (r.problemaPrincipal) {
-    bloques.push(`<div class="sec">Principal problema</div>${r.problemaPrincipal.top.map((c, i) => filaBarra(c.nombre, c.pct, ['#7c3aed', '#9f7aea', '#c4b5fd'][i] || '#c4b5fd')).join('')}`)
+    bloques.push(`<div class="sec">Principal problema</div>${r.problemaPrincipal.top.map((c, i) => filaBarra(c.nombre, c.pct, ['#7c3aed', '#9f7aea', '#c4b5fd'][i] || '#c4b5fd')).join('')}${pieMargenHTML(r.problemaPrincipal.n)}`)
+  }
+  if (estad?.competitividad) {
+    const c = estad.competitividad
+    bloques.push(`<div class="sec">Competitividad electoral — Intendente</div>
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:6px">
+        <div style="font-size:32px;font-weight:800;color:${c.nivel.color}">${c.diff}pp</div>
+        <div style="font-size:16px;font-weight:700">${c.nivel.emoji} ${c.nivel.label}</div>
+      </div>
+      <div style="font-size:13px;color:#444;margin-bottom:6px">1° ${c.primero.nombre} ${c.primero.pct}% · 2° ${c.segundo.nombre} ${c.segundo.pct}%</div>
+      ${bloqueEstadisticoHTML(`Diferencia entre 1° y 2° sobre ${c.totalValidos} votos válidos (sin NS/NC, blanco ni ninguno). Referencia: &lt; 5pp muy competitivo · 5–15pp disputado · 15–30pp definido · &gt; 30pp dominado.`)}`)
+  }
+  if (estad?.indecision?.length) {
+    bloques.push(`<div class="sec">Voto no definido</div>${indecisionHTML(estad.indecision)}`)
+  }
+  if (estad?.correlacion) {
+    bloques.push(`<div class="sec">Evaluación de gestión × intención de voto</div>${correlacionHTML(estad.correlacion)}`)
+  }
+  if (estad?.tendencia) {
+    bloques.push(`<div class="sec" style="page-break-before:always">Evolución respecto a encuesta anterior</div>${tendenciaHTML(estad.tendencia)}`)
   }
   return bloques.join('')
 }
@@ -303,12 +357,75 @@ const GRAFICO_SIMPLE_POR_ID = {
   no_respuesta_geo:      { labelKey: 'zona',         valorKey: 'tasa', sufijo: '%', max: 100 },
 }
 
-function generarHTMLReporte(def, resultado, encuesta) {
+// Total de respuestas de una sección/tabla — base del ME de su pie.
+function nDeTabla({ filas, totalFila }) {
+  const n = totalFila?.votos ?? totalFila?.total ?? (filas || []).reduce((s, f) => s + (Number(f.total) || 0), 0)
+  return Number(n) || 0
+}
+
+// Histograma horario mini (SVG) para el detalle por encuestador del PDF —
+// `rango` es el mismo intervalo de horas para todos, así se comparan.
+function histogramaMiniSVG(horas, rango) {
+  const w = 300, h = 60, pad = 14
+  const max = Math.max(1, ...rango.map(hr => horas[hr]))
+  const bw = (w - 4) / rango.length
+  const barras = rango.map((hr, i) => {
+    const bh = (horas[hr] / max) * (h - pad - 4)
+    return `<rect x="${(2 + i * bw).toFixed(1)}" y="${(h - pad - bh).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${bh.toFixed(1)}" fill="#52B788" rx="1"/>
+      ${i % 2 === 0 ? `<text x="${(2 + i * bw + bw / 2).toFixed(1)}" y="${h - 3}" font-size="7" fill="#999" text-anchor="middle">${hr}h</text>` : ''}`
+  }).join('')
+  return `<svg width="${w}" height="${h}">${barras}</svg>`
+}
+
+// Extras del reporte "Actividad por encuestador": alertas de
+// straightlining, desglose del score y detalle (histograma + GPS).
+function extrasActividadHTML(r) {
+  let html = ''
+  const sl = r.straightlining
+  html += `<div class="sec">Alertas de calidad de respuesta</div>`
+  if (!sl) {
+    html += bloqueEstadisticoHTML('La detección de straightlining necesita al menos 3 preguntas de escala de evaluación (Muy buena … Muy mala) en la encuesta.')
+  } else {
+    html += tablaHTML({
+      columnas: [{ key: 'encuestador', label: 'Encuestador' }, { key: 'sospechosas', label: 'Sesiones con posible straightlining', num: true }, { key: 'completadas', label: 'Completadas', num: true }, { key: 'pct', label: '%', num: true }],
+      filas: sl.filas.map(f => f.pct > UMBRAL_ALERTA_PCT ? { ...f, _bg: '#fee2e2' } : f),
+    })
+    html += bloqueEstadisticoHTML(`Posible straightlining: la sesión respondió lo mismo en las ${sl.preguntasEscala} preguntas de escala de evaluación. Se marca para revisión, no se descarta. En rojo: más del ${UMBRAL_ALERTA_PCT}% de las sesiones del encuestador.`)
+  }
+  const activas = r.filas.flatMap(f => f._horas.map((n, h) => (n > 0 ? h : null))).filter(h => h != null)
+  if (activas.length) {
+    const desde = Math.min(...activas), hasta = Math.max(...activas)
+    const rango = Array.from({ length: hasta - desde + 1 }, (_, i) => desde + i)
+    html += `<div class="sec" style="page-break-before:always">Detalle por encuestador</div>`
+    html += r.filas.map(f => {
+      const sc = f._score
+      const color = sc?.total != null ? colorScore(sc.total) : '#999'
+      return `<div style="display:flex;gap:18px;align-items:center;padding:8px 0;border-bottom:1px solid #eee;page-break-inside:avoid">
+        <div style="width:210px">
+          <div style="font-size:13px;font-weight:700">${f.encuestador}</div>
+          <div style="font-size:12px;font-weight:800;color:${color}">Score ${f.score}</div>
+          <div style="font-size:10px;color:#666">Dispersión GPS promedio: ${sc?.dispersionM != null ? `${Math.round(sc.dispersionM)} m` : 'sin GPS'}</div>
+          ${nivelAlertaMismoLugar(sc?.trayecto) ? `<div style="font-size:10px;font-weight:700;color:${nivelAlertaMismoLugar(sc.trayecto).color}">⚠ ${textoAlertaMismoLugar(sc.trayecto)}</div>` : ''}
+        </div>
+        ${histogramaMiniSVG(f._horas, rango)}
+        <div style="font-size:9.5px;color:#666;line-height:1.5">${sc ? desgloseTexto(sc).join('<br>') : ''}</div>
+      </div>`
+    }).join('')
+    html += bloqueEstadisticoHTML(`Score de calidad (0–100) = rechazo + variedad de respuestas a candidato (entropía) + dispersión GPS + ritmo entre encuestas, 25 puntos cada uno. ≥ 70 verde · 40–69 amarillo · &lt; 40 rojo. Barras: sesiones por hora del día (ARG). "Carga rápida en el mismo lugar": encuesta completada que duró menos del 40% de lo normal, a menos de ${MISMO_LUGAR_M} m de otra sesión del encuestador en ±${VENTANA_MIN} min; "superpuesta": empezó antes de que terminara la anterior — no se marcan quienes se mueven ni las entrevistas de duración normal en una misma casa.`)
+  }
+  return html
+}
+
+// `estad` = { n, indecision, correlacion, tendencia } (ver calcularEstadisticas).
+function generarHTMLReporte(def, resultado, encuesta, estad = {}) {
+  // Los reportes operativos son conteos del operativo, no estimaciones de
+  // la población: no llevan pie de margen de error.
+  const conME = def.categoria !== 'Operativo'
   const fecha = new Date().toLocaleString('es-AR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
   let cuerpo
   if (resultado.tipo === 'resumen') {
-    cuerpo = cuerpoResumenEjecutivo(resultado)
+    cuerpo = cuerpoResumenEjecutivo(resultado, estad)
   } else if (resultado.tipo === 'consistencia') {
     cuerpo = cuerpoConsistenciaInterna(resultado)
   } else if (resultado.tipo === 'perfil_votante') {
@@ -334,12 +451,22 @@ function generarHTMLReporte(def, resultado, encuesta) {
       const grafico = conBarrasCandidato ? seccionBarrasHTML(s.filas)
         : conBarrasTop ? barChartHTML(normalizarTop(s.filas), 'zona', 'pct', { sufijo: '%', max: 100 })
         : ''
-      return `<div class="sec" id="preg${i}">${s.titulo}</div>${grafico}${tablaHTML(s)}`
+      return `<div class="sec" id="preg${i}">${s.titulo}</div>${grafico}${tablaHTML(s)}${conME ? pieMargenHTML(nDeTabla(s)) : ''}`
     }).join('')
   } else {
     // Callout con la síntesis en texto (competitividad_zona, agenda_tematica,
     // indice_participacion, no_respuesta_geo) — antes que nada.
-    const callout = resultado.sintesis ? `<div class="callout">${resultado.sintesis}</div>` : ''
+    let callout = resultado.sintesis ? `<div class="callout">${resultado.sintesis}</div>` : ''
+    if (def.id === 'actividad_encuestador') {
+      const alertas = [
+        ...(resultado.straightlining?.alertas || []).map(a => `${a.encuestador} tiene ${a.pct}% de sesiones con posible straightlining (${a.sospechosas} de ${a.completadas})`),
+        ...(resultado.filas || []).filter(f => nivelAlertaMismoLugar(f._score?.trayecto)?.label === 'alta')
+          .map(f => `${f.encuestador}: ${textoAlertaMismoLugar(f._score.trayecto)}`),
+      ]
+      if (alertas.length) {
+        callout += `<div class="callout" style="border-left-color:#c0392b;background:#fef2f2;color:#7f1d1d"><b>Alertas del operativo:</b> ${alertas.join('; ')}. Revisar antes de publicar.</div>`
+      }
+    }
     let grafico = ''
     if (def.id === 'evolucion_horaria') grafico = graficoLineaSVG(resultado.filas)
     // corte_generacional_gobernador / _presidente comparten esta misma
@@ -373,7 +500,8 @@ function generarHTMLReporte(def, resultado, encuesta) {
       ? tablaResumenAgendaHTML(resultado.resumenPorCandidato) +
         seccionBarrasHTML((resultado.resumenPorCandidato || []).map(r => ({ candidato: r.candidato, porcentaje: r.pct })))
       : ''
-    cuerpo = callout + resumen + grafico + tablaHTML(resultado)
+    cuerpo = callout + resumen + grafico + tablaHTML(resultado) + (conME ? pieMargenHTML(nDeTabla(resultado) || estad.n) : '')
+      + (def.id === 'actividad_encuestador' ? extrasActividadHTML(resultado) : '')
   }
 
   const css = `*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;color:#1a1a1a;background:#fff;padding:40px;font-size:13px}
@@ -391,8 +519,10 @@ footer{margin-top:28px;padding-top:10px;border-top:1px solid #e5e7eb;font-size:1
   <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#52B788;text-transform:uppercase">METR1KA · Reporte automático</div>
   <h1>${def.titulo}</h1>
   <div style="font-size:13px;color:#555">${encuesta?.nombre || ''}</div>
+  ${encabezadoMuestraHTML(estad.n)}
   <div class="meta">Generado el ${fecha}</div>
 </div>
+${explicacionMargenHTML(estad.n)}
 ${cuerpo}
 <footer><span>METR1KA — metr1ka.com</span><span>${fecha}</span></footer>
 </body></html>`
@@ -413,10 +543,6 @@ const TIPOS_ELEGIBLES = ['si_no', 'escala', 'opcion_multiple']
 // en reportesAutomaticos.js) y no tiene respuestas 'Sí'/'No'.
 const TIPOS_ELEGIBLES_POR_CLAVE = { participa: ['si_no'] }
 function tiposElegiblesPara(clave) { return TIPOS_ELEGIBLES_POR_CLAVE[clave] || TIPOS_ELEGIBLES }
-
-function claveOverrides(encuestaId) {
-  return `metr1ka:overridesEspeciales:${encuestaId}`
-}
 
 // Panel para reasignar a mano qué pregunta de la encuesta corresponde a cada
 // rol especial (candidato, edad, sexo, etc.) cuando el clave_base automático
@@ -516,16 +642,14 @@ export default function ReportesAutomaticos({ encuesta, preguntas, statsZona, on
   const [error, setError]       = useState('')
   const [abierto, setAbierto]   = useState(null) // id del reporte mostrado en pantalla
   const [overrides, setOverrides] = useState({}) // { [claveBase]: preguntaId } — ver preguntaEspecial()
+  const [anterior, setAnterior] = useState(null) // encuesta anterior comparable (tendencia), ver lib/tendencia.js
 
   // Los overrides quedan guardados por encuesta en localStorage: son una
   // configuración de "cómo leer esta encuesta en particular", no algo que
   // tenga sentido resetear cada vez que se entra a la pestaña.
   useEffect(() => {
     if (!encuesta?.id) return
-    try {
-      const guardado = localStorage.getItem(claveOverrides(encuesta.id))
-      setOverrides(guardado ? JSON.parse(guardado) : {})
-    } catch { setOverrides({}) }
+    setOverrides(leerOverrides(encuesta.id))
   }, [encuesta?.id])
 
   useEffect(() => {
@@ -548,6 +672,8 @@ export default function ReportesAutomaticos({ encuesta, preguntas, statsZona, on
       })
       if (rpcErr) throw rpcErr
       setCrudo(data || { columnas: [], filas: [] })
+      // Tendencia: no bloquea los reportes si falla o no hay encuesta anterior.
+      cargarEncuestaAnterior(encuesta).then(setAnterior).catch(e => console.error('tendencia:', e))
     } catch (e) {
       console.error('ReportesAutomaticos.cargarDatos:', e)
       setError('No se pudieron cargar los datos para los reportes.')
@@ -557,10 +683,26 @@ export default function ReportesAutomaticos({ encuesta, preguntas, statsZona, on
 
   const ctx = useMemo(() => ({ preguntas, statsZona, crudo, overrides }), [preguntas, statsZona, crudo, overrides])
 
+  // Indicadores estadísticos que van en el encabezado (n, ME) y en el
+  // resumen ejecutivo (indecisión, correlación, tendencia) de los PDFs.
+  const estadisticas = useMemo(() => {
+    if (!crudo) return {}
+    const pParticipa = preguntaEspecial(ctx, 'participa')
+    const secciones = anterior ? compararConAnterior({ preguntas, crudo }, anterior) : []
+    return {
+      n: (crudo.filas || []).filter(f => esCompletada(f, pParticipa)).length,
+      indecision: indicesIndecision(ctx),
+      correlacion: correlacionGestionVoto(ctx),
+      competitividad: indiceCompetitividad(ctx),
+      tendencia: secciones.length ? { encuestaAnterior: anterior.encuesta, secciones } : null,
+    }
+  }, [crudo, ctx, anterior, preguntas])
+
   const resultados = useMemo(() => {
     if (!crudo) return {}
     const out = {}
     for (const def of defs) out[def.id] = calcularReporte(def.id, ctx)
+    if (out.actividad_encuestador) out.actividad_encuestador = enriquecerActividad(out.actividad_encuestador, ctx)
     return out
   }, [crudo, ctx, defs])
 
@@ -579,7 +721,7 @@ export default function ReportesAutomaticos({ encuesta, preguntas, statsZona, on
   function descargarPDF(def) {
     const resultado = resultados[def.id]
     if (!resultado) return
-    const html = generarHTMLReporte(def, resultado, encuesta)
+    const html = generarHTMLReporte(def, resultado, encuesta, estadisticas)
     const nombreArchivo = `${def.id}-${(encuesta?.nombre || 'reporte').replace(/[^\w-]+/g, '_')}.pdf`
     generarPDF(html, nombreArchivo)
   }
@@ -900,6 +1042,32 @@ function VotoPorPerfilBarras({ columnas, filas }) {
   )
 }
 
+function VistaStraightlining({ sl }) {
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent2)', marginBottom: 8 }}>Alertas de calidad de respuesta</div>
+      {!sl ? (
+        <div style={{ fontSize: 12, color: 'var(--ink3)' }}>La detección de straightlining necesita al menos 3 preguntas de escala de evaluación (Muy buena … Muy mala).</div>
+      ) : (
+        <>
+          {sl.alertas.length > 0 && (
+            <div style={{ ...CALLOUT_STYLE, borderLeftColor: 'var(--danger)' }}>
+              {sl.alertas.map(a => `${a.encuestador}: ${a.pct}% de sesiones con posible straightlining (${a.sospechosas} de ${a.completadas})`).join(' · ')}. Revisar antes de publicar.
+            </div>
+          )}
+          <VistaTabla
+            columnas={[{ key: 'encuestador', label: 'Encuestador' }, { key: 'sospechosas', label: 'Posible straightlining', num: true }, { key: 'completadas', label: 'Completadas', num: true }, { key: 'pct', label: '%', num: true }]}
+            filas={sl.filas}
+          />
+          <div style={{ fontSize: 11, color: 'var(--ink3)' }}>
+            Misma respuesta en las {sl.preguntasEscala} preguntas de escala de evaluación. Solo se marca para revisión; no se descarta ninguna sesión.
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function VistaResultado({ def, resultado }) {
   if (resultado.tipo === 'resumen') return <VistaResumenEjecutivo r={resultado} />
   if (resultado.tipo === 'consistencia') return <VistaConsistenciaInterna r={resultado} />
@@ -934,6 +1102,7 @@ function VistaResultado({ def, resultado }) {
         />
       )}
       {simple && <BarChart filas={resultado.filas} labelKey={simple.labelKey} valorKey={simple.valorKey} sufijo={simple.sufijo} max={simple.max} />}
+      {def?.id === 'actividad_encuestador' && <VistaStraightlining sl={resultado.straightlining} />}
       {def?.id === 'evolucion_horaria' && (
         <div style={{ marginBottom: 14 }} dangerouslySetInnerHTML={{ __html: graficoLineaSVG(resultado.filas) }} />
       )}
