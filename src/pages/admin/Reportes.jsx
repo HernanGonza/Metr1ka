@@ -11,6 +11,9 @@ import { margenFormateado, intervaloConfianza } from '../../lib/margenError'
 import { chiCuadrado } from '../../lib/chiCuadrado'
 import { errorBarsPlugin, errorBarsDeConteos, maxConWhiskers } from '../../lib/chartErrorBars'
 import { pieMargenHTML, explicacionMargenHTML, chiCuadradoHTML } from '../../lib/estadisticaPDF'
+import { defsAutomaticos, calcularResultadosAutomaticos, calcularEstadisticasAutomaticas, seccionesAutomaticasHTML } from '../../components/ReportesAutomaticos'
+import { leerOverrides, CATEGORIAS_ORDEN } from '../../lib/reportesAutomaticos'
+import { cargarEncuestaAnterior } from '../../lib/tendencia'
 import { Select } from '../../components/ui'
 import styles from './Page.module.css'
 import { BarChart2, PieChart, FileText, Download, Filter, RefreshCw, ChevronDown, ChevronUp, Zap, Plus, Trash2, MapPin, Scale } from 'lucide-react'
@@ -720,7 +723,7 @@ function KpiCard({ label, value, sub, color, icon }) {
 }
 
 /* ── Exportar HTML/PDF ── */
-function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrudos, sesiones, mapaImgSrc, cfg, clasificaciones) {
+function generarHTML(encuesta, preguntas, respuestas, resumen, cruces, datosCrudos, sesiones, mapaImgSrc, cfg, clasificaciones, autoHTML = '') {
   const filasPorPregunta = {}
   preguntas.forEach(p => { filasPorPregunta[String(p.id)] = [] })
   respuestas.forEach(f => { if (filasPorPregunta[String(f.pregunta_id)]) filasPorPregunta[String(f.pregunta_id)].push(f) })
@@ -1008,6 +1011,7 @@ ${explicacionMargenHTML(resumen?.total_participaron || resumen?.total_sesiones |
 <div class="sec">Resultados por pregunta</div>
 ${preguntasHTML}
 ${crucesHTML}
+${autoHTML}
 ${mapaHTML}
 ${datosHTML}
 <footer><span>METR1KA — metr1ka.com</span><span>${fecha}</span></footer>
@@ -1338,12 +1342,18 @@ export default function Reportes() {
     cruces:      true,
     mapa:        true,
     datosCrudos: false,
+    automaticos: {},   // { [idInforme]: true } — informes de reportesAutomaticos.js a incluir
     titulo:      '',
     subtitulo:   '',
     poblacion:   '',
     electores:   '',
   })
   const [vistaActiva, setVistaActiva] = useState('dashboard')
+  // Informes automáticos para el modal de exportación: statsZona y la encuesta
+  // anterior (tendencia) se piden al abrir el modal; el resto sale de datosExport.
+  const [statsZonaAuto, setStatsZonaAuto] = useState(null)
+  const [anteriorAuto,  setAnteriorAuto]  = useState(null)
+  const [catsAutoAbiertas, setCatsAutoAbiertas] = useState({})
   const [comparaciones, setComparaciones] = useState([{ id: 1 }])
   const [sesionesCruce, setSesionesCruce] = useState([])
   const [encAbiertos,   setEncAbiertos]   = useState({})
@@ -1522,6 +1532,12 @@ export default function Reportes() {
 
     // 🔹 Y ACÁ, al pasar `cfg` a generarHTML, inyectar el título modificado:
     
+      const idsAuto = Object.keys(cfg.automaticos || {}).filter(k => cfg.automaticos[k])
+      const defsSel = defsAuto.filter(d => idsAuto.includes(d.id))
+      const autoHTML = defsSel.length
+        ? seccionesAutomaticasHTML(defsSel, resultadosAuto, estadisticasAuto)
+        : ''
+
       const html = generarHTML(
         data.encuesta || selected,
         pregsFiltradas,
@@ -1533,6 +1549,7 @@ export default function Reportes() {
         cfg.mapa ? mapaDatos : null,
         { ...cfg, subtitulo: subtituloConZonas },
         clasificaciones,
+        autoHTML,
       )
       const nombreArchivo = `reporte-${(selected?.nombre || 'encuesta').replace(/[^\w-]+/g, '_')}.pdf`
       await generarPDF(html, nombreArchivo)
@@ -1558,6 +1575,46 @@ export default function Reportes() {
   )
 
   // La DB ya filtró por zona cuando filtroZonas está activo — no filtrar de nuevo en el front
+  // ── Informes automáticos en el modal de exportación ──
+  const tipoEncuestaSel = (data?.encuesta || selected)?.tipo_encuesta
+  const defsAuto = useMemo(() => defsAutomaticos(tipoEncuestaSel), [tipoEncuestaSel])
+
+  useEffect(() => {
+    if (!modalExport || !selected?.id) return
+    let cancelado = false
+    ;(async () => {
+      try {
+        const { data: sz } = await supabase.rpc('get_stats_por_zona', { p_encuesta_id: selected.id })
+        if (!cancelado) setStatsZonaAuto(sz || null)
+      } catch (e) { console.error('statsZonaAuto:', e) }
+      // Tendencia: opcional, no bloquea nada si falla.
+      cargarEncuestaAnterior(data?.encuesta || selected).then(a => { if (!cancelado) setAnteriorAuto(a) }).catch(() => {})
+    })()
+    return () => { cancelado = true }
+  }, [modalExport, selected?.id])
+
+  const ctxAuto = useMemo(() => (
+    modalExport && datosExport
+      ? { preguntas, statsZona: statsZonaAuto, crudo: datosExport, overrides: leerOverrides(selected?.id) }
+      : null
+  ), [modalExport, datosExport, preguntas, statsZonaAuto, selected?.id])
+
+  const resultadosAuto = useMemo(
+    () => (ctxAuto ? calcularResultadosAutomaticos(defsAuto, ctxAuto) : {}),
+    [ctxAuto, defsAuto]
+  )
+  const estadisticasAuto = useMemo(
+    () => (ctxAuto ? calcularEstadisticasAutomaticas(ctxAuto, preguntas, datosExport, anteriorAuto) : {}),
+    [ctxAuto, preguntas, datosExport, anteriorAuto]
+  )
+  const gruposAuto = useMemo(() => {
+    const por = {}
+    defsAuto.forEach(d => { (por[d.categoria] = por[d.categoria] || []).push(d) })
+    const cats = [...CATEGORIAS_ORDEN.filter(c => por[c]), ...Object.keys(por).filter(c => !CATEGORIAS_ORDEN.includes(c))]
+    return cats.map(categoria => ({ categoria, items: por[categoria] }))
+  }, [defsAuto])
+  const cantAutoSel = Object.values(exportConfig.automaticos || {}).filter(Boolean).length
+
   const datosExportFiltrados = datosExport
 
   const sesionesCruceFiltradas = sesionesCruce
@@ -2075,6 +2132,71 @@ export default function Reportes() {
                   </div>
                 </label>
               )}
+
+              {/* Informes automáticos */}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+                  Informes automáticos{cantAutoSel > 0 && <span style={{ color: 'var(--accent)' }}> · {cantAutoSel} seleccionado{cantAutoSel !== 1 ? 's' : ''}</span>}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--ink3)', margin: '2px 0 10px' }}>
+                  Se agregan al PDF como secciones, con los filtros actuales. Usan las preguntas especiales configuradas en el detalle de la encuesta.
+                </div>
+                {!ctxAuto || !statsZonaAuto ? (
+                  <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Calculando informes…</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {gruposAuto.map(({ categoria, items }) => {
+                      const disponibles = items.filter(d => resultadosAuto[d.id])
+                      const selCat = disponibles.filter(d => exportConfig.automaticos[d.id]).length
+                      const abierta = !!catsAutoAbiertas[categoria]
+                      return (
+                        <div key={categoria} style={{ border: '1px solid var(--border)', borderRadius: 'var(--r)', background: 'var(--surface)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', cursor: 'pointer' }}
+                            onClick={() => setCatsAutoAbiertas(prev => ({ ...prev, [categoria]: !prev[categoria] }))}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>
+                              {abierta ? '▾' : '▸'} {categoria}
+                              <span style={{ fontWeight: 500, color: 'var(--ink3)' }}> · {selCat}/{disponibles.length}</span>
+                            </div>
+                            {disponibles.length > 0 && (
+                              <button onClick={e => {
+                                e.stopPropagation()
+                                const marcar = selCat < disponibles.length
+                                setExportConfig(prev => {
+                                  const auto = { ...prev.automaticos }
+                                  disponibles.forEach(d => { auto[d.id] = marcar })
+                                  return { ...prev, automaticos: auto }
+                                })
+                              }} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                                {selCat < disponibles.length ? 'Todos' : 'Ninguno'}
+                              </button>
+                            )}
+                          </div>
+                          {abierta && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '0 10px 10px' }}>
+                              {items.map(d => {
+                                const disp = !!resultadosAuto[d.id]
+                                const on = disp && !!exportConfig.automaticos[d.id]
+                                return (
+                                  <label key={d.id} title={disp ? d.descripcion : 'No aplica a esta encuesta (faltan preguntas o datos)'}
+                                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: disp ? 'pointer' : 'not-allowed', opacity: disp ? 1 : 0.45, padding: '6px 10px', borderRadius: 'var(--r)', background: on ? 'var(--accent-light)' : 'var(--paper)', border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}` }}>
+                                    <input type="checkbox" checked={on} disabled={!disp}
+                                      onChange={e => setExportConfig(prev => ({ ...prev, automaticos: { ...prev.automaticos, [d.id]: e.target.checked } }))}
+                                      style={{ width: 15, height: 15, accentColor: 'var(--accent)', marginTop: 1, flexShrink: 0 }} />
+                                    <div>
+                                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.4 }}>{d.titulo}</div>
+                                      <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 2 }}>{disp ? d.descripcion : 'No aplica a esta encuesta'}</div>
+                                    </div>
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
 
               {/* Mapa */}
               {mapaDatos?.img ? (

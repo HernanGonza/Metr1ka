@@ -417,11 +417,13 @@ function extrasActividadHTML(r) {
 }
 
 // `estad` = { n, indecision, correlacion, tendencia } (ver calcularEstadisticas).
-function generarHTMLReporte(def, resultado, encuesta, estad = {}) {
+// Cuerpo HTML de un informe (sin <html>/encabezado). Lo usan el PDF individual
+// (generarHTMLReporte) y el generador manual de Reportes.jsx, que lo embebe
+// como sección (ver seccionesAutomaticasHTML).
+function cuerpoReporte(def, resultado, estad = {}) {
   // Los reportes operativos son conteos del operativo, no estimaciones de
   // la población: no llevan pie de margen de error.
   const conME = def.categoria !== 'Operativo'
-  const fecha = new Date().toLocaleString('es-AR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
   let cuerpo
   if (resultado.tipo === 'resumen') {
@@ -503,6 +505,12 @@ function generarHTMLReporte(def, resultado, encuesta, estad = {}) {
     cuerpo = callout + resumen + grafico + tablaHTML(resultado) + (conME ? pieMargenHTML(nDeTabla(resultado) || estad.n) : '')
       + (def.id === 'actividad_encuestador' ? extrasActividadHTML(resultado) : '')
   }
+  return cuerpo
+}
+
+function generarHTMLReporte(def, resultado, encuesta, estad = {}) {
+  const fecha = new Date().toLocaleString('es-AR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const cuerpo = cuerpoReporte(def, resultado, estad)
 
   const css = `*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;color:#1a1a1a;background:#fff;padding:40px;font-size:13px}
 .header{border-bottom:3px solid #52B788;padding-bottom:20px;margin-bottom:24px}
@@ -526,6 +534,57 @@ ${explicacionMargenHTML(estad.n)}
 ${cuerpo}
 <footer><span>METR1KA — metr1ka.com</span><span>${fecha}</span></footer>
 </body></html>`
+}
+
+// ── API para el generador manual (Reportes.jsx) ──
+
+// Informes que aplican al tipo de encuesta (los soloCampo no existen en online).
+export function defsAutomaticos(tipoEncuesta) {
+  return tipoEncuesta === 'online' ? REPORTES_DEFS.filter(d => !d.soloCampo) : REPORTES_DEFS
+}
+
+// Mismo cálculo que el panel de reportes automáticos. ctx = { preguntas,
+// statsZona, crudo, overrides }. Devuelve { [id]: resultado | null }.
+export function calcularResultadosAutomaticos(defs, ctx) {
+  const out = {}
+  for (const def of defs) {
+    try { out[def.id] = calcularReporte(def.id, ctx) } catch (e) { console.error('calcularReporte', def.id, e); out[def.id] = null }
+  }
+  if (out.actividad_encuestador) out.actividad_encuestador = enriquecerActividad(out.actividad_encuestador, ctx)
+  return out
+}
+
+// Indicadores del encabezado (n) y del resumen ejecutivo.
+export function calcularEstadisticasAutomaticas(ctx, preguntas, crudo, anterior) {
+  if (!crudo) return {}
+  const pParticipa = preguntaEspecial(ctx, 'participa')
+  const secciones = anterior ? compararConAnterior({ preguntas, crudo }, anterior) : []
+  return {
+    n: (crudo.filas || []).filter(f => esCompletada(f, pParticipa)).length,
+    indecision: indicesIndecision(ctx),
+    correlacion: correlacionGestionVoto(ctx),
+    competitividad: indiceCompetitividad(ctx),
+    tendencia: secciones.length ? { encuestaAnterior: anterior.encuesta, secciones } : null,
+  }
+}
+
+const CSS_SECCION_AUTO = `.auto-rep .sec{font-size:13px;font-weight:700;color:#1a472a;margin:20px 0 10px;padding-bottom:6px;border-bottom:2px solid #e5e7eb}
+.auto-rep .callout{background:#f0f9f4;border-left:4px solid #52B788;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#1a472a;border-radius:0 8px 8px 0}
+.auto-rep table td,.auto-rep table th{border:1px solid #e5e7eb;padding:6px 10px;text-align:left}
+.auto-rep-h{font-size:10px;font-weight:700;letter-spacing:2px;color:#52B788;text-transform:uppercase}
+.auto-rep h2{font-size:18px;font-weight:800;color:#1a472a;margin:6px 0 14px;padding-bottom:8px;border-bottom:3px solid #52B788}`
+
+// HTML de los informes elegidos, listo para embeber en otro documento: una
+// sección por informe, cada una en página nueva.
+export function seccionesAutomaticasHTML(defs, resultados, estad = {}) {
+  const items = defs.filter(d => resultados[d.id])
+  if (!items.length) return ''
+  return `<style>${CSS_SECCION_AUTO}</style>` + items.map(def => `
+<div class="auto-rep" style="page-break-before:always;margin-top:28px">
+  <div class="auto-rep-h">Informe automático · ${def.categoria}</div>
+  <h2>${def.titulo}</h2>
+  ${cuerpoReporte(def, resultados[def.id], estad)}
+</div>`).join('')
 }
 
 // Preguntas que un admin puede asignar a mano a un rol especial —
@@ -633,10 +692,7 @@ function TarjetaReporte({ def, resultado, abierto, onVer, onDescargar }) {
 export default function ReportesAutomaticos({ encuesta, preguntas, statsZona, onCargarZonas, loadingZonas, tipoEncuesta }) {
   // Encuestas online no tienen zona ni encuestador — los reportes marcados
   // `soloCampo` (ver reportesAutomaticos.js) no aplican y ni se muestran.
-  const defs = useMemo(
-    () => tipoEncuesta === 'online' ? REPORTES_DEFS.filter(d => !d.soloCampo) : REPORTES_DEFS,
-    [tipoEncuesta]
-  )
+  const defs = useMemo(() => defsAutomaticos(tipoEncuesta), [tipoEncuesta])
   const [crudo, setCrudo]       = useState(null)
   const [cargando, setCargando] = useState(false)
   const [error, setError]       = useState('')
@@ -685,26 +741,15 @@ export default function ReportesAutomaticos({ encuesta, preguntas, statsZona, on
 
   // Indicadores estadísticos que van en el encabezado (n, ME) y en el
   // resumen ejecutivo (indecisión, correlación, tendencia) de los PDFs.
-  const estadisticas = useMemo(() => {
-    if (!crudo) return {}
-    const pParticipa = preguntaEspecial(ctx, 'participa')
-    const secciones = anterior ? compararConAnterior({ preguntas, crudo }, anterior) : []
-    return {
-      n: (crudo.filas || []).filter(f => esCompletada(f, pParticipa)).length,
-      indecision: indicesIndecision(ctx),
-      correlacion: correlacionGestionVoto(ctx),
-      competitividad: indiceCompetitividad(ctx),
-      tendencia: secciones.length ? { encuestaAnterior: anterior.encuesta, secciones } : null,
-    }
-  }, [crudo, ctx, anterior, preguntas])
+  const estadisticas = useMemo(
+    () => calcularEstadisticasAutomaticas(ctx, preguntas, crudo, anterior),
+    [crudo, ctx, anterior, preguntas]
+  )
 
-  const resultados = useMemo(() => {
-    if (!crudo) return {}
-    const out = {}
-    for (const def of defs) out[def.id] = calcularReporte(def.id, ctx)
-    if (out.actividad_encuestador) out.actividad_encuestador = enriquecerActividad(out.actividad_encuestador, ctx)
-    return out
-  }, [crudo, ctx, defs])
+  const resultados = useMemo(
+    () => (crudo ? calcularResultadosAutomaticos(defs, ctx) : {}),
+    [crudo, ctx, defs]
+  )
 
   // Agrupa `defs` por categoría (Resumen/Operativo/Intendente/Gobernador/
   // Presidente/General, ver CATEGORIAS_ORDEN) para que la grilla no sea 32
