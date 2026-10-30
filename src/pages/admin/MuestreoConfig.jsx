@@ -9,6 +9,7 @@ import {
 import { supabase } from "../../lib/supabase";
 import { Spinner, ConfirmDialog } from "../../components/ui";
 import { puntoInicioAleatorio } from "./MapaManzanas";
+import { descargarKMZZonas } from "../../lib/kmzZonas";
 
 const CONFIG_DEFAULT = {
   intervalo_salto: 2,
@@ -286,6 +287,7 @@ const MapaZona = forwardRef(function MapaZona(
     sinManzanas = false,
     colorZona = "#1a472a",
     todasLasZonas = [],
+    zonaActivaId = null,
     encuestadoresAsignados = [], // [{ id, nombre }]
   },
   ref,
@@ -609,6 +611,64 @@ const MapaZona = forwardRef(function MapaZona(
       });
     });
   }, [todasLasZonas, listo]);
+
+  // ── Otras zonas como referencia ──
+  // Para armar una zona nueva sin contar cuadras a ojo: el resto de las zonas
+  // se ven con su color y su nombre, y el dibujo se "pega" a sus vértices y
+  // bordes (snapping de geoman). No son clickeables: no interfieren con la
+  // selección de manzanas ni con la edición de la zona activa.
+  const ctxGrpRef = useRef(null);
+  const ctxKey = todasLasZonas
+    .filter((z) => z.id !== zonaActivaId)
+    .map((z) => `${z.id}:${z.nombre}:${z.color}:${z.geojson?.features?.length || 0}`)
+    .join("|");
+
+  useEffect(() => {
+    const map = mapInst.current;
+    const L = Lref.current;
+    if (!map || !L || !listo) return;
+
+    if (ctxGrpRef.current) {
+      try {
+        map.removeLayer(ctxGrpRef.current);
+      } catch {}
+      ctxGrpRef.current = null;
+    }
+    const grp = L.layerGroup().addTo(map);
+    ctxGrpRef.current = grp;
+
+    todasLasZonas.forEach((zona) => {
+      if (zona.id === zonaActivaId) return;
+      const zonaFeat = zona.geojson?.features?.find(
+        (f) => f.properties?.tipo === "zona",
+      );
+      if (!zonaFeat) return;
+
+      const capa = L.geoJSON(zonaFeat, {
+        interactive: false,
+        style: {
+          color: zona.color,
+          fillColor: zona.color,
+          fillOpacity: 0.18,
+          weight: 2.5,
+        },
+      }).addTo(grp);
+
+      // Etiqueta en el centro del polígono
+      try {
+        const c = capa.getBounds().getCenter();
+        L.marker(c, {
+          interactive: false,
+          keyboard: false,
+          pmIgnore: true,
+          icon: L.divIcon({
+            className: "",
+            html: `<div style="transform:translate(-50%,-50%);background:${zona.color};color:#fff;border-radius:100px;padding:2px 8px;font-size:10px;font-weight:700;font-family:DM Sans,sans-serif;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.35);border:1.5px solid #fff;display:inline-block">${String(zona.nombre).replace(/</g, "&lt;")}</div>`,
+          }),
+        }).addTo(grp);
+      } catch {}
+    });
+  }, [ctxKey, listo]);
 
   // Activa drag en la capa zona y recarga manzanas 800ms después de soltar
   function _activarDragEnZona(layer, L, map) {
@@ -1563,6 +1623,15 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
     "#065f46",
     "#0891b2",
     "#dc2626",
+    // Extras para encuestas con más de 8 zonas (antes los colores se repetían).
+    "#ca8a04",
+    "#c026d3",
+    "#0d9488",
+    "#ea580c",
+    "#4338ca",
+    "#65a30d",
+    "#be185d",
+    "#57534e",
   ];
 
   // ── Vista: 'equipos' | 'mapa' ──
@@ -3044,6 +3113,40 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                     >
                       🗺️ Vista general
                     </button>
+                    <button
+                      onClick={() => {
+                        guardarSnapshotActual();
+                        // todasLasZonasData se calculó en el render: tomar la
+                        // geometría más nueva (incluye la zona recién dibujada).
+                        const n = descargarKMZZonas(
+                          todasLasZonasData.map((z) => ({
+                            ...z,
+                            geojson: zonasDataRef.current[z.id] || z.geojson,
+                          })),
+                          encuesta.nombre,
+                        );
+                        mostrarToast(
+                          n
+                            ? `KMZ descargado: ${n} zona${n !== 1 ? "s" : ""}`
+                            : "Todavía no hay zonas con polígono para exportar",
+                        );
+                      }}
+                      title="Descargar las zonas como KMZ (Google Earth / My Maps), con color y pin por zona"
+                      style={{
+                        marginLeft: "auto",
+                        padding: "4px 12px",
+                        fontSize: 11,
+                        fontFamily: "DM Sans",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        borderRadius: "var(--r)",
+                        border: "1.5px solid var(--border2)",
+                        background: "var(--surface)",
+                        color: "var(--ink2)",
+                      }}
+                    >
+                      ⬇ KMZ
+                    </button>
                   </div>
 
                   {vistaGeneral ? (
@@ -3066,6 +3169,7 @@ export function ZonasYMuestreoModal({ encuesta, equipos, onClose, onSaved }) {
                       onManzanasChange={() => {}}
                       colorZona={COLOR_ZONA(zonaActivaIdx)}
                       todasLasZonas={todasLasZonasData}
+                      zonaActivaId={zonaActiva}
                       encuestadoresAsignados={asignaciones[zonaActiva] || []}
                     />
                   ) : (
