@@ -7,7 +7,7 @@ import { indicesIndecision } from '../lib/indecision'
 import { correlacionGestionVoto, ETIQUETAS_GESTION } from '../lib/correlacion'
 import { compararConAnterior } from '../lib/tendencia'
 import { leerOverrides } from '../lib/reportesAutomaticos'
-import { curvaSaturacion } from '../lib/competitividad'
+import { curvaSaturacion, cargosCandidato } from '../lib/competitividad'
 import { useEncuestaAnterior } from '../hooks/useRespuestasCrudas'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
@@ -149,7 +149,7 @@ function PanelCorrelacion({ corr }) {
       <div style={{ fontSize: 14, marginBottom: 12 }}>
         Correlación evaluación–voto ({oficialista.candidato}): <b style={{ fontFamily: 'var(--font-num)' }}>r = {oficialista.r.toFixed(2)}</b> ({oficialista.fuerza})
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${puntos.length}, 1fr)`, gap: 8, marginBottom: 12 }}>
         {puntos.map(p => (
           <div key={p.nivel} style={{ textAlign: 'center' }}>
             <div style={{ height: 70, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
@@ -233,7 +233,7 @@ export function PanelCompetitividad({ comp }) {
   return (
     <div style={{ ...caja, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', borderTop: `3px solid ${comp.nivel.color}` }}>
       <div>
-        <div style={tituloCaja}>Competitividad electoral — Intendente</div>
+        <div style={tituloCaja}>Competitividad electoral — {comp.cargo}</div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
           <span style={{ fontFamily: 'var(--font-num)', fontSize: 34, fontWeight: 600, color: comp.nivel.color }}>{comp.diff}pp</span>
           <span style={{ fontSize: 15, fontWeight: 700 }}>{comp.nivel.emoji} {comp.nivel.label}</span>
@@ -331,7 +331,7 @@ export function EstadisticasResumen({ encuesta, preguntas, crudo, cargando }) {
     return {
       indecision: indicesIndecision(ctx),
       correlacion: correlacionGestionVoto(ctx),
-      curva: curvaSaturacion(ctx),
+      curvas: cargosCandidato(ctx).map(c => curvaSaturacion(ctx, c.clave)).filter(Boolean),
       tendencia: secciones.length ? { encuestaAnterior: anterior.encuesta, secciones } : null,
     }
   }, [crudo, anterior, preguntas, encuesta?.id])
@@ -342,7 +342,7 @@ export function EstadisticasResumen({ encuesta, preguntas, crudo, cargando }) {
   if (!estadisticas) return null
   return (
     <>
-      <PanelCurvaSaturacion curva={estadisticas.curva} />
+      {estadisticas.curvas.map(c => <PanelCurvaSaturacion key={c.cargo} curva={c} />)}
       <PanelIndecision indices={estadisticas.indecision} />
       <PanelCorrelacion corr={estadisticas.correlacion} />
       <PanelTendencia tendencia={estadisticas.tendencia} />

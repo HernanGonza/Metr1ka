@@ -530,6 +530,8 @@ function clasificarGestion(opcion) {
 function calcularEvaluacionGestion(pGestion, ctx, pParticipa) {
   if (!pGestion) return null
   const conteo = { positivo: 0, neutro: 0, negativo: 0 }
+  // La clase neutra solo existe si la pregunta tiene una opción neutra (p. ej. "Regular").
+  const tieneNeutro = opcionesDe(pGestion).some(o => clasificarGestion(o) === 'neutro')
   let totalGestion = 0
   for (const f of ctx.crudo?.filas || []) {
     if (!esCompletada(f, pParticipa)) continue
@@ -537,13 +539,14 @@ function calcularEvaluacionGestion(pGestion, ctx, pParticipa) {
     if (!crudo) continue
     const clase = clasificarGestion(crudo)
     if (!clase) continue
+    if (clase === 'neutro' && !tieneNeutro) continue
     conteo[clase]++
     totalGestion++
   }
   if (totalGestion === 0) return null
   return {
     positivo: pct(conteo.positivo, totalGestion),
-    neutro:   pct(conteo.neutro, totalGestion),
+    neutro:   tieneNeutro ? pct(conteo.neutro, totalGestion) : null,
     negativo: pct(conteo.negativo, totalGestion),
   }
 }

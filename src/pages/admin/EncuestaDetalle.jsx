@@ -13,7 +13,7 @@ import { PanelMargenError, EstadisticasResumen, PanelCompetitividad, PanelProyec
 import { ScoreCalidad, DetalleEncuestador, AlertaMismoLugar, ExplicacionCalidad } from '../../components/CalidadEncuestador'
 import { useRespuestasCrudas } from '../../hooks/useRespuestasCrudas'
 import { leerOverrides, preguntaEspecial, esCompletada } from '../../lib/reportesAutomaticos'
-import { indiceCompetitividad, proyeccion } from '../../lib/competitividad'
+import { indiceCompetitividad, proyeccion, cargosCandidato } from '../../lib/competitividad'
 import { noRespuestaSelectiva } from '../../lib/noRespuestaSelectiva'
 import { scoreCalidad, sesionesPorEncuestador } from '../../lib/calidadEncuestador'
 import styles from './Page.module.css'
@@ -288,10 +288,14 @@ function VistaResultados({ encuesta, preguntas, resumen, respuestas, encuestador
     () => (crudo ? { preguntas, crudo, overrides: leerOverrides(encuesta.id) } : null),
     [crudo, preguntas, encuesta.id]
   )
-  const competitividad = useMemo(() => (ctxEstad ? indiceCompetitividad(ctxEstad) : null), [ctxEstad])
-  const proy = useMemo(
-    () => (ctxEstad && encuesta.estado_produccion === 'publicada' ? proyeccion(ctxEstad) : null),
-    [ctxEstad, encuesta.estado_produccion]
+  const cargosCand = useMemo(() => (ctxEstad ? cargosCandidato(ctxEstad) : []), [ctxEstad])
+  const competitividades = useMemo(
+    () => (ctxEstad ? cargosCand.map(c => indiceCompetitividad(ctxEstad, c.clave)).filter(Boolean) : []),
+    [ctxEstad, cargosCand]
+  )
+  const proyecciones = useMemo(
+    () => (ctxEstad && encuesta.estado_produccion === 'publicada' ? cargosCand.map(c => proyeccion(ctxEstad, c.clave)).filter(Boolean) : []),
+    [ctxEstad, cargosCand, encuesta.estado_produccion]
   )
   const alertasSelectivas = useMemo(() => (ctxEstad ? noRespuestaSelectiva(ctxEstad, statsZona) : {}), [ctxEstad, statsZona])
   const sesionesEnc = useMemo(() => sesionesPorEncuestador(crudo), [crudo])
@@ -462,8 +466,8 @@ function VistaResultados({ encuesta, preguntas, resumen, respuestas, encuestador
       {vista === 'resumen' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <PanelMargenError n={resumen?.total_participaron || 0} />
-          <PanelCompetitividad comp={competitividad} />
-          <PanelProyeccion proy={proy} />
+          {competitividades.map(c => <PanelCompetitividad key={c.cargo} comp={c} />)}
+          {proyecciones.map(p => <PanelProyeccion key={p.cargo} proy={p} />)}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 14 }}>
             {preguntas.filter(p => !p.clave_base || p.clave_base === 'edad' || p.clave_base === 'sexo').slice(0, 4).map((p, i) => (
               <PreguntaChart key={p.id} pregunta={p} filas={filasPorPregunta[String(p.id)] || []} paletaIdx={i} />

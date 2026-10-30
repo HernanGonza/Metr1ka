@@ -64,12 +64,15 @@ export function correlacionGestionVoto(ctx, clavesGestion = CLAVES_GESTION_INTEN
   const pParticipa = preguntaEspecial(ctx, 'participa')
   const opciones = opcionesDe(pCand)
   const pSeg = buscarSeguimientoOtro(ctx.preguntas, pCand)
+  // El nivel intermedio solo existe si la pregunta de gestión tiene una opción neutra.
+  const tieneNeutro = opcionesDe(pGestion).some(o => valorGestion(o) === 3)
+  const niveles = tieneNeutro ? [1, 2, 3, 4, 5] : [1, 2, 4, 5]
 
   const pares = []
   for (const fila of ctx.crudo.filas || []) {
     if (!esCompletada(fila, pParticipa)) continue
     const g = valorGestion(fila.respuestas?.[String(pGestion.id)])
-    if (g == null) continue
+    if (g == null || (g === 3 && !tieneNeutro)) continue
     const cand = valorFusionadoConSeguimiento(fila, pCand, opciones, pSeg)
     if (!cand) continue
     pares.push({ g, cand })
@@ -88,7 +91,7 @@ export function correlacionGestionVoto(ctx, clavesGestion = CLAVES_GESTION_INTEN
   const oficialista = porCandidato[0]
   // Puntos del scatter: por cada nivel de evaluación, % que vota al
   // oficialista (un scatter binario crudo sería ilegible).
-  const puntos = [1, 2, 3, 4, 5].map(nivel => {
+  const puntos = niveles.map(nivel => {
     const grupo = pares.filter(p => p.g === nivel)
     const votan = grupo.filter(p => p.cand === oficialista.candidato).length
     return { nivel, n: grupo.length, pct: grupo.length ? Math.round((votan / grupo.length) * 1000) / 10 : null }

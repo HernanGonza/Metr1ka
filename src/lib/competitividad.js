@@ -24,6 +24,23 @@ export function preguntaCandidatoPrincipal(ctx) {
   return null
 }
 
+// Cargos a mostrar en los paneles: intendente y gobernador si la encuesta
+// tiene su pregunta; si no tiene ninguno de los dos, el principal (presidente).
+export function cargosCandidato(ctx) {
+  const propios = CARGOS.slice(0, 2).filter(c => preguntaEspecial(ctx, c.clave))
+  if (propios.length) return propios
+  const principal = preguntaCandidatoPrincipal(ctx)
+  return principal ? [CARGOS.find(c => c.nombre === principal.cargo)] : []
+}
+
+// Pregunta + nombre de cargo para una clave dada (o la principal si no hay).
+function resolverCargo(ctx, claveCand) {
+  if (!claveCand) return preguntaCandidatoPrincipal(ctx)
+  const pregunta = preguntaEspecial(ctx, claveCand)
+  const cargo = CARGOS.find(c => c.clave === claveCand)?.nombre
+  return pregunta && cargo ? { pregunta, cargo } : null
+}
+
 // ── 14. Índice de competitividad ──
 export function nivelCompetitividadElectoral(diff) {
   if (diff < 5) return { label: 'Muy competitivo', emoji: '🔴', color: '#dc2626' }
@@ -48,6 +65,7 @@ export function indiceCompetitividad(ctx, claveCand = 'candidato_intendente') {
     primero: { nombre: c1.opcion, pct: pct(c1.n) },
     segundo: { nombre: c2.opcion, pct: pct(c2.n) },
     diff, totalValidos, nivel: nivelCompetitividadElectoral(diff),
+    cargo: CARGOS.find(c => c.clave === claveCand)?.nombre || 'Intendente',
   }
 }
 
@@ -57,8 +75,8 @@ export function indiceCompetitividad(ctx, claveCand = 'candidato_intendente') {
 // intervalo de confianza con el ME específico de cada uno.
 export const N_MINIMO_PROYECCION = 100
 
-export function proyeccion(ctx) {
-  const principal = preguntaCandidatoPrincipal(ctx)
+export function proyeccion(ctx, claveCand) {
+  const principal = resolverCargo(ctx, claveCand)
   if (!principal || !ctx?.crudo) return null
   const dist = distribucionCompleta(principal.pregunta, ctx.preguntas, ctx.crudo, preguntaEspecial(ctx, 'participa'))
   if (dist.total < N_MINIMO_PROYECCION) return null
@@ -81,8 +99,8 @@ const VENTANA_ESTABILIDAD = 50
 const UMBRAL_ESTABILIDAD_PP = 2
 const MAX_PUNTOS_CURVA = 400
 
-export function curvaSaturacion(ctx) {
-  const principal = preguntaCandidatoPrincipal(ctx)
+export function curvaSaturacion(ctx, claveCand) {
+  const principal = resolverCargo(ctx, claveCand)
   if (!principal || !ctx?.crudo) return null
   const p = principal.pregunta
   const pParticipa = preguntaEspecial(ctx, 'participa')

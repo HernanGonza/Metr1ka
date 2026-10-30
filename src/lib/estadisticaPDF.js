@@ -86,12 +86,13 @@ export function indecisionHTML(indices) {
 export function scatterCorrelacionSVG(corr) {
   const w = 420, h = 200, padL = 40, padB = 34, padT = 14, padR = 16
   const puntos = corr.puntos.filter(p => p.pct != null)
-  const x = nivel => padL + ((nivel - 1) / 4) * (w - padL - padR)
+  const niveles = corr.puntos.map(p => p.nivel)
+  const x = nivel => padL + (niveles.indexOf(nivel) / Math.max(1, niveles.length - 1)) * (w - padL - padR)
   const y = pct => padT + (1 - pct / 100) * (h - padT - padB)
   const maxN = Math.max(1, ...puntos.map(p => p.n))
   const guias = [0, 25, 50, 75, 100].map(v => `<line x1="${padL}" y1="${y(v)}" x2="${w - padR}" y2="${y(v)}" stroke="#eee"/>
     <text x="${padL - 6}" y="${y(v) + 3}" font-size="8" fill="#aaa" text-anchor="end">${v}%</text>`).join('')
-  const ejeX = [1, 2, 3, 4, 5].map(nv => `<text x="${x(nv)}" y="${h - padB + 14}" font-size="9" fill="#888" text-anchor="middle">${ETIQUETAS_GESTION[nv]}</text>`).join('')
+  const ejeX = niveles.map(nv => `<text x="${x(nv)}" y="${h - padB + 14}" font-size="9" fill="#888" text-anchor="middle">${ETIQUETAS_GESTION[nv]}</text>`).join('')
   const linea = puntos.length > 1 ? `<polyline points="${puntos.map(p => `${x(p.nivel)},${y(p.pct)}`).join(' ')}" fill="none" stroke="#52B788" stroke-width="1.5" stroke-dasharray="4 3"/>` : ''
   const circulos = puntos.map(p => `<circle cx="${x(p.nivel)}" cy="${y(p.pct)}" r="${(4 + 8 * Math.sqrt(p.n / maxN)).toFixed(1)}" fill="#1a472a" fill-opacity="0.75"/>
     <text x="${x(p.nivel)}" y="${y(p.pct) - 12}" font-size="9" fill="#333" text-anchor="middle">${p.pct}%</text>`).join('')

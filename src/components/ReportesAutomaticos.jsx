@@ -6,7 +6,7 @@ import { margenError } from '../lib/margenError'
 import { indicesIndecision } from '../lib/indecision'
 import { correlacionGestionVoto } from '../lib/correlacion'
 import { cargarEncuestaAnterior, compararConAnterior } from '../lib/tendencia'
-import { indiceCompetitividad } from '../lib/competitividad'
+import { indiceCompetitividad, cargosCandidato } from '../lib/competitividad'
 import { enriquecerActividad, colorScore, desgloseTexto, nivelAlertaMismoLugar, textoAlertaMismoLugar, MISMO_LUGAR_M, VENTANA_MIN } from '../lib/calidadEncuestador'
 import { UMBRAL_ALERTA_PCT } from '../lib/straightlining'
 import {
@@ -255,22 +255,21 @@ function cuerpoResumenEjecutivo(r, estad) {
     const ev = r.evaluacionGestionIntendente
     bloques.push(`<div class="sec">Evaluación de gestión — Intendente</div>
       ${filaBarra('Positiva', ev.positivo, '#2d8f4e')}
-      ${filaBarra('Neutra', ev.neutro, '#b45309')}
+      ${ev.neutro != null ? filaBarra('Neutra', ev.neutro, '#b45309') : ''}
       ${filaBarra('Negativa', ev.negativo, '#c0392b')}`)
   }
   if (r.evaluacionGestionGobernador) {
     const ev = r.evaluacionGestionGobernador
     bloques.push(`<div class="sec">Evaluación de gestión — Gobernador</div>
       ${filaBarra('Positiva', ev.positivo, '#2d8f4e')}
-      ${filaBarra('Neutra', ev.neutro, '#b45309')}
+      ${ev.neutro != null ? filaBarra('Neutra', ev.neutro, '#b45309') : ''}
       ${filaBarra('Negativa', ev.negativo, '#c0392b')}`)
   }
   if (r.problemaPrincipal) {
     bloques.push(`<div class="sec">Principal problema</div>${r.problemaPrincipal.top.map((c, i) => filaBarra(c.nombre, c.pct, ['#7c3aed', '#9f7aea', '#c4b5fd'][i] || '#c4b5fd')).join('')}${pieMargenHTML(r.problemaPrincipal.n)}`)
   }
-  if (estad?.competitividad) {
-    const c = estad.competitividad
-    bloques.push(`<div class="sec">Competitividad electoral — Intendente</div>
+  for (const c of estad?.competitividades || []) {
+    bloques.push(`<div class="sec">Competitividad electoral — ${c.cargo}</div>
       <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:6px">
         <div style="font-size:32px;font-weight:800;color:${c.nivel.color}">${c.diff}pp</div>
         <div style="font-size:16px;font-weight:700">${c.nivel.emoji} ${c.nivel.label}</div>
@@ -563,7 +562,7 @@ export function calcularEstadisticasAutomaticas(ctx, preguntas, crudo, anterior)
     n: (crudo.filas || []).filter(f => esCompletada(f, pParticipa)).length,
     indecision: indicesIndecision(ctx),
     correlacion: correlacionGestionVoto(ctx),
-    competitividad: indiceCompetitividad(ctx),
+    competitividades: cargosCandidato(ctx).map(c => indiceCompetitividad(ctx, c.clave)).filter(Boolean),
     tendencia: secciones.length ? { encuestaAnterior: anterior.encuesta, secciones } : null,
   }
 }
@@ -897,13 +896,13 @@ function VistaResumenEjecutivo({ r }) {
       {r.evaluacionGestionIntendente && (<>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent2)', margin: '18px 0 8px' }}>Evaluación de gestión — Intendente</div>
         {fila('Positiva', r.evaluacionGestionIntendente.positivo, '#2d8f4e')}
-        {fila('Neutra', r.evaluacionGestionIntendente.neutro, '#b45309')}
+        {r.evaluacionGestionIntendente.neutro != null && fila('Neutra', r.evaluacionGestionIntendente.neutro, '#b45309')}
         {fila('Negativa', r.evaluacionGestionIntendente.negativo, '#c0392b')}
       </>)}
       {r.evaluacionGestionGobernador && (<>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent2)', margin: '18px 0 8px' }}>Evaluación de gestión — Gobernador</div>
         {fila('Positiva', r.evaluacionGestionGobernador.positivo, '#2d8f4e')}
-        {fila('Neutra', r.evaluacionGestionGobernador.neutro, '#b45309')}
+        {r.evaluacionGestionGobernador.neutro != null && fila('Neutra', r.evaluacionGestionGobernador.neutro, '#b45309')}
         {fila('Negativa', r.evaluacionGestionGobernador.negativo, '#c0392b')}
       </>)}
       {r.problemaPrincipal && (<>
