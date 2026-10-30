@@ -1352,6 +1352,7 @@ export default function Reportes() {
   // Informes automáticos para el modal de exportación: statsZona y la encuesta
   // anterior (tendencia) se piden al abrir el modal; el resto sale de datosExport.
   const [statsZonaAuto, setStatsZonaAuto] = useState(null)
+  const [cargandoAuto,  setCargandoAuto]  = useState(false)
   const [anteriorAuto,  setAnteriorAuto]  = useState(null)
   const [catsAutoAbiertas, setCatsAutoAbiertas] = useState({})
   const [comparaciones, setComparaciones] = useState([{ id: 1 }])
@@ -1582,11 +1583,17 @@ export default function Reportes() {
   useEffect(() => {
     if (!modalExport || !selected?.id) return
     let cancelado = false
+    // Las respuestas crudas solo se cargaban al entrar a las pestañas Mapa/Datos:
+    // si se abre el modal sin pasar por ahí, hay que pedirlas acá.
+    if (!datosExport && !loadingDatos) cargarDatosCrudos()
+    setCargandoAuto(true)
     ;(async () => {
       try {
-        const { data: sz } = await supabase.rpc('get_stats_por_zona', { p_encuesta_id: selected.id })
+        const { data: sz, error: errSz } = await supabase.rpc('get_stats_por_zona', { p_encuesta_id: selected.id })
+        if (errSz) console.error('statsZonaAuto:', errSz)
         if (!cancelado) setStatsZonaAuto(sz || null)
       } catch (e) { console.error('statsZonaAuto:', e) }
+      if (!cancelado) setCargandoAuto(false)
       // Tendencia: opcional, no bloquea nada si falla.
       cargarEncuestaAnterior(data?.encuesta || selected).then(a => { if (!cancelado) setAnteriorAuto(a) }).catch(() => {})
     })()
@@ -2141,8 +2148,10 @@ export default function Reportes() {
                 <div style={{ fontSize: 11, color: 'var(--ink3)', margin: '2px 0 10px' }}>
                   Se agregan al PDF como secciones, con los filtros actuales. Usan las preguntas especiales configuradas en el detalle de la encuesta.
                 </div>
-                {!ctxAuto || !statsZonaAuto ? (
+                {cargandoAuto || loadingDatos || (!ctxAuto && !datosExport) ? (
                   <div style={{ fontSize: 12, color: 'var(--ink3)' }}>Calculando informes…</div>
+                ) : !ctxAuto ? (
+                  <div style={{ fontSize: 12, color: 'var(--danger)' }}>No se pudieron cargar los datos para los informes automáticos. Cerrá y volvé a abrir el modal.</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {gruposAuto.map(({ categoria, items }) => {
